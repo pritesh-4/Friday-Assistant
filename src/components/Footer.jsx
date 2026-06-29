@@ -48,26 +48,23 @@ export default function Footer() {
   ];
 
   return (
-    <footer className="relative bg-[#09090B] border-t border-white/8 overflow-hidden">
-      {/* Cinematic grid lines overlay (subtle Interstellar aesthetic) */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_100%,#000_70%,transparent_100%)] pointer-events-none" />
-
+    <footer className="w-full py-12 border-t border-outline-variant/30 relative z-10 backdrop-blur-sm bg-transparent">
       {/* Main Footer Container */}
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-100px" }}
+        viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="relative max-w-7xl mx-auto px-6 pt-16 pb-8 z-10"
+        className="max-w-7xl mx-auto px-6 z-10"
       >
         {/* Top 3-Column Content Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 lg:gap-16 pb-12">
           
           {/* Left Column: Logo & Description */}
-          <div className="flex flex-col space-y-5 text-center md:text-left">
+          <div className="flex flex-col space-y-4 text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start space-x-3">
               {/* Pulsing AI state orb */}
-              <div className="relative w-3.5 h-3.5 flex items-center justify-center">
+              <div className="relative w-3 h-3 flex items-center justify-center">
                 <motion.div
                   animate={{
                     scale: [1, 1.25, 1],
@@ -78,20 +75,20 @@ export default function Footer() {
                     duration: 3.5,
                     ease: "easeInOut"
                   }}
-                  className="absolute inset-0 rounded-full bg-[#7C3AED] blur-[2px]"
+                  className="absolute inset-0 rounded-full bg-primary-container blur-[2px]"
                 />
-                <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-[#7C3AED] to-[#06B6D4] relative z-10" />
+                <div className="w-2 h-2 rounded-full bg-gradient-to-tr from-primary-container to-secondary relative z-10" />
               </div>
-              <span className="text-xl font-bold tracking-[0.25em] text-[#FAFAFA]">
-                F.R.I.D.A.Y.
+              <span className="font-display-lg text-headline-md tracking-tighter text-on-surface uppercase">
+                FRIDAY
               </span>
             </div>
             
-            <div className="space-y-3">
-              <p className="text-xs font-semibold tracking-wider uppercase text-[#06B6D4]">
+            <div className="space-y-2">
+              <p className="font-label-sm text-[11px] tracking-wider uppercase text-primary-fixed-dim">
                 Future Responsive Intelligent Digital Assistant for You
               </p>
-              <p className="text-sm text-[#A1A1AA] leading-relaxed">
+              <p className="font-body-md text-sm text-on-surface-variant leading-relaxed">
                 A personal AI companion inspired by science fiction and built with today's technology.
               </p>
             </div>
@@ -99,25 +96,25 @@ export default function Footer() {
 
           {/* Center Column: Inspiration */}
           <div className="flex flex-col space-y-4 text-center md:text-left">
-            <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-[#FAFAFA]">
+            <h2 className="font-display-lg text-sm font-semibold tracking-wider uppercase text-on-surface">
               Inspiration
             </h2>
-            <p className="text-sm text-[#A1A1AA] leading-relaxed">
-              Inspired by Tony Stark's F.R.I.D.A.Y. and the sense of wonder from Interstellar.
+            <p className="font-body-md text-sm text-on-surface-variant leading-relaxed">
+              Inspired by Tony Stark's FRIDAY and the sense of wonder from Interstellar.
             </p>
-            <p className="text-sm text-[#A1A1AA] leading-relaxed">
+            <p className="font-body-md text-sm text-on-surface-variant leading-relaxed">
               This project is an attempt to explore how close modern technology can bring us to our own intelligent digital companion.
             </p>
           </div>
 
           {/* Right Column: Connect */}
-          <div className="flex flex-col space-y-5 text-center md:text-left md:col-span-2 lg:col-span-1">
-            <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-[#FAFAFA]">
+          <div className="flex flex-col space-y-4 text-center md:text-left md:col-span-2 lg:col-span-1">
+            <h2 className="font-display-lg text-sm font-semibold tracking-wider uppercase text-on-surface">
               Connect
             </h2>
             
             {/* Social Icons List */}
-            <div className="flex items-center justify-center md:justify-start space-x-4">
+            <div className="flex items-center justify-center md:justify-start space-x-3">
               {socialLinks.map((link) => (
                 <motion.a
                   key={link.name}
@@ -126,7 +123,7 @@ export default function Footer() {
                   rel="noopener noreferrer"
                   whileHover={{ scale: 1.1, y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  className="p-3 text-[#A1A1AA] hover:text-[#FAFAFA] transition-colors border border-white/8 rounded-full bg-white/3 hover:bg-white/8 hover:shadow-[0_0_15px_rgba(124,58,237,0.25)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED]"
+                  className="p-2.5 text-on-surface-variant hover:text-primary-fixed-dim transition-colors border border-outline-variant/30 rounded-full bg-white/3 hover:bg-white/8 hover:shadow-[0_0_15px_rgba(0,240,255,0.15)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-container"
                   aria-label={link.aria}
                 >
                   {link.icon}
@@ -136,14 +133,14 @@ export default function Footer() {
 
             {/* Clickable Mail Link */}
             <div className="pt-2 flex flex-col items-center md:items-start space-y-1">
-              <span className="text-xs uppercase tracking-wider text-[#A1A1AA]">Contact</span>
+              <span className="font-label-sm text-[10px] uppercase tracking-wider text-on-surface-variant">Contact</span>
               <a
                 href="mailto:priteshjena16@gmail.com"
-                className="group relative inline-flex items-center space-x-2 text-sm text-[#06B6D4] hover:text-[#FAFAFA] transition-colors duration-300 focus:outline-none"
+                className="group relative inline-flex items-center space-x-2 text-sm text-primary-fixed-dim hover:text-primary transition-colors duration-300 focus:outline-none"
               >
                 <Mail className="w-4 h-4" />
                 <span>priteshjena16@gmail.com</span>
-                <span className="absolute bottom-0 left-0 right-0 h-[1px] bg-[#06B6D4] scale-x-100 group-hover:scale-x-0 group-hover:bg-[#FAFAFA] transition-transform duration-300 origin-left" />
+                <span className="absolute bottom-0 left-0 right-0 h-[1px] bg-primary-fixed-dim scale-x-100 group-hover:scale-x-0 group-hover:bg-primary transition-transform duration-300 origin-left" />
               </a>
             </div>
           </div>
@@ -151,14 +148,14 @@ export default function Footer() {
         </div>
 
         {/* Bottom Section Divider */}
-        <div className="w-full h-[1px] bg-white/8" />
+        <div className="w-full h-[1px] bg-outline-variant/30" />
 
         {/* Bottom Meta & Subtitle */}
-        <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
-          <div className="text-xs text-[#A1A1AA] space-y-1">
+        <div className="pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+          <div className="font-body-md text-xs text-on-surface-variant space-y-1">
             <p>© 2026 FRIDAY. Built by Pritesh Kumar Jena.</p>
           </div>
-          <div className="text-xs text-[#A1A1AA]/60 italic font-light tracking-wide max-w-md">
+          <div className="font-body-md text-xs text-on-surface-variant/60 italic font-light tracking-wide max-w-md">
             "Inspired by science fiction. Built with today's technology. Created in pursuit of tomorrow."
           </div>
         </div>

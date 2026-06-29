@@ -1,1 +1,103 @@
 @import "tailwindcss";
+
+@theme {
+  --color-surface-container: #201f1f;
+  --color-surface-bright: #3a3939;
+  --color-on-primary-fixed-variant: #004f54;
+  --color-on-surface-variant: #b9cacb;
+  --color-primary-fixed-dim: #00dbe9;
+  --color-on-background: #e5e2e1;
+  --color-on-error-container: #ffdad6;
+  --color-inverse-on-surface: #313030;
+  --color-secondary-fixed-dim: #d1bcff;
+  --color-tertiary: #f8f5f5;
+  --color-primary: #dbfcff;
+  --color-on-primary: #00363a;
+  --color-primary-container: #00f0ff;
+  --color-on-secondary-container: #ddcdff;
+  --color-on-tertiary-container: #5f5e5e;
+  --color-outline-variant: #3b494b;
+  --color-surface: #131313;
+  --color-on-secondary-fixed: #23005b;
+  --color-on-error: #690005;
+  --color-tertiary-container: #dcd9d8;
+  --color-on-primary-fixed: #002022;
+  --color-secondary-fixed: #e9ddff;
+  --color-error: #ffb4ab;
+  --color-surface-container-highest: #353534;
+  --color-surface-tint: #00dbe9;
+  --color-tertiary-fixed-dim: #c8c6c5;
+  --color-surface-variant: #353534;
+  --color-secondary-container: #7000ff;
+  --color-on-tertiary-fixed-variant: #474746;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-error-container: #93000a;
+  --color-surface-container-low: #1c1b1b;
+  --color-on-tertiary: #313030;
+  --color-on-secondary-fixed-variant: #5700c9;
+  --color-on-secondary: #3c0090;
+  --color-surface-container-high: #2a2a2a;
+  --color-inverse-surface: #e5e2e1;
+  --color-background: #131313;
+  --color-tertiary-fixed: #e5e2e1;
+  --color-on-tertiary-fixed: #1c1b1b;
+  --color-secondary: #d1bcff;
+  --color-primary-fixed: #7df4ff;
+  --color-surface-dim: #131313;
+  --color-on-primary-container: #006970;
+  --color-outline: #849495;
+  --color-on-surface: #e5e2e1;
+  --color-inverse-primary: #006970;
+
+  --font-display-lg: "Geist", sans-serif;
+  --font-body-md: "Inter", sans-serif;
+  --font-body-lg: "Inter", sans-serif;
+  --font-headline-md: "Geist", sans-serif;
+  --font-headline-lg: "Geist", sans-serif;
+  --font-headline-lg-mobile: "Geist", sans-serif;
+  --font-label-sm: "JetBrains Mono", monospace;
+}
+
+@utility glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@utility glow-effect {
+  box-shadow: 0 0 40px rgba(0, 240, 255, 0.05);
+}
+
+@utility pulse-orb {
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,240,255,0.15) 0%, rgba(0,0,0,0) 70%);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: pulse-animation 4s ease-in-out infinite alternate;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@utility text-gradient {
+  background: linear-gradient(180deg, #FFFFFF 0%, rgba(255, 255, 255, 0.5) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes pulse-animation {
+  0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+}
+
+body {
+  background-color: #131313;
+  color: #e5e2e1;
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+}
