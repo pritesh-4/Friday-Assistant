@@ -23,10 +23,12 @@ export default function ChatWindow({
   setOrbState,
   isFridayTyping = false,
   userName = "Pree",
-  greetingTime = "Evening"
+  greetingTime = "Evening",
+  rightPanelOpen = false,
+  setRightPanelOpen,
+  isVoiceMode = false,
+  setIsVoiceMode
 }) {
-  const [rightPanelOpen, setRightPanelOpen] = useState(false);
-  const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
   
   // Custom states for AGI placeholders
