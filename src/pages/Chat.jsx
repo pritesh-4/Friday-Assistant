@@ -3,6 +3,7 @@ import { Cpu } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ShaderBackground from "../components/ShaderBackground";
 import ChatWindow from "../components/ChatWindow";
+import CustomCursor from "../components/CustomCursor";
 
 export default function Chat() {
   // Sidebar states
@@ -84,6 +85,7 @@ export default function Chat() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#131313] text-on-surface relative font-sans">
       <ShaderBackground />
+      <CustomCursor isSystemThinking={isFridayTyping} />
 
       {/* Actual Sidebar (Desktop Collapsible / Mobile Sliding Drawer) */}
       <Sidebar
