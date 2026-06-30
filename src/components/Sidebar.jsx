@@ -64,15 +64,20 @@ export default function Sidebar({
     <div className="h-full flex flex-col justify-between text-on-surface">
       {/* Top Identity Section */}
       <div className="p-5 flex flex-col items-center border-b border-white/5 relative">
-        {/* Toggle Collapse/Expand Button (Desktop only) */}
+        {/* Toggle Collapse/Expand Button with Tooltip (Desktop only) */}
         {setIsCollapsed && (
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden md:flex absolute -right-3 top-6 w-6 h-6 rounded-full bg-[#201f1f] hover:bg-[#3a3939] border border-white/10 items-center justify-center text-primary-container shadow-md z-30 transition-all hover:scale-110 active:scale-95"
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {isCollapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-          </button>
+          <div className="relative group/collapse hidden md:block">
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="absolute -right-3 top-6 w-6 h-6 rounded-full bg-[#1c1b1b] hover:bg-[#201f1f] border border-[#00f0ff]/30 hover:border-[#00f0ff] flex items-center justify-center text-primary-container shadow-[0_0_10px_rgba(0,240,255,0.2)] z-30 transition-all duration-300 hover:scale-110 active:scale-90 cursor-pointer"
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isCollapsed ? <ChevronRight size={11} /> : <ChevronLeft size={11} />}
+            </button>
+            <div className="absolute left-6 top-6 pointer-events-none opacity-0 group-hover/collapse:opacity-100 transition-opacity duration-300 z-40 bg-black/90 border border-white/10 text-[9px] uppercase font-mono tracking-widest text-[#00f0ff] px-2 py-1 rounded shadow-lg whitespace-nowrap">
+              {isCollapsed ? "Expand Workspace" : "Collapse Workspace"}
+            </div>
+          </div>
         )}
 
         {/* Animated Orb face of FRIDAY */}
@@ -213,6 +218,112 @@ export default function Sidebar({
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* 2. Memories Tab panel */}
+        {activeTab === "memories" && (
+          <div className="space-y-4">
+            {!isCollapsed && (
+              <div className="flex items-center justify-between px-2">
+                <span className="font-label-sm text-[10px] uppercase tracking-widest text-[#d1bcff] opacity-80">
+                  Vector Memory Core
+                </span>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#d1bcff] animate-pulse" />
+              </div>
+            )}
+            <div className="space-y-2">
+              {pinnedMemories.map((memory, i) => (
+                <div
+                  key={i}
+                  className="p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-[#d1bcff]/20 hover:bg-white/[0.04] transition-all duration-300 text-xs font-light text-on-surface-variant hover:text-on-surface"
+                >
+                  <div className="flex items-center gap-2 mb-1.5 font-mono text-[9px] uppercase tracking-wider text-secondary">
+                    <span>🧠</span>
+                    <span>Recalled Memory Node</span>
+                  </div>
+                  <p className="leading-relaxed font-light">{memory}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 3. Notes Tab panel */}
+        {activeTab === "notes" && (
+          <div className="space-y-4">
+            {!isCollapsed && (
+              <div className="flex items-center justify-between px-2">
+                <span className="font-label-sm text-[10px] uppercase tracking-widest text-primary-container opacity-80">
+                  Session Notes
+                </span>
+                <span className="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse" />
+              </div>
+            )}
+            <div className="space-y-2">
+              <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 text-center space-y-2.5">
+                <span className="text-xl">📓</span>
+                <h4 className="font-headline-md text-xs text-on-surface font-semibold">Notes Active</h4>
+                <p className="font-body-md text-[10.5px] text-on-surface-variant leading-relaxed">
+                  Workspace session notes are synced. Interactive editor widgets are currently under development.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 4. Tasks Tab panel */}
+        {activeTab === "tasks" && (
+          <div className="space-y-4">
+            {!isCollapsed && (
+              <div className="flex items-center justify-between px-2">
+                <span className="font-label-sm text-[10px] uppercase tracking-widest text-secondary opacity-80">
+                  Tasks Checklist
+                </span>
+                <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
+              </div>
+            )}
+            <div className="space-y-2">
+              <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 text-center space-y-2.5">
+                <span className="text-xl">📋</span>
+                <h4 className="font-headline-md text-xs text-on-surface font-semibold">Checklist Active</h4>
+                <p className="font-body-md text-[10.5px] text-on-surface-variant leading-relaxed">
+                  Workspace checklist points are active and tracked inside the right-hand side panel.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 5. Settings Tab panel */}
+        {activeTab === "settings" && (
+          <div className="space-y-4">
+            {!isCollapsed && (
+              <div className="flex items-center justify-between px-2">
+                <span className="font-label-sm text-[10px] uppercase tracking-widest text-on-surface-variant/80">
+                  Telemetry Sync Settings
+                </span>
+              </div>
+            )}
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-xl bg-[#1c1b1b]/50 border border-white/5 space-y-3.5 font-mono text-[10px] tracking-wide text-on-surface-variant">
+                <div className="flex items-center justify-between">
+                  <span>THEME MODE</span>
+                  <span className="text-[#00f0ff] font-semibold">DARK OS</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>VOICE MODE</span>
+                  <span className="text-secondary font-semibold">ENABLED</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>ANIMATIONS</span>
+                  <span className="text-primary-container font-semibold">BALANCED</span>
+                </div>
+              </div>
+              <p className="font-body-md text-[9px] text-center text-on-surface-variant/40 italic">
+                FastAPI persistent settings sync coming soon.
+              </p>
+            </div>
           </div>
         )}
 

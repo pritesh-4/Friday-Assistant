@@ -53,7 +53,8 @@ export default function ChatInput({
   isFridayListening = false,
   activeContext = "building-friday", // building-friday, document-analysis, memory-retrieval
   attachedFile = null,
-  onRemoveAttachedFile
+  onRemoveAttachedFile,
+  isChatEmpty = false
 }) {
 
   const [inputText, setInputText] = useState("");
@@ -61,6 +62,7 @@ export default function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [activeCapability, setActiveCapability] = useState(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showCapabilities, setShowCapabilities] = useState(false);
   
   // Custom voice recording simulator state
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
@@ -203,28 +205,28 @@ export default function ChatInput({
         )}
       </AnimatePresence>
 
-      {/* 2. Smart Suggestion Cards (Visible only when input is empty and not listening) */}
+      {/* 2. Smart Suggestion Cards (Visible only when chat is empty and input is empty) */}
       <AnimatePresence>
-        {inputText.length === 0 && !isVoiceRecording && !isFridayListening && (
+        {isChatEmpty && inputText.length === 0 && !isVoiceRecording && !isFridayListening && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-6"
+            className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 mb-6"
           >
             {suggestions.map((sug) => (
               <button
                 key={sug.id}
                 onClick={() => handleSuggestionClick(sug.label)}
-                className="glass-panel border-white/5 hover:border-[#00f0ff]/20 bg-white/[0.01] hover:bg-white/[0.03] p-3.5 rounded-xl text-left transition-all duration-300 group hover:shadow-[0_0_12px_rgba(0,240,255,0.03)] cursor-pointer flex flex-col gap-2.5 justify-between min-h-[80px]"
+                className="glass-panel border-white/5 hover:border-[#00f0ff]/20 bg-white/[0.01] hover:bg-white/[0.03] p-2.5 rounded-xl text-left transition-all duration-300 group hover:shadow-[0_0_12px_rgba(0,240,255,0.02)] cursor-pointer flex items-center gap-3 w-full"
               >
-                <div className="w-6 h-6 rounded-lg bg-surface border border-white/5 flex items-center justify-center group-hover:border-[#00f0ff]/30 transition-colors duration-300">
+                <div className="w-6 h-6 rounded-lg bg-surface border border-white/5 flex items-center justify-center shrink-0 group-hover:border-[#00f0ff]/30 transition-colors duration-300">
                   {sug.icon}
                 </div>
                 <span
                   id={sug.id}
-                  className="font-body-md text-[11px] text-on-surface-variant font-light group-hover:text-on-surface transition-colors leading-snug"
+                  className="font-body-md text-[11px] text-on-surface-variant font-light group-hover:text-on-surface transition-colors leading-snug truncate"
                 >
                   {sug.label}
                 </span>
@@ -271,23 +273,30 @@ export default function ChatInput({
 
           {/* Capabilities chips */}
           <div className="flex flex-wrap gap-1.5 items-center">
-            {capabilities.map((cap) => {
-              const isActive = activeCapability === cap.id;
-              return (
-                <button
-                  key={cap.id}
-                  onClick={() => setActiveCapability(isActive ? null : cap.id)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-mono transition-all border cursor-pointer ${
-                    isActive
-                      ? "bg-[#00f0ff]/10 border-[#00f0ff]/40 text-[#00f0ff]"
-                      : "bg-[#1c1b1b]/50 border-white/5 text-on-surface-variant hover:border-[#00f0ff]/20 hover:text-on-surface"
-                  }`}
-                >
-                  {cap.icon}
-                  <span>{cap.label}</span>
-                </button>
-              );
-            })}
+            {showCapabilities ? (
+              capabilities.map((cap) => {
+                const isActive = activeCapability === cap.id;
+                return (
+                  <button
+                    key={cap.id}
+                    onClick={() => setActiveCapability(isActive ? null : cap.id)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-mono transition-all border cursor-pointer ${
+                      isActive
+                        ? "bg-[#00f0ff]/10 border-[#00f0ff]/40 text-[#00f0ff]"
+                        : "bg-[#1c1b1b]/50 border-white/5 text-on-surface-variant hover:border-[#00f0ff]/20 hover:text-on-surface"
+                    }`}
+                  >
+                    {cap.icon}
+                    <span>{cap.label}</span>
+                  </button>
+                );
+              })
+            ) : activeCapability ? (
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-mono bg-[#00f0ff]/10 border border-[#00f0ff]/40 text-[#00f0ff]">
+                {capabilities.find(c => c.id === activeCapability)?.icon}
+                <span>{capabilities.find(c => c.id === activeCapability)?.label}</span>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -346,27 +355,45 @@ export default function ChatInput({
         {/* Middle/Bottom Segment: Active Input panel */}
         {!isVoiceRecording && (
           <div className="flex items-end p-4 gap-3 bg-gradient-to-b from-transparent to-[#131313]/30">
-            {/* Left Actions: Attachment */}
-            <div className="group relative">
-              <button
-                type="button"
-                onClick={handleFileUploadSim}
-                className="p-3 rounded-xl border border-white/5 hover:border-white/20 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5 transition-all duration-300 active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
-                aria-label="Upload File"
-              >
-                <Paperclip size={18} />
-              </button>
-
-              {/* Hover label tooltip */}
-              <div className="absolute bottom-full left-0 mb-2.5 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-300 w-52 z-30">
-                <div
-                  id="icqjlwm"
-                  className="px-2.5 py-1.5 rounded-lg bg-black/85 border border-white/10 text-[10px] text-on-surface-variant font-light shadow-xl text-center leading-normal"
+            {/* Left Actions: Attachment & Quick Actions Command Menu */}
+            <div className="flex gap-2">
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={handleFileUploadSim}
+                  className="p-3 rounded-xl border border-white/5 hover:border-white/20 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5 transition-all duration-300 active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
+                  aria-label="Upload File"
                 >
-                  Attach something for me to work with.
+                  <Paperclip size={18} />
+                </button>
+                <div className="absolute bottom-full left-0 mb-2.5 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-300 w-52 z-30">
+                  <div id="icqjlwm" className="px-2.5 py-1.5 rounded-lg bg-black/85 border border-white/10 text-[10px] text-on-surface-variant font-light shadow-xl text-center leading-normal">
+                    Attach something for me to work with.
+                  </div>
+                </div>
+              </div>
+
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={() => setShowCapabilities(!showCapabilities)}
+                  className={`p-3 rounded-xl border transition-all duration-300 active:scale-95 cursor-pointer flex items-center justify-center shrink-0 ${
+                    showCapabilities
+                      ? "border-[#00f0ff]/30 text-[#00f0ff] bg-[#00f0ff]/5"
+                      : "border-white/5 hover:border-white/20 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5"
+                  }`}
+                  aria-label="Toggle Command Capabilities"
+                >
+                  <Zap size={18} className={showCapabilities ? "animate-pulse" : ""} />
+                </button>
+                <div className="absolute bottom-full left-0 mb-2.5 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-300 w-36 z-30">
+                  <div className="px-2.5 py-1.5 rounded-lg bg-black/85 border border-white/10 text-[10px] text-on-surface-variant font-light shadow-xl text-center leading-normal">
+                    Toggle Quick Actions
+                  </div>
                 </div>
               </div>
             </div>
+
 
             {/* Auto-growing prompts Textarea */}
             <div className="flex-1 min-w-0 relative">

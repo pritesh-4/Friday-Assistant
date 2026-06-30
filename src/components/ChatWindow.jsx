@@ -55,12 +55,6 @@ export default function ChatWindow({
     }
   };
 
-  // Pre-fill prompt on suggestion tap
-  const handleSuggestionSelect = (promptText) => {
-    if (onSendMessage) {
-      onSendMessage(promptText);
-    }
-  };
 
   // Add a task helper
   const handleAddTask = (text) => {
@@ -158,40 +152,6 @@ export default function ChatWindow({
                     What can I help you create today?
                   </p>
                 </div>
-
-                {/* Suggestions chip deck */}
-                <div className="flex flex-wrap items-center justify-center gap-3.5 max-w-lg pt-4">
-                  <button
-                    onClick={() => handleSuggestionSelect("🚀 Continue building FRIDAY")}
-                    className="px-4 py-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-[#00f0ff]/30 text-xs font-light text-on-surface-variant hover:text-on-surface hover:bg-[#00f0ff]/5 transition-all duration-300 cursor-pointer hover:-translate-y-0.5 shadow-sm"
-                  >
-                    🚀 Continue building FRIDAY
-                  </button>
-                  <button
-                    onClick={() => handleSuggestionSelect("🧠 Brainstorm startup ideas")}
-                    className="px-4 py-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-[#00f0ff]/30 text-xs font-light text-on-surface-variant hover:text-on-surface hover:bg-[#00f0ff]/5 transition-all duration-300 cursor-pointer hover:-translate-y-0.5 shadow-sm"
-                  >
-                    🧠 Brainstorm startup ideas
-                  </button>
-                  <button
-                    onClick={() => handleSuggestionSelect("📚 Learn something new")}
-                    className="px-4 py-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-[#00f0ff]/30 text-xs font-light text-on-surface-variant hover:text-on-surface hover:bg-[#00f0ff]/5 transition-all duration-300 cursor-pointer hover:-translate-y-0.5 shadow-sm"
-                  >
-                    📚 Learn something new
-                  </button>
-                  <button
-                    onClick={() => handleSuggestionSelect("🌌 Explore an idea")}
-                    className="px-4 py-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-[#00f0ff]/30 text-xs font-light text-on-surface-variant hover:text-on-surface hover:bg-[#00f0ff]/5 transition-all duration-300 cursor-pointer hover:-translate-y-0.5 shadow-sm"
-                  >
-                    🌌 Explore an idea
-                  </button>
-                  <button
-                    onClick={() => handleSuggestionSelect("☕ Just talk")}
-                    className="px-4 py-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-[#00f0ff]/30 text-xs font-light text-on-surface-variant hover:text-on-surface hover:bg-[#00f0ff]/5 transition-all duration-300 cursor-pointer hover:-translate-y-0.5 shadow-sm"
-                  >
-                    ☕ Just talk
-                  </button>
-                </div>
               </motion.div>
             ) : (
               /* ACTIVE DIALOGUE STREAM VIEW */
@@ -252,6 +212,7 @@ export default function ChatWindow({
             isFridayListening={isVoiceMode}
             attachedFile={attachedFile}
             onRemoveAttachedFile={() => setAttachedFile(null)}
+            isChatEmpty={!isConversationStarted}
           />
         </div>
 
