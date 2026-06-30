@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+
 import {
-  Send,
   Cpu,
   Layers,
   Smartphone,
@@ -13,8 +12,9 @@ import {
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ShaderBackground from "../components/ShaderBackground";
-import TypingIndicator from "../components/TypingIndicator";
 import Orb from "../components/Orb";
+import ChatWindow from "../components/ChatWindow";
+import TypingIndicator from "../components/TypingIndicator";
 
 export default function Chat() {
   // Sidebar states
@@ -35,30 +35,26 @@ export default function Chat() {
     {
       sender: "friday",
       text: "Good evening, Boss. The system interfaces are fully synced and the memory cores are online. I have registered your activity on the F.R.I.D.A.Y. project. How would you like to proceed?",
-      time: "19:58"
+      time: "19:58",
+      contextAwareness: "continuing",
+      citations: [
+        { label: "1. Friday Spec", url: "#" },
+        { label: "2. Stark Core OS", url: "#" }
+      ]
     }
   ]);
-  const [inputValue, setInputValue] = useState("");
   const [isFridayTyping, setIsFridayTyping] = useState(false);
-  const chatEndRef = useRef(null);
 
-  // Auto-scroll chat window
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isFridayTyping]);
 
-  // Handle send message simulator
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (!inputValue.trim() || isFridayTyping) return;
+  // Handle message from new command console
+  const handleSendInputConsole = (text) => {
+    if (!text.trim() || isFridayTyping) return;
 
-    const userText = inputValue;
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
     // Add user message
-    setMessages((prev) => [...prev, { sender: "user", text: userText, time: timeStr }]);
-    setInputValue("");
+    setMessages((prev) => [...prev, { sender: "user", text: text, time: timeStr }]);
 
     // Simulate Friday responding
     setIsFridayTyping(true);
@@ -66,20 +62,38 @@ export default function Chat() {
 
     setTimeout(() => {
       setOrbState("speaking");
-      const responses = [
-        "Analyzing project telemetry. The architectural overlays align perfectly with our core matrix, Boss.",
-        "Query logged into the memory banks. I have adjusted the workspace parameters for optimal engagement.",
-        "Voice synthesizers and neural paths are calibrated. Ready to run diagnostics on your command, Pree.",
-        "I'm keeping track of your progress. Shall I run the compile script or review the latest repository logs?",
-        "Interesting query. Memory retrieval indicates similar projects in the Stark database. Overlays are available."
+      const responseTemplates = [
+        {
+          text: "### Telemetry diagnostics complete.\n- Connection matrix: **Aligned**\n- Compilation speed: **380ms**\n\nI have created a config wrapper:\n```javascript\nconst fridayConfig = {\n  identity: \"F.R.I.D.A.Y.\",\n  syncRate: 0.998,\n  status: \"active\"\n};\n```\nLet's run compile scripts when you are ready, Boss.",
+          emotionalHeader: "ideas",
+          citations: [{ label: "1. Diagnostic Sheet", url: "#" }]
+        },
+        {
+          text: "### Database logs synced.\n> \"The question is less about intelligence and more about how we choose to use it.\"\n\nI have adjusted the workspace variables for your project. Ready to continue.",
+          contextAwareness: "interests",
+          emotionalHeader: "discovered"
+        },
+        {
+          text: "### Synthesizer diagnostics online.\n- Voice telemetry: **Calibrated**\n- Neural pathways: **Stabilized**\n\nI'm ready to receive audio inputs.",
+          emotionalHeader: "interesting"
+        }
       ];
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      const selected = responseTemplates[Math.floor(Math.random() * responseTemplates.length)];
       
       setMessages((prev) => [
         ...prev,
-        { sender: "friday", text: randomResponse, time: timeStr }
+        {
+          sender: "friday",
+          text: selected.text,
+          time: timeStr,
+          contextAwareness: selected.contextAwareness,
+          emotionalHeader: selected.emotionalHeader,
+          citations: selected.citations
+        }
       ]);
       setIsFridayTyping(false);
+
+
 
       // Speak for 2.5 seconds, then return to idle
       setTimeout(() => {
@@ -207,106 +221,18 @@ export default function Chat() {
         {/* Content Body Grid */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
           
-          {/* Left Column: Simulated Chat Window (7 Cols) */}
-          <div className="lg:col-span-7 flex flex-col h-full border-r border-white/5 bg-[#131313]/20 backdrop-blur-sm overflow-hidden">
-            {/* Telemetry Header */}
-            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-[#1c1b1b]/30">
-              <div className="flex items-center gap-2">
-                <Volume2 size={16} className="text-primary-container animate-pulse" />
-                <span className="font-label-sm text-xs tracking-wider uppercase text-on-surface-variant">
-                  Neural Sync Terminal
-                </span>
-              </div>
-              <div className="flex items-center gap-4 text-[10px] text-on-surface-variant/80 font-mono">
-                <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary-container" /> ORB STATUS: <span className="text-[#00f0ff] uppercase">{orbState}</span>
-                </span>
-                <span>SYNC: 99.8%</span>
-              </div>
-            </div>
-
-            {/* Scrollable message content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
-              <AnimatePresence initial={false}>
-                {messages.map((msg, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div className="max-w-[85%] sm:max-w-[75%] space-y-1">
-                      <div className="flex items-center gap-2 px-1 text-[10px] text-on-surface-variant font-mono">
-                        {msg.sender === "user" ? (
-                          <>
-                            <span className="text-[#d1bcff]">BOSS</span>
-                            <Clock size={8} />
-                            <span>{msg.time}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-primary-container">FRIDAY.SYS</span>
-                            <Clock size={8} />
-                            <span>{msg.time}</span>
-                          </>
-                        )}
-                      </div>
-
-                      <div
-                        className={`rounded-2xl p-4 text-sm leading-relaxed border transition-all ${
-                          msg.sender === "user"
-                            ? "bg-[#201f1f]/85 border-[#d1bcff]/15 text-[#e5e2e1] rounded-tr-none shadow-[0_0_15px_rgba(209,188,255,0.02)]"
-                            : "glass-panel border-[#00f0ff]/10 text-on-surface rounded-tl-none glow-effect"
-                        }`}
-                      >
-                        {msg.text}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-
-                {/* Friday typing indicator */}
-                {isFridayTyping && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex justify-start"
-                  >
-                    <TypingIndicator
-                      state={
-                        orbState === "speaking"
-                          ? "generating"
-                          : orbState === "listening"
-                          ? "searching"
-                          : "thinking"
-                      }
-                      dynamic={true}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <div ref={chatEndRef} />
-            </div>
-
-            {/* Input form */}
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-white/5 bg-[#1c1b1b]/30 flex gap-3">
-              <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Synchronize command or talk to F.R.I.D.A.Y..."
-                disabled={isFridayTyping}
-                className="flex-1 bg-[#131313]/90 rounded-xl border border-white/10 px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-[#00f0ff]/50 focus:ring-1 focus:ring-[#00f0ff]/30 transition-all font-light"
-              />
-              <button
-                type="submit"
-                disabled={!inputValue.trim() || isFridayTyping}
-                className="px-5 py-3 rounded-xl bg-gradient-to-r from-primary-container to-[#00dbe9] text-on-primary-container font-medium hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] disabled:opacity-40 disabled:hover:shadow-none transition-all cursor-pointer flex items-center justify-center"
-              >
-                <Send size={16} />
-              </button>
-            </form>
+          {/* Center Column: Futuristic ChatWindow Workspace (7 Cols) */}
+          <div className="lg:col-span-7 flex flex-col h-full border-r border-white/5 overflow-hidden">
+            <ChatWindow
+              messages={messages}
+              onSendMessage={handleSendInputConsole}
+              onClearHistory={() => setMessages([])}
+              orbState={orbState}
+              setOrbState={setOrbState}
+              isFridayTyping={isFridayTyping}
+              userName={userName}
+              greetingTime={greetingTime}
+            />
           </div>
 
           {/* Right Column: High-Fidelity Deliverable Controller (5 Cols) */}
