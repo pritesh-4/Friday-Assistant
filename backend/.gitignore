@@ -43,3 +43,5 @@ log.txt
 # OS metadata
 .DS_Store
 Thumbs.db
+
+.ruff_cache/
