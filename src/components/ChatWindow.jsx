@@ -30,6 +30,7 @@ export default function ChatWindow({
   setIsVoiceMode
 }) {
   const [attachedFile, setAttachedFile] = useState(null);
+  const [isTrayExpanded, setIsTrayExpanded] = useState(false);
   
   // Custom states for AGI placeholders
   const [activeTasks, setActiveTasks] = useState([
@@ -125,7 +126,7 @@ export default function ChatWindow({
         </header>
 
         {/* Dynamic Transition Views */}
-        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col justify-between scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
+        <div className={`flex-1 overflow-y-auto min-h-0 flex flex-col justify-between scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent transition-all duration-500 ${isTrayExpanded ? "pb-[360px] md:pb-[320px]" : "pb-36"}`}>
           
           <AnimatePresence mode="wait">
             {!isConversationStarted ? (
@@ -148,9 +149,6 @@ export default function ChatWindow({
                   <h1 id="cwtxaq" className="font-display-lg text-2xl md:text-3xl text-gradient font-light">
                     Good {greetingTime}, {userName}.
                   </h1>
-                  <p id="wdiyen" className="font-body-md text-sm text-on-surface-variant font-light">
-                    What can I help you create today?
-                  </p>
                 </div>
               </motion.div>
             ) : (
@@ -200,21 +198,21 @@ export default function ChatWindow({
         </div>
 
         {/* Bottom Workspace Controller: ChatInput Console */}
-        <div className="relative w-full border-t border-white/5 bg-[#0e0e0e]/20 z-20">
-          <ChatInput
-            onSendMessage={onSendMessage}
-            onAttachFile={() => {
-              const newFile = { name: "matrix-overlay.config", size: "24 KB", type: "Config" };
-              setAttachedFile(newFile);
-              setActiveFiles((prev) => [...prev, newFile]);
-            }}
-            onToggleVoiceMode={handleVoiceToggle}
-            isFridayListening={isVoiceMode}
-            attachedFile={attachedFile}
-            onRemoveAttachedFile={() => setAttachedFile(null)}
-            isChatEmpty={!isConversationStarted}
-          />
-        </div>
+        <ChatInput
+          onSendMessage={onSendMessage}
+          onAttachFile={() => {
+            const newFile = { name: "matrix-overlay.config", size: "24 KB", type: "Config" };
+            setAttachedFile(newFile);
+            setActiveFiles((prev) => [...prev, newFile]);
+          }}
+          onToggleVoiceMode={handleVoiceToggle}
+          isFridayListening={isVoiceMode}
+          attachedFile={attachedFile}
+          onRemoveAttachedFile={() => setAttachedFile(null)}
+          isChatEmpty={!isConversationStarted}
+          isTrayExpanded={isTrayExpanded}
+          setIsTrayExpanded={setIsTrayExpanded}
+        />
 
       </div>
 

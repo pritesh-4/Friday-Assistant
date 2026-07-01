@@ -5,81 +5,46 @@ import {
   Mic,
   ArrowUpRight,
   Brain,
-  FileSearch,
   Globe,
   Zap,
   Lightbulb,
   FileText,
-  Sparkles,
-  Command,
-  HelpCircle,
-  Play,
-  Square,
-  Cpu
+  Image,
+  X
 } from "lucide-react";
-
-// Placeholder rotation texts
-const placeholders = [
-  { text: "Ask anything… or simply talk.", id: "3q1y6a" },
-  { text: "What would you like to explore today?", id: "9aq7mu" },
-  { text: "Continue where we left off…", id: "o6n0t5" },
-  { text: "What can I help you build?", id: "lf6faw" },
-  { text: "I'm listening.", id: "f42r2f" }
-];
-
-// Smart suggestions database
-const suggestions = [
-  { label: "Continue yesterday's work", id: "3jlwm0", icon: <Brain size={13} className="text-primary-container" /> },
-  { label: "Explain a concept", id: "0jlwm1", icon: <HelpCircle size={13} className="text-secondary" /> },
-  { label: "Brainstorm startup ideas", id: "6jlwm2", icon: <Lightbulb size={13} className="text-[#00f0ff]" /> },
-  { label: "Research a topic", id: "8jlwm3", icon: <Globe size={13} className="text-primary-container" /> },
-  { label: "Just talk", id: "5jlwm4", icon: <Sparkles size={13} className="text-[#d1bcff]" /> }
-];
-
-// Capabilities configuration
-const capabilities = [
-  { id: "remember", label: "Remember this", icon: <Brain size={12} /> },
-  { id: "analyze", label: "Analyze file", icon: <FileSearch size={12} /> },
-  { id: "research", label: "Research topic", icon: <Globe size={12} /> },
-  { id: "action", label: "Run action", icon: <Zap size={12} /> },
-  { id: "brainstorm", label: "Brainstorm ideas", icon: <Lightbulb size={12} /> },
-  { id: "note", label: "Take note", icon: <FileText size={12} /> }
-];
 
 export default function ChatInput({
   onSendMessage,
   onAttachFile,
   onToggleVoiceMode,
-  isFridayListening = false,
-  activeContext = "building-friday", // building-friday, document-analysis, memory-retrieval
   attachedFile = null,
   onRemoveAttachedFile,
-  isChatEmpty = false
+  isTrayExpanded = false,
+  setIsTrayExpanded
 }) {
-
   const [inputText, setInputText] = useState("");
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
-  const [activeCapability, setActiveCapability] = useState(null);
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showCapabilities, setShowCapabilities] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [isResearchActive, setIsResearchActive] = useState(false);
   
-  // Custom voice recording simulator state
-  const [isVoiceRecording, setIsVoiceRecording] = useState(false);
-  const [voiceWaveforms, setVoiceWaveforms] = useState([12, 28, 16, 32, 22, 10, 18, 30, 15, 25]);
-
   const textareaRef = useRef(null);
 
-  // Rotate placeholders when empty and unfocused
+  // Focus management and global shortcuts
   useEffect(() => {
-    if (isFocused || inputText.length > 0) return;
-
-    const interval = setInterval(() => {
-      setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
-    }, 3800);
-
-    return () => clearInterval(interval);
-  }, [isFocused, inputText]);
+    const handleKeyDownGlobal = (e) => {
+      // Escape collapses the tray
+      if (e.key === "Escape" && isTrayExpanded) {
+        setIsTrayExpanded(false);
+      }
+      // Ctrl+K toggles the tray
+      if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setIsTrayExpanded((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDownGlobal);
+    return () => window.removeEventListener("keydown", handleKeyDownGlobal);
+  }, [isTrayExpanded, setIsTrayExpanded]);
 
   // Adjust textarea height dynamically to auto-grow
   useEffect(() => {
@@ -89,31 +54,23 @@ export default function ChatInput({
     // Reset height
     textarea.style.height = "auto";
     // Set to scroll height
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
   }, [inputText]);
 
-  // Handle keyboard submission shortcuts
+  // Handle keyboard submission shortcuts inside text area
   const handleKeyDown = (e) => {
-    // Enter sends message (without Shift)
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
-    // Ctrl + K triggers shortcut cheat sheet popup
-    if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      setShowShortcuts((prev) => !prev);
-    }
   };
 
   const handleSubmit = () => {
-    if (!inputText.trim() && !activeCapability) return;
+    if (!inputText.trim()) return;
     
     let textToSend = inputText;
-    // Prepend active capability prefix for simulated telemetry context
-    if (activeCapability) {
-      const cap = capabilities.find((c) => c.id === activeCapability);
-      textToSend = `[Action: ${cap?.label}] ${textToSend}`;
+    if (isResearchActive) {
+      textToSend = `[Research Mode Active] ${textToSend}`;
     }
 
     if (onSendMessage) {
@@ -121,38 +78,31 @@ export default function ChatInput({
     }
 
     setInputText("");
-    setActiveCapability(null);
+    setIsResearchActive(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
   };
 
-  // Click suggestion handler
-  const handleSuggestionClick = (suggestionText) => {
-    setInputText(suggestionText);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
+  // Toggle voice mode simulation
+  const handleVoiceToggleClick = () => {
+    if (onToggleVoiceMode) {
+      onToggleVoiceMode(true);
     }
   };
 
-  // Toggle voice mode simulation
-  const handleVoiceToggleClick = () => {
-    const nextRecordingState = !isVoiceRecording;
-    setIsVoiceRecording(nextRecordingState);
-    
-    // Notify parent page to change Friday's Orb state to listening
-    if (onToggleVoiceMode) {
-      onToggleVoiceMode(nextRecordingState);
-    }
-
-    // Set voice simulated loop
-    if (nextRecordingState) {
-      const interval = setInterval(() => {
-        setVoiceWaveforms(
-          Array.from({ length: 10 }, () => Math.floor(Math.random() * 32) + 8)
-        );
-      }, 150);
-      return () => clearInterval(interval);
+  // Drag handler for Framer Motion
+  const handleDragEnd = (event, info) => {
+    if (isTrayExpanded) {
+      // If dragged down by 80px or more, collapse it
+      if (info.offset.y > 80) {
+        setIsTrayExpanded(false);
+      }
+    } else {
+      // If dragged up by 40px or more, expand it
+      if (info.offset.y < -40) {
+        setIsTrayExpanded(true);
+      }
     }
   };
 
@@ -164,239 +114,113 @@ export default function ChatInput({
   };
 
   return (
-    <div className="w-full relative px-4 md:px-8 pb-6 pt-2 z-25 flex flex-col items-center">
-      
-      {/* 1. Keyboard Shortcuts Dashboard Overlay */}
-      <AnimatePresence>
-        {showShortcuts && (
+    <motion.div
+      layout
+      drag="y"
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={{ top: 0.05, bottom: 0.8 }}
+      onDragEnd={handleDragEnd}
+      animate={{
+        height: isTrayExpanded ? "auto" : "130px",
+        backgroundColor: isTrayExpanded ? "rgba(19, 19, 19, 0.96)" : "rgba(19, 19, 19, 0.0)",
+        backdropFilter: isTrayExpanded ? "blur(40px)" : "blur(0px)",
+        boxShadow: isTrayExpanded ? "0 -20px 40px rgba(0, 0, 0, 0.5), 0 -1px 0 rgba(255, 255, 255, 0.05)" : "none"
+      }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      className={`absolute bottom-0 left-0 right-0 z-30 w-full overflow-hidden transition-colors duration-300 ${
+        isTrayExpanded ? "border-t border-white/10 rounded-t-3xl" : "border-t-0"
+      }`}
+    >
+      <AnimatePresence mode="wait">
+        {!isTrayExpanded ? (
+          /* COLLAPSED STATE (Default State) */
           <motion.div
+            key="collapsed-tray"
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 15 }}
-            className="absolute bottom-full mb-4 max-w-sm w-full p-4 rounded-2xl glass-panel border-[#00f0ff]/20 bg-[#131313]/95 z-30 text-xs font-light text-on-surface shadow-2xl"
+            transition={{ duration: 0.3 }}
+            className="w-full flex flex-col items-center justify-center py-4 px-6 select-none"
           >
-            <div className="flex items-center justify-between pb-2 border-b border-white/5 font-semibold text-primary-container">
-              <span className="flex items-center gap-1.5 font-label-sm uppercase tracking-wider">
-                <Command size={13} /> Keyboard Shortcuts
-              </span>
-              <button
-                onClick={() => setShowShortcuts(false)}
-                className="text-on-surface-variant hover:text-on-surface text-[10px] uppercase font-mono bg-white/5 px-2 py-0.5 rounded"
-              >
-                Close
-              </button>
-            </div>
-            
-            <div id="ljlwm5" className="space-y-2.5 pt-3 font-mono text-[11px] text-on-surface-variant">
-              <div className="flex justify-between items-center">
-                <span>Send Command:</span>
-                <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-on-surface">Enter</kbd>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>New Line:</span>
-                <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-on-surface">Shift + Enter</kbd>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Toggle Panel:</span>
-                <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-on-surface">Ctrl + K</kbd>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 2. Smart Suggestion Cards (Visible only when chat is empty and input is empty) */}
-      <AnimatePresence>
-        {isChatEmpty && inputText.length === 0 && !isVoiceRecording && !isFridayListening && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.4 }}
-            className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 mb-6"
-          >
-            {suggestions.map((sug) => (
-              <button
-                key={sug.id}
-                onClick={() => handleSuggestionClick(sug.label)}
-                className="glass-panel border-white/5 hover:border-[#00f0ff]/20 bg-white/[0.01] hover:bg-white/[0.03] p-2.5 rounded-xl text-left transition-all duration-300 group hover:shadow-[0_0_12px_rgba(0,240,255,0.02)] cursor-pointer flex items-center gap-3 w-full"
-              >
-                <div className="w-6 h-6 rounded-lg bg-surface border border-white/5 flex items-center justify-center shrink-0 group-hover:border-[#00f0ff]/30 transition-colors duration-300">
-                  {sug.icon}
-                </div>
-                <span
-                  id={sug.id}
-                  className="font-body-md text-[11px] text-on-surface-variant font-light group-hover:text-on-surface transition-colors leading-snug truncate"
-                >
-                  {sug.label}
-                </span>
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 3. Floating Console Body Container */}
-      <div
-        className={`w-full max-w-4xl rounded-2xl border bg-[#131313]/90 backdrop-blur-3xl shadow-xl transition-all duration-500 overflow-hidden flex flex-col ${
-          isVoiceRecording
-            ? "border-[#d1bcff]/40 shadow-[0_0_30px_rgba(209,188,255,0.08)] bg-[#1c1b1b]/95"
-            : isFocused
-            ? "border-[#00f0ff]/40 shadow-[0_0_30px_rgba(0,240,255,0.06)] scale-[1.005]"
-            : "border-white/10 hover:border-white/15"
-        }`}
-      >
-        
-        {/* Top Segment: Telemetry context row & Capability chips */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 bg-black/20 p-3.5 gap-3.5">
-          
-          {/* Smart Context Row */}
-          <div className="flex items-center gap-2 text-[10px] text-on-surface-variant font-mono">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00f0ff] animate-pulse" />
-            {attachedFile ? (
-              <span id="uxjlwm" className="text-[#00f0ff] flex items-center gap-1.5">
-                Working with: {attachedFile.name}{" "}
-                <button
-                  type="button"
-                  onClick={onRemoveAttachedFile}
-                  className="text-on-surface-variant hover:text-[#ffb4ab] underline cursor-pointer"
-                >
-                  [remove]
-                </button>
-              </span>
-            ) : activeContext === "building-friday" ? (
-              <span id="bjlwm1">Continuing: Building FRIDAY</span>
-            ) : (
-              <span id="7jlwmq">Remembering previous conversation…</span>
-            )}
-          </div>
-
-          {/* Capabilities chips */}
-          <div className="flex flex-wrap gap-1.5 items-center">
-            {showCapabilities ? (
-              capabilities.map((cap) => {
-                const isActive = activeCapability === cap.id;
-                return (
-                  <button
-                    key={cap.id}
-                    onClick={() => setActiveCapability(isActive ? null : cap.id)}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-mono transition-all border cursor-pointer ${
-                      isActive
-                        ? "bg-[#00f0ff]/10 border-[#00f0ff]/40 text-[#00f0ff]"
-                        : "bg-[#1c1b1b]/50 border-white/5 text-on-surface-variant hover:border-[#00f0ff]/20 hover:text-on-surface"
-                    }`}
-                  >
-                    {cap.icon}
-                    <span>{cap.label}</span>
-                  </button>
-                );
-              })
-            ) : activeCapability ? (
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-mono bg-[#00f0ff]/10 border border-[#00f0ff]/40 text-[#00f0ff]">
-                {capabilities.find(c => c.id === activeCapability)?.icon}
-                <span>{capabilities.find(c => c.id === activeCapability)?.label}</span>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {/* Dynamic Voice Recording Telemetry Screen */}
-        <AnimatePresence>
-          {isVoiceRecording && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="p-5 flex flex-col items-center justify-center bg-gradient-to-b from-[#201f1f]/30 to-transparent gap-4"
+            {/* Large Voice Button */}
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={(e) => {
+                e.stopPropagation(); // prevent expanding the tray
+                handleVoiceToggleClick();
+              }}
+              className="flex items-center gap-3 px-8 py-3.5 rounded-full bg-gradient-to-r from-[#00f0ff]/10 via-[#00dbe9]/20 to-[#d1bcff]/15 border border-[#00f0ff]/30 text-on-surface hover:border-[#00f0ff]/60 hover:shadow-[0_0_25px_rgba(0,240,255,0.25)] transition-all duration-300 relative overflow-hidden group cursor-pointer"
             >
-              <div className="text-center space-y-1">
-                <span className="text-[11px] font-mono uppercase tracking-widest text-[#d1bcff] animate-pulse block">
-                  Voice Transcriber Online
-                </span>
-                <span className="text-[10px] text-on-surface-variant/60">
-                  F.R.I.D.A.Y. is syncing cognitive frequency to vocal input
-                </span>
-              </div>
+              <div className="absolute inset-0 bg-[#00f0ff]/5 rounded-full blur-xl group-hover:scale-125 transition-transform duration-500" />
+              <Mic size={18} className="text-[#00f0ff] animate-pulse" />
+              <span className="font-display-lg text-sm tracking-wider font-light uppercase">
+                Talk to F.R.I.D.A.Y.
+              </span>
+            </motion.button>
+            
+            <button
+              onClick={() => setIsTrayExpanded(true)}
+              className="text-[10px] font-mono text-on-surface-variant/60 mt-2 tracking-widest uppercase hover:text-[#00f0ff] transition-colors duration-200 bg-transparent border-0 cursor-pointer"
+            >
+              or type a message
+            </button>
 
-              {/* Dynamic waveform visualization */}
-              <div className="flex items-center gap-1 h-12 select-none pointer-events-none">
-                {voiceWaveforms.map((h, i) => (
-                  <motion.div
-                    key={i}
-                    animate={{ height: `${h}px` }}
-                    transition={{ type: "spring", damping: 12, stiffness: 200 }}
-                    className="w-1 rounded-full bg-gradient-to-t from-[#d1bcff] to-[#00f0ff]/80"
-                  />
-                ))}
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={handleVoiceToggleClick}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#690005]/20 border border-[#ffb4ab]/30 hover:border-[#ffb4ab] text-[#ffb4ab] text-[10px] uppercase font-mono tracking-widest transition-colors cursor-pointer"
-                >
-                  <Square size={10} /> Disconnect
-                </button>
-                <button
-                  onClick={() => {
-                    setInputText("Simulated voice transcription output matrix loaded.");
-                    setIsVoiceRecording(false);
-                    if (onToggleVoiceMode) onToggleVoiceMode(false);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00f0ff]/10 border border-[#00f0ff]/30 hover:border-[#00f0ff] text-[#00f0ff] text-[10px] uppercase font-mono tracking-widest transition-colors cursor-pointer"
-                >
-                  <Play size={10} /> Process
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Middle/Bottom Segment: Active Input panel */}
-        {!isVoiceRecording && (
-          <div className="flex items-end p-4 gap-3 bg-gradient-to-b from-transparent to-[#131313]/30">
-            {/* Left Actions: Attachment & Quick Actions Command Menu */}
-            <div className="flex gap-2">
-              <div className="group relative">
-                <button
-                  type="button"
-                  onClick={handleFileUploadSim}
-                  className="p-3 rounded-xl border border-white/5 hover:border-white/20 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5 transition-all duration-300 active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
-                  aria-label="Upload File"
-                >
-                  <Paperclip size={18} />
-                </button>
-                <div className="absolute bottom-full left-0 mb-2.5 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-300 w-52 z-30">
-                  <div id="icqjlwm" className="px-2.5 py-1.5 rounded-lg bg-black/85 border border-white/10 text-[10px] text-on-surface-variant font-light shadow-xl text-center leading-normal">
-                    Attach something for me to work with.
-                  </div>
-                </div>
-              </div>
-
-              <div className="group relative">
-                <button
-                  type="button"
-                  onClick={() => setShowCapabilities(!showCapabilities)}
-                  className={`p-3 rounded-xl border transition-all duration-300 active:scale-95 cursor-pointer flex items-center justify-center shrink-0 ${
-                    showCapabilities
-                      ? "border-[#00f0ff]/30 text-[#00f0ff] bg-[#00f0ff]/5"
-                      : "border-white/5 hover:border-white/20 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5"
-                  }`}
-                  aria-label="Toggle Command Capabilities"
-                >
-                  <Zap size={18} className={showCapabilities ? "animate-pulse" : ""} />
-                </button>
-                <div className="absolute bottom-full left-0 mb-2.5 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-300 w-36 z-30">
-                  <div className="px-2.5 py-1.5 rounded-lg bg-black/85 border border-white/10 text-[10px] text-on-surface-variant font-light shadow-xl text-center leading-normal">
-                    Toggle Quick Actions
-                  </div>
-                </div>
-              </div>
+            {/* Handle Indicator (acts as drawer handle) */}
+            <div 
+              onClick={() => setIsTrayExpanded(true)}
+              className="mt-3 flex flex-col items-center group cursor-pointer"
+            >
+              <span className="text-[9px] text-on-surface-variant/40 group-hover:text-[#00f0ff] font-mono tracking-widest transition-colors mb-0.5">
+                ↑
+              </span>
+              <div className="w-14 h-0.5 rounded-full bg-white/10 group-hover:bg-[#00f0ff]/40 transition-colors" />
+            </div>
+          </motion.div>
+        ) : (
+          /* EXPANDED STATE */
+          <motion.div
+            key="expanded-tray"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="w-full max-w-4xl mx-auto flex flex-col p-4 md:p-6 gap-3 select-none relative"
+          >
+            {/* Drag Handle at top of sheet */}
+            <div
+              className="w-full flex justify-center py-1 cursor-grab active:cursor-grabbing"
+              title="Drag down to collapse"
+            >
+              <div className="w-16 h-1 rounded-full bg-white/15 hover:bg-white/30 transition-colors" />
             </div>
 
+            {/* Context Information Row */}
+            <div className="flex items-center gap-2 text-[10px] text-on-surface-variant/80 font-mono px-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00f0ff] animate-pulse" />
+              {attachedFile ? (
+                <span className="text-[#00f0ff] flex items-center gap-1.5">
+                  Working with: <span className="font-semibold">{attachedFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={onRemoveAttachedFile}
+                    className="text-on-surface-variant hover:text-[#ffb4ab] underline cursor-pointer font-mono"
+                  >
+                    [remove]
+                  </button>
+                </span>
+              ) : (
+                <span>Continuing: Building FRIDAY</span>
+              )}
+            </div>
 
-            {/* Auto-growing prompts Textarea */}
-            <div className="flex-1 min-w-0 relative">
+            {/* Console Input Wrapper */}
+            <div 
+              className={`w-full rounded-2xl border bg-black/40 backdrop-blur-md p-4 flex flex-col gap-3 transition-colors duration-300 ${
+                isFocused ? "border-[#00f0ff]/40 shadow-[0_0_20px_rgba(0,240,255,0.05)]" : "border-white/10"
+              }`}
+            >
+              {/* Textarea */}
               <textarea
                 ref={textareaRef}
                 value={inputText}
@@ -405,87 +229,169 @@ export default function ChatInput({
                 onBlur={() => setIsFocused(false)}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                placeholder={placeholders[placeholderIndex].text}
-                className="w-full bg-transparent resize-none text-sm text-on-surface placeholder:text-on-surface-variant/45 focus:outline-none py-3 font-light leading-relaxed max-h-[200px] scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent"
+                placeholder="Ask anything… or simply talk."
+                className="w-full bg-transparent resize-none text-sm text-on-surface placeholder:text-on-surface-variant/45 focus:outline-none py-1 font-light leading-relaxed max-h-[160px] scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent"
                 style={{ height: "auto" }}
               />
 
-              {/* Dynamic state indicator inside textarea input */}
-              {inputText.length > 0 && (
-                <div className="absolute right-0 bottom-2 text-[8px] text-on-surface-variant/40 font-mono tracking-widest uppercase">
-                  Telemetry Sync Active
-                </div>
-              )}
-            </div>
+              {/* Action Toolbar */}
+              <div className="w-full h-px bg-white/5" />
 
-            {/* Right Actions: Voice + Send */}
-            <div className="flex items-center gap-2 shrink-0">
-              
-              {/* Voice Button */}
-              <div className="group relative">
-                <button
-                  type="button"
-                  onClick={handleVoiceToggleClick}
-                  className="p-3 rounded-xl border border-white/5 hover:border-[#d1bcff]/30 text-on-surface-variant hover:text-[#d1bcff] bg-[#1c1b1b]/50 hover:bg-[#d1bcff]/5 transition-all duration-300 active:scale-95 cursor-pointer flex items-center justify-center"
-                  aria-label="Start Voice Session"
-                >
-                  <Mic size={18} className="animate-pulse" />
-                </button>
-
-                {/* Hover label tooltip */}
-                <div className="absolute bottom-full right-0 mb-2.5 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-300 w-36 z-30">
-                  <div
-                    id="4zjlwm"
-                    className="px-2.5 py-1.5 rounded-lg bg-black/85 border border-[#d1bcff]/20 text-[10px] text-on-surface-variant font-light shadow-xl text-center leading-normal"
+              <div className="flex items-center justify-between gap-4">
+                {/* Left actions menu */}
+                <div className="flex items-center gap-1.5 relative">
+                  {/* Expandable actions menu trigger */}
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickActions(!showQuickActions)}
+                    className={`p-2 rounded-xl border transition-all duration-300 active:scale-95 cursor-pointer flex items-center justify-center shrink-0 ${
+                      showQuickActions
+                        ? "border-[#00f0ff]/30 text-[#00f0ff] bg-[#00f0ff]/5"
+                        : "border-white/5 hover:border-white/20 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5"
+                    }`}
+                    title="Quick Actions"
                   >
-                    Talk to F.R.I.D.A.Y.
-                  </div>
+                    <Zap size={14} className={showQuickActions ? "animate-pulse" : ""} />
+                  </button>
+
+                  {/* Attach File */}
+                  <button
+                    type="button"
+                    onClick={handleFileUploadSim}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/5 hover:border-white/15 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5 transition-all duration-200 cursor-pointer text-xs font-light"
+                  >
+                    <Paperclip size={13} />
+                    <span className="hidden sm:inline">Attach File</span>
+                  </button>
+
+                  {/* Upload Image */}
+                  <button
+                    type="button"
+                    onClick={handleFileUploadSim}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/5 hover:border-white/15 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5 transition-all duration-200 cursor-pointer text-xs font-light"
+                  >
+                    <Image size={13} />
+                    <span className="hidden sm:inline">Upload Image</span>
+                  </button>
+
+                  {/* Research Mode */}
+                  <button
+                    type="button"
+                    onClick={() => setIsResearchActive(!isResearchActive)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer text-xs font-light ${
+                      isResearchActive
+                        ? "bg-[#00f0ff]/10 border-[#00f0ff]/30 text-[#00f0ff] shadow-[0_0_10px_rgba(0,240,255,0.1)]"
+                        : "border-white/5 hover:border-white/15 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5"
+                    }`}
+                  >
+                    <Globe size={13} />
+                    <span>Research</span>
+                  </button>
+
+                  {/* Quick Actions popover */}
+                  <AnimatePresence>
+                    {showQuickActions && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute bottom-full left-0 mb-3 p-3 rounded-2xl glass-panel border-[#00f0ff]/20 bg-[#131313]/98 z-40 text-xs font-light text-on-surface shadow-2xl w-56 space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between pb-1.5 border-b border-white/5 font-semibold text-[#00f0ff] font-mono text-[9px] tracking-wider uppercase">
+                          <span>Quick Actions</span>
+                          <button 
+                            onClick={() => setShowQuickActions(false)} 
+                            className="text-on-surface-variant hover:text-on-surface bg-transparent border-0 cursor-pointer"
+                          >
+                            <X size={10} />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setInputText("Summarize our conversation so far.");
+                            setShowQuickActions(false);
+                            if (textareaRef.current) textareaRef.current.focus();
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center gap-2 text-on-surface-variant hover:text-on-surface cursor-pointer bg-transparent border-0"
+                        >
+                          <FileText size={13} className="text-secondary" />
+                          <span>Summarize stream</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setInputText("Let's brainstorm ideas for ");
+                            setShowQuickActions(false);
+                            if (textareaRef.current) textareaRef.current.focus();
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center gap-2 text-on-surface-variant hover:text-on-surface cursor-pointer bg-transparent border-0"
+                        >
+                          <Lightbulb size={13} className="text-[#00f0ff]" />
+                          <span>Brainstorm ideas</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setInputText("Add note: ");
+                            setShowQuickActions(false);
+                            if (textareaRef.current) textareaRef.current.focus();
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center gap-2 text-on-surface-variant hover:text-on-surface cursor-pointer bg-transparent border-0"
+                        >
+                          <Brain size={13} className="text-primary-container" />
+                          <span>Take a note</span>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Right actions menu */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleVoiceToggleClick}
+                    className="p-2.5 rounded-xl border border-white/5 hover:border-[#d1bcff]/30 text-on-surface-variant hover:text-[#d1bcff] bg-[#1c1b1b]/50 hover:bg-[#d1bcff]/5 transition-all duration-300 active:scale-95 cursor-pointer flex items-center justify-center"
+                    title="Voice Mode"
+                  >
+                    <Mic size={14} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={!inputText.trim()}
+                    className={`p-2.5 rounded-xl flex items-center justify-center transition-all duration-300 cursor-pointer ${
+                      inputText.trim()
+                        ? "bg-gradient-to-tr from-primary-container to-[#00dbe9] text-on-primary-container shadow-[0_0_15px_rgba(0,240,255,0.3)] hover:shadow-[0_0_20px_rgba(0,240,255,0.5)] hover:scale-105 active:scale-95"
+                        : "bg-[#1c1b1b]/50 border border-white/5 text-on-surface-variant/30 cursor-not-allowed"
+                    }`}
+                    title="Send Command"
+                  >
+                    <ArrowUpRight size={14} className="transform hover:translate-x-0.5 hover:-translate-y-0.5 transition-transform" />
+                  </button>
                 </div>
               </div>
+            </div>
 
-              {/* Send Button */}
+            {/* Telemetry Footer */}
+            <div className="flex items-center justify-between text-[8px] font-mono text-on-surface-variant/40 tracking-widest uppercase px-1">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-[#00f0ff]" /> SYS: OK
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-[#d1bcff]" /> FREQ: 99.8%
+                </span>
+              </div>
               <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!inputText.trim() && !activeCapability}
-                className={`p-3 rounded-xl flex items-center justify-center transition-all duration-300 cursor-pointer ${
-                  inputText.trim() || activeCapability
-                    ? "bg-gradient-to-tr from-primary-container to-[#00dbe9] text-on-primary-container shadow-[0_0_15px_rgba(0,240,255,0.3)] hover:shadow-[0_0_20px_rgba(0,240,255,0.5)] hover:scale-105 active:scale-95"
-                    : "bg-[#1c1b1b]/50 border border-white/5 text-on-surface-variant/30 cursor-not-allowed"
-                }`}
-                title="Initiate"
+                onClick={() => setIsTrayExpanded(false)}
+                className="hover:text-[#00f0ff] transition-colors cursor-pointer bg-transparent border-0"
               >
-                <ArrowUpRight size={18} className="transform hover:translate-x-0.5 hover:-translate-y-0.5 transition-transform" />
+                [Collapse Console]
               </button>
             </div>
-          </div>
+          </motion.div>
         )}
-
-        {/* Footer telemetry nodes: AGI Features visual representation */}
-        <div className="flex items-center justify-between border-t border-white/5 bg-black/35 px-4 py-2 text-[9px] font-mono text-on-surface-variant/60 tracking-wider">
-          <div className="flex gap-4">
-            <span className="flex items-center gap-1">
-              <span className="w-1 h-1 rounded-full bg-[#00f0ff]" /> CORE MEMORY
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-1 h-1 rounded-full bg-[#00f0ff]" /> WEB RESEARCH
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-1 h-1 rounded-full bg-[#d1bcff]" /> AGENT SCHEDULER
-            </span>
-            <span className="flex items-center gap-1 hidden sm:flex">
-              <span className="w-1 h-1 rounded-full bg-secondary" /> COMPUTER ACTIONS
-            </span>
-          </div>
-          
-          <button
-            onClick={() => setShowShortcuts((prev) => !prev)}
-            className="hover:text-[#00f0ff] flex items-center gap-1 transition-colors cursor-pointer"
-          >
-            <Cpu size={10} /> TELEMETRY PANEL (CTRL+K)
-          </button>
-        </div>
-      </div>
-    </div>
+      </AnimatePresence>
+    </motion.div>
   );
 }
