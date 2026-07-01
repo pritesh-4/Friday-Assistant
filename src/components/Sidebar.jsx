@@ -15,6 +15,7 @@ import {
   Plus
 } from "lucide-react";
 import Orb from "./Orb";
+import { formatDate } from "../utils/formatDate";
 
 export default function Sidebar({
   isCollapsed = false,
@@ -29,8 +30,11 @@ export default function Sidebar({
   onCloseMobile,
   userName = "Pree",
   greetingTime = "Evening",
+  conversations = [],
+  activeConversationId = null,
+  onSelectConversation,
+  onDeleteConversation
 }) {
-  const [selectedChatId, setSelectedChatId] = useState("friday-build");
   const [hoveredNavItem, setHoveredNavItem] = useState(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null); // 'settings', 'memories', 'notes', 'tasks'
@@ -59,13 +63,19 @@ export default function Sidebar({
     { id: "settings", label: "Settings", icon: <Settings size={16} /> },
   ];
 
-  // Mock conversation memories
-  const conversationMemories = [
-    { id: "friday-build", icon: "🚀", title: "Building FRIDAY", time: "2m ago" },
-    { id: "startup-ideas", icon: "🧠", title: "Startup Ideas", time: "3h ago" },
-    { id: "ai-research", icon: "📚", title: "Learning AI", time: "Yesterday" },
-    { id: "future-goals", icon: "🌌", title: "Future Goals", time: "2 days ago" },
-  ];
+  // Map prop conversations to UI format, fallback to default mock if empty
+  const resolvedMemories = (conversations && conversations.length > 0)
+    ? conversations.map((c) => ({
+        id: c.id,
+        icon: c.pinned ? "📌" : "💬",
+        title: c.title,
+        time: formatDate(c.updatedAt)
+      }))
+    : [
+        { id: "chat-1", icon: "🚀", title: "Building FRIDAY", time: "Just now" },
+        { id: "chat-2", icon: "🧠", title: "Startup Ideas", time: "3h ago" },
+        { id: "chat-3", icon: "📚", title: "Learning AI", time: "Yesterday" }
+      ];
 
   const handleNavClick = (itemId) => {
     if (itemId === "conversations") {
@@ -106,7 +116,7 @@ export default function Sidebar({
   const modalDetails = getModalDetails();
 
   const sidebarContent = (
-    <div className="h-full flex flex-col justify-between text-on-surface bg-[#131313] p-4 relative z-20">
+    <div className="h-full flex flex-col justify-between text-on-surface bg-[#131313]/40 backdrop-blur-md p-4 relative z-20">
       
       {/* Toggle Collapse Button (Desktop Top Right) */}
       {setIsCollapsed && !isMobileOpen && (
@@ -266,12 +276,14 @@ export default function Sidebar({
                 </div>
               ) : (
                 <div className="space-y-1 overflow-y-auto flex-grow max-h-[220px] scrollbar-none pr-1">
-                  {conversationMemories.map((chat) => {
-                    const isSelected = selectedChatId === chat.id;
+                  {resolvedMemories.map((chat) => {
+                    const isSelected = activeConversationId === chat.id;
                     return (
                       <button
                         key={chat.id}
-                        onClick={() => setSelectedChatId(chat.id)}
+                        onClick={() => {
+                          if (onSelectConversation) onSelectConversation(chat.id);
+                        }}
                         className={`w-full text-left rounded-xl p-2.5 border transition-all duration-300 flex items-center gap-3 relative group overflow-hidden cursor-pointer ${
                           isSelected
                             ? "bg-[#201f1f]/50 border-white/5 shadow-md text-white"
@@ -290,13 +302,25 @@ export default function Sidebar({
                               {chat.title}
                             </span>
                             {isSelected && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_8px_rgba(0,240,255,0.8)] animate-pulse shrink-0" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_8px_rgba(0,240,255,0.8)] animate-pulse shrink-0 mr-4" />
                             )}
                           </div>
                           <span className="font-body-md text-[9px] text-on-surface-variant/40 mt-0.5 block">
                             {chat.time}
                           </span>
                         </div>
+
+                        {/* Delete button overlay on hover */}
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onDeleteConversation) onDeleteConversation(chat.id);
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/10 hover:text-red-400 transition-all text-on-surface-variant z-10 bg-transparent border-0 cursor-pointer flex items-center justify-center"
+                          title="Delete memory stream"
+                        >
+                          <X size={10} />
+                        </span>
                       </button>
                     );
                   })}
@@ -468,7 +492,7 @@ export default function Sidebar({
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed top-0 bottom-0 left-0 w-80 bg-[#131313] border-r border-white/10 z-50 md:hidden shadow-2xl flex flex-col"
+              className="fixed top-0 bottom-0 left-0 w-80 bg-[#131313]/60 backdrop-blur-xl border-r border-white/10 z-50 md:hidden shadow-2xl flex flex-col"
             >
               {sidebarContent}
             </motion.aside>
@@ -480,7 +504,7 @@ export default function Sidebar({
       <motion.aside
         animate={{ width: collapsed ? 80 : 300 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="hidden md:flex flex-col h-screen bg-[#131313] border-r border-white/5 shrink-0 z-20 sticky top-0 relative overflow-hidden"
+        className="hidden md:flex flex-col h-screen bg-[#131313]/25 backdrop-blur-lg border-r border-white/5 shrink-0 z-20 sticky top-0 relative overflow-hidden"
       >
         {sidebarContent}
       </motion.aside>

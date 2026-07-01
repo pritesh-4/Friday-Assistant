@@ -17,7 +17,9 @@ export function useSidebar() {
 
   return {
     isOpen,
+    setIsOpen,
     isCollapsed,
+    setIsCollapsed,
     toggleSidebar,
     collapseSidebar
   };

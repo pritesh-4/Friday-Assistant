@@ -1,0 +1,45 @@
+# Python Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+active_env/
+conda-env/
+
+# Environment Configurations
+.env
+.env.*
+!.env.example
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nosexy/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Logging
+*.log
+log.txt
+
+# OS metadata
+.DS_Store
+Thumbs.db

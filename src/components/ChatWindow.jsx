@@ -63,14 +63,21 @@ export default function ChatWindow({
   };
 
   return (
-    <div className="flex-1 flex h-full overflow-hidden bg-gradient-to-tr from-[#131313] via-[#181818] to-[#131313] relative z-10">
+    <div className="flex-1 flex h-full overflow-hidden bg-transparent relative z-10">
       
       {/* Dynamic Grid Overlay to simulate futuristic OS */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none opacity-40 z-0" />
-      <div className="absolute inset-0 bg-radial-gradient from-transparent via-[#131313]/50 to-[#131313] pointer-events-none z-0" />
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none opacity-45 z-0" />
+      <div className="absolute inset-0 bg-radial-gradient from-transparent via-[#131313]/30 to-[#131313]/70 pointer-events-none z-0" />
 
       {/* Main Center Area: Conversation Space */}
       <div className="flex-grow flex flex-col h-full overflow-hidden relative min-w-0">
+        
+        {/* Subtle Ambient Background Orb representing F.R.I.D.A.Y.'s constant presence */}
+        {isConversationStarted && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06] select-none z-0">
+            <Orb state={orbState} size="hero" />
+          </div>
+        )}
         
         {/* Header telemetry bar */}
         <header className="p-4 border-b border-white/5 bg-[#0e0e0e]/30 backdrop-blur-md flex items-center justify-between z-20">

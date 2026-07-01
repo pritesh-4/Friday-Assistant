@@ -1,86 +1,72 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Cpu } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ShaderBackground from "../components/ShaderBackground";
 import ChatWindow from "../components/ChatWindow";
 import CustomCursor from "../components/CustomCursor";
 
+// Import global configuration contexts & data-fetching hooks
+import { useChatContext } from "../context/ChatContext";
+import { useSidebarContext } from "../context/SidebarContext";
+import { useConversations } from "../hooks/useConversations";
+
 export default function Chat() {
-  // Sidebar states
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // 1. Sidebar layouts loaded from global Sidebar Context
+  const {
+    isOpen: isMobileOpen,
+    setIsOpen: setIsMobileOpen,
+    isCollapsed,
+    setIsCollapsed
+  } = useSidebarContext();
+
   const [orbState, setOrbState] = useState("idle");
   const [activeTab, setActiveTab] = useState("conversations");
-  const [isEmptyState, setIsEmptyState] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
   
   const userName = "Pree";
   const greetingTime = "Evening";
 
-  // Core cognitive workspace states
-  const [messages, setMessages] = useState([]); // Empty by default for Wake Screen
-  const [isFridayTyping, setIsFridayTyping] = useState(false);
+  // 2. Chat history and message execution loaded from global Chat Context
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    isTyping: isFridayTyping,
+    activeConversationId,
+    setActiveConversationId
+  } = useChatContext();
+
+  // 3. Dynamic lists of conversations sync
+  const {
+    conversations,
+    deleteConversation
+  } = useConversations();
+
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
 
+  // Sync ambient Orb visual posture changes with chat typing telemetry
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      if (isFridayTyping) {
+        setOrbState("thinking");
+      } else if (messages.length > 0 && messages[messages.length - 1]?.sender === "friday") {
+        setOrbState("speaking");
+        const speakTimeout = setTimeout(() => {
+          setOrbState("idle");
+        }, 2500);
+        return () => clearTimeout(speakTimeout);
+      } else {
+        setOrbState("idle");
+      }
+    }, 0);
+    return () => clearTimeout(handle);
+  }, [isFridayTyping, messages]);
 
   // Handle message from new command console
   const handleSendInputConsole = (text) => {
     if (!text.trim() || isFridayTyping) return;
-
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
-    // Add user message
-    setMessages((prev) => [...prev, { sender: "user", text: text, time: timeStr }]);
-
-    // Simulate Friday responding
-    setIsFridayTyping(true);
-    setOrbState("thinking");
-
-    setTimeout(() => {
-      setOrbState("speaking");
-      const responseTemplates = [
-        {
-          text: "### Telemetry diagnostics complete.\n- Connection matrix: **Aligned**\n- Compilation speed: **380ms**\n\nI have created a config wrapper:\n```javascript\nconst fridayConfig = {\n  identity: \"F.R.I.D.A.Y.\",\n  syncRate: 0.998,\n  status: \"active\"\n};\n```\nLet's run compile scripts when you are ready, Boss.",
-          emotionalHeader: "ideas",
-          citations: [{ label: "1. Diagnostic Sheet", url: "#" }]
-        },
-        {
-          text: "### Database logs synced.\n> \"The question is less about intelligence and more about how we choose to use it.\"\n\nI have adjusted the workspace variables for your project. Ready to continue.",
-          contextAwareness: "interests",
-          emotionalHeader: "discovered"
-        },
-        {
-          text: "### Synthesizer diagnostics online.\n- Voice telemetry: **Calibrated**\n- Neural pathways: **Stabilized**\n\nI'm ready to receive audio inputs.",
-          emotionalHeader: "interesting"
-        }
-      ];
-      const selected = responseTemplates[Math.floor(Math.random() * responseTemplates.length)];
-      
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "friday",
-          text: selected.text,
-          time: timeStr,
-          contextAwareness: selected.contextAwareness,
-          emotionalHeader: selected.emotionalHeader,
-          citations: selected.citations
-        }
-      ]);
-      setIsFridayTyping(false);
-
-
-
-      // Speak for 2.5 seconds, then return to idle
-      setTimeout(() => {
-        setOrbState("idle");
-      }, 2500);
-
-    }, 2000);
+    sendMessage(text);
   };
-
-
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#131313] text-on-surface relative font-sans">
@@ -94,47 +80,24 @@ export default function Chat() {
         orbState={orbState}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        isEmptyState={isEmptyState}
+        isEmptyState={messages.length === 0}
         onStartFirstConversation={() => {
-          setIsEmptyState(false);
-          setMessages((prev) => [
-            ...prev,
-            { sender: "friday", text: "New conversation stream initialized. Core memory synced.", time: "Now" }
-          ]);
+          setActiveConversationId("chat-1");
         }}
         onNewConversation={() => {
-          setIsEmptyState(false);
-          setMessages([
-            { sender: "friday", text: "New stream initialized. Let's record a new set of memories.", time: "Now" }
-          ]);
-        }}
-        onStartVoiceSession={() => {
-          setOrbState("listening");
-          setMessages((prev) => [
-            ...prev,
-            { sender: "friday", text: "Voice session active. Listening for input...", time: "Now" }
-          ]);
-        }}
-        onUploadFile={() => {
-          setOrbState("thinking");
-          setTimeout(() => {
-            setOrbState("idle");
-            setMessages((prev) => [
-              ...prev,
-              { sender: "friday", text: "Telemetry document uploaded successfully. Scanning structure...", time: "Now" }
-            ]);
-          }, 1500);
-        }}
-        onQuickNote={() => {
-          setMessages((prev) => [
-            ...prev,
-            { sender: "friday", text: "Quick note logged. Saving to notes directory.", time: "Now" }
-          ]);
+          setActiveConversationId(null);
         }}
         isMobileOpen={isMobileOpen}
         onCloseMobile={() => setIsMobileOpen(false)}
         userName={userName}
         greetingTime={greetingTime}
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        onSelectConversation={(id) => {
+          setActiveConversationId(id);
+          setIsMobileOpen(false); // Close sliding drawer on mobile on active select
+        }}
+        onDeleteConversation={deleteConversation}
       />
 
       {/* Main Workspace Frame */}
