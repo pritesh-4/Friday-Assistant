@@ -387,7 +387,7 @@ export default function ChatWindow({
               {/* Stop capture trigger button */}
               <button
                 onClick={() => handleVoiceToggle(false)}
-                className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-[#690005] to-[#93000a] text-on-error border border-error/20 hover:border-error/60 font-label-sm text-xs uppercase tracking-widest hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-2"
+                className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-[#690005] to-[#93000a] text-white border border-error/20 hover:border-error/60 font-label-sm text-xs uppercase tracking-widest hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-2"
               >
                 <Volume2 size={14} /> Disconnect Channel
               </button>

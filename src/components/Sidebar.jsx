@@ -11,7 +11,8 @@ import {
   User,
   Activity,
   LogOut,
-  X
+  X,
+  Plus
 } from "lucide-react";
 import Orb from "./Orb";
 
@@ -23,6 +24,7 @@ export default function Sidebar({
   setActiveTab,
   isEmptyState = false,
   onStartFirstConversation,
+  onNewConversation,
   isMobileOpen = false,
   onCloseMobile,
   userName = "Pree",
@@ -236,7 +238,15 @@ export default function Sidebar({
                 <span className="font-label-sm text-[9px] uppercase tracking-widest text-on-surface-variant/40 font-semibold font-mono">
                   Recent Memories
                 </span>
-                <span className="w-1 h-1 rounded-full bg-[#00f0ff] animate-pulse" />
+                <button
+                  onClick={() => {
+                    if (onNewConversation) onNewConversation();
+                  }}
+                  className="p-1 rounded text-on-surface-variant hover:text-white hover:bg-white/5 transition-all duration-200 cursor-pointer bg-transparent border-0 flex items-center justify-center"
+                  title="New conversation stream"
+                >
+                  <Plus size={11} />
+                </button>
               </div>
 
               {/* Chat List or Empty State */}

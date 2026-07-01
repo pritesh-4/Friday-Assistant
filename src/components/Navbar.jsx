@@ -130,6 +130,9 @@ export default function Navbar() {
         {/* Center Section: Desktop Links */}
         <nav className="hidden md:flex items-center space-x-8" aria-label="Main Navigation">
           {navLinks.map((link) => {
+            const isActive = link.isPage 
+              ? location.pathname === link.path 
+              : (location.pathname === "/" && location.hash === `#${link.target}`);
             if (link.isPage) {
               return (
                 <Link
@@ -137,7 +140,9 @@ export default function Navbar() {
                   to={link.path}
                   onMouseEnter={() => setHoveredLink(link.name)}
                   onMouseLeave={() => setHoveredLink(null)}
-                  className="relative px-3 py-2 font-body-md text-body-md font-medium transition-colors duration-300 text-on-surface-variant hover:text-primary-fixed-dim focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-container rounded-md flex items-center justify-center"
+                  className={`relative px-3 py-2 font-body-md text-body-md font-medium transition-colors duration-300 rounded-md flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-container ${
+                    isActive ? "text-[#00f0ff]" : "text-on-surface-variant hover:text-primary-fixed-dim"
+                  }`}
                 >
                   <span className="relative z-10">{link.name}</span>
                   <AnimatePresence>
@@ -187,7 +192,9 @@ export default function Navbar() {
                   onClick={(e) => handleScrollToSection(e, link.target)}
                   onMouseEnter={() => setHoveredLink(link.name)}
                   onMouseLeave={() => setHoveredLink(null)}
-                  className="relative px-3 py-2 font-body-md text-body-md font-medium transition-colors duration-300 text-on-surface-variant hover:text-primary-fixed-dim focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-container rounded-md flex items-center justify-center"
+                  className={`relative px-3 py-2 font-body-md text-body-md font-medium transition-colors duration-300 rounded-md flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-container ${
+                    isActive ? "text-[#00f0ff]" : "text-on-surface-variant hover:text-primary-fixed-dim"
+                  }`}
                 >
                   <span className="relative z-10">{link.name}</span>
                   <AnimatePresence>
@@ -300,13 +307,18 @@ export default function Navbar() {
             <div className="px-6 py-8 flex flex-col space-y-6">
               <nav className="flex flex-col space-y-4">
                 {navLinks.map((link) => {
+                  const isActive = link.isPage 
+                    ? location.pathname === link.path 
+                    : (location.pathname === "/" && location.hash === `#${link.target}`);
                   if (link.isPage) {
                     return (
                       <Link
                         key={link.name}
                         to={link.path}
                         onClick={() => setIsMobileMenuOpen(false)}
-                        className="text-lg font-medium text-on-surface-variant hover:text-primary-fixed-dim py-1 border-b border-white/5 transition-colors focus:outline-none"
+                        className={`text-lg font-medium py-1 border-b border-white/5 transition-colors focus:outline-none ${
+                          isActive ? "text-[#00f0ff]" : "text-on-surface-variant hover:text-primary-fixed-dim"
+                        }`}
                       >
                         {link.name}
                       </Link>
@@ -317,7 +329,9 @@ export default function Navbar() {
                         key={link.name}
                         href={`#${link.target}`}
                         onClick={(e) => handleScrollToSection(e, link.target)}
-                        className="text-lg font-medium text-on-surface-variant hover:text-primary-fixed-dim py-1 border-b border-white/5 transition-colors focus:outline-none"
+                        className={`text-lg font-medium py-1 border-b border-white/5 transition-colors focus:outline-none ${
+                          isActive ? "text-[#00f0ff]" : "text-on-surface-variant hover:text-primary-fixed-dim"
+                        }`}
                       >
                         {link.name}
                       </a>
