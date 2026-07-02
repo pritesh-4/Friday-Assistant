@@ -1,236 +1,156 @@
-# F.R.I.D.A.Y.
+# 🤖 F.R.I.D.A.Y.
 
-### Future Responsive Intelligent Digital Assistant for You
+### **Future Responsive Intelligent Digital Assistant for You**
 
 > *"Sometimes the best interface is a conversation."*
 
-F.R.I.D.A.Y. is an ambitious attempt to explore what a real-life AI companion could look like with today's technology.
+F.R.I.D.A.Y. is an ambitious explore-and-build project aiming to create a personal AI operating layer—a companion that understands context, remembers interactions, and assists with workflows. 
 
-Not another chatbot.
-Not another AI wrapper.
-Not another productivity app.
-
-F.R.I.D.A.Y. aims to become a personal AI operating layer—an assistant that understands, remembers, assists, and works alongside you.
+This repository contains both the **React Frontend** and a **FastAPI Python Backend** representing a prototype system.
 
 ---
 
-# Inspiration
+## 📖 Summary of Vision & Inspiration
 
-Like many engineers and technology enthusiasts, I grew up fascinated by Tony Stark and his relationship with J.A.R.V.I.S. and F.R.I.D.A.Y.
+### 🌌 The Inspiration
+Inspired by Tony Stark's relationship with J.A.R.V.I.S. and F.R.I.D.A.Y. in sci-fi, this project explores how close modern LLMs, voice recognition, and agentic memory can bring us to a truly personal companion. Rather than multiple tabs and manual window shifting, the goal is a conversational interface that handles digital interactions behind the scenes.
 
-It wasn't the flying suits, holograms, or futuristic gadgets that inspired me the most.
-
-It was the idea that technology could feel personal.
-
-An assistant that understands context.
-An assistant that remembers.
-An assistant that helps you think, create, and solve problems.
-An assistant that feels less like software and more like a companion.
-
-As artificial intelligence rapidly evolves, that once-fictional idea no longer feels completely impossible.
-
-This project began with a simple question:
-
-> **How close can modern technology bring us to our own version of F.R.I.D.A.Y.?**
-
-The answer is:
-
-**Closer than ever before.**
-
-While we are still far away from the fully autonomous and conscious AI portrayed in science fiction, modern language models, voice interfaces, memory systems, and intelligent agents allow us to recreate many pieces of that vision.
-
-This project is an exploration of that possibility.
-
-A tribute to the technology that inspired countless engineers to start building.
-
-A reminder that many of today's innovations once existed only in science fiction.
-
-And perhaps, a small step toward turning one of those childhood dreams into reality.
+### 🎯 Core Vision & Boundaries
+*   **What F.R.I.D.A.Y. aims to be**: A highly personalized AI assistant, voice-first companion, long-term memory system, and computer task orchestrator.
+*   **Current Real-world Boundaries**: While movie-style consciousness, general intelligence (AGI), and perfect reasoning are not currently possible, we can utilize state-of-the-art LLMs, multi-agent frameworks, and vector-store memory to implement advanced assistive capabilities.
 
 ---
 
-# What is F.R.I.D.A.Y.?
+## 🛠️ Technology Stack
 
-F.R.I.D.A.Y. is envisioned as a personal AI companion that sits between you and your digital world.
+### 💻 Frontend
+*   **Framework**: React 19 + Vite 8
+*   **Routing**: React Router DOM v7 (SPA architecture)
+*   **Styling**: Tailwind CSS v4 (using the `@tailwindcss/vite` plugin)
+*   **Animations**: Framer Motion for smooth, high-fidelity UI transitions
+*   **Icons**: Lucide React
+*   **Background Visuals**: HTML5 Canvas with custom WebGL shaders for the ambient cyber-grid effect
 
-Instead of:
-
-* opening dozens of tabs,
-* switching between applications,
-* searching through files,
-* and manually performing repetitive tasks,
-
-you simply talk.
-
-Ask.
-Command.
-Discuss.
-Create.
-
-The assistant handles the rest.
+### 🐍 Backend
+*   **Framework**: FastAPI (Python 3.x)
+*   **Server**: Uvicorn
+*   **Settings & Validation**: Pydantic v2
+*   **Environment management**: python-dotenv
 
 ---
 
-# Core Capabilities
+## 📂 Project Directory Structure
 
-### 🧠 Intelligent Conversations
-
-Natural and context-aware conversations that feel less like talking to software and more like talking to an assistant.
-
-### 🗂️ Long-Term Memory
-
-Remembers preferences, projects, conversations, and important information to provide personalized assistance.
-
-### 🌐 Universal Knowledge Access
-
-Searches, summarizes, researches, and gathers information from multiple sources.
-
-### 💻 Computer Interaction
-
-Interacts with applications, files, and workflows.
-
-### 📅 Personal Assistance
-
-Organizes schedules, reminders, tasks, notes, and daily activities.
-
-### 🎙️ Voice-First Experience
-
-A natural conversational interface that removes the need for complicated menus and commands.
-
-### 🔧 Tool Usage
-
-Uses external tools and services to accomplish tasks instead of merely suggesting what to do.
-
-### 🤖 Specialized Intelligence
-
-Different tasks require different forms of intelligence. F.R.I.D.A.Y. can leverage multiple AI systems to provide the best possible assistance.
-
-### 📚 Context Awareness
-
-Understands ongoing projects, previous interactions, and relevant information to provide better support.
-
----
-
-# The Vision
-
-Imagine an assistant that can:
-
-* Remember what you were working on yesterday.
-* Understand your projects and goals.
-* Find information without requiring dozens of browser tabs.
-* Help you think, create, and learn.
-* Manage repetitive digital tasks.
-* Become more useful the more you interact with it.
-
-That is the direction F.R.I.D.A.Y. is moving toward.
-
----
-
-# What F.R.I.D.A.Y. Can Realistically Become
-
-✅ A highly personalized AI assistant.
-
-✅ A voice-driven productivity companion.
-
-✅ A knowledge and research partner.
-
-✅ A digital memory system.
-
-✅ A workflow automation platform.
-
-✅ A computer and tool orchestrator.
-
-✅ A multi-agent AI system.
-
-✅ A context-aware companion that adapts to its user.
-
-✅ A personal operating layer for your digital life.
+```text
+Friday/
+├── backend/                     # Python FastAPI Backend
+│   ├── app/
+│   │   ├── config.py            # Pydantic configuration & environment setup
+│   │   ├── main.py              # App initialization & CORS configuration
+│   │   ├── routers/             # API Router modules
+│   │   │   ├── chat.py          # Chat threads and messages routes
+│   │   │   ├── notes.py         # Personal notes organizer routes
+│   │   │   ├── settings.py      # User preference routes
+│   │   │   └── tasks.py         # Todo task tracker routes
+│   │   └── schemas/
+│   │       └── schemas.py       # Pydantic models (Message, Conversation, Settings, Note, Task)
+│   ├── requirements.txt         # Backend Python dependencies
+│   └── .env                     # Local environment variables
+│
+├── src/                         # React Frontend Source
+│   ├── assets/                  # Images, fonts, and styling assets
+│   ├── components/              # Reusable UI components
+│   │   ├── Orb.jsx              # Pulse orb representing FRIDAY's state (idle, listening, processing, speaking)
+│   │   ├── ShaderBackground.jsx # WebGL particle/grid ambient background canvas
+│   │   ├── ChatWindow.jsx       # Chat layout and dialogue stream
+│   │   ├── ChatMessage.jsx      # Individual bubble formatting for user/assistant messages
+│   │   ├── ChatInput.jsx        # Keyboard and microphone action bar
+│   │   ├── Sidebar.jsx          # Dashboard navigation (Chats, Notes, Tasks, Settings)
+│   │   ├── Navbar.jsx & Footer.jsx # Brand navigation and site layouts
+│   │   └── CustomCursor.jsx     # High-fidelity glowing pointer overlay
+│   │
+│   ├── pages/                   # Main Page Views
+│   │   ├── Home.jsx             # Hero landing page featuring the active Orb and tech stack
+│   │   ├── Chat.jsx             # Conversational workspace dashboard
+│   │   ├── Vision.jsx           # Future plans and project goals tracker
+│   │   └── About.jsx            # Deep-dive into project inspiration and boundaries
+│   │
+│   ├── services/                # API communication layers
+│   │   ├── chatService.js       # Conversational message history
+│   │   ├── memoryService.js     # User background memory integration
+│   │   ├── notesService.js      # Notes synchronization
+│   │   ├── settingsService.js   # Theme/voice option management
+│   │   └── voiceService.js      # Speech-to-Text and TTS interfaces
+│   │
+│   ├── context/                 # State providers (ThemeContext, etc.)
+│   ├── App.jsx                  # React Router routes setup
+│   ├── main.jsx                 # Application entrypoint
+│   └── index.css                # Global styles, fonts, and Tailwind directives
+│
+├── index.html                   # Entry HTML page
+├── package.json                 # Node package configuration
+├── vite.config.js               # Vite compilation plugin mappings
+└── README.md                    # This documentation file
+```
 
 ---
 
-# What F.R.I.D.A.Y. Cannot Become (Yet)
+## ✨ Implemented Features
 
-The fictional version of F.R.I.D.A.Y. possesses capabilities that humanity simply does not have today.
-
-### ❌ True Artificial General Intelligence (AGI)
-
-An AI that can understand and master every domain with human-level reasoning does not currently exist.
-
-### ❌ Consciousness and Self-Awareness
-
-Current AI systems are not sentient, self-aware, or alive.
-
-### ❌ Perfect Memory
-
-No modern AI can remember everything forever with complete accuracy.
-
-### ❌ Flawless Reasoning
-
-Current systems can make mistakes, hallucinate information, and misunderstand context.
-
-### ❌ Human-Level Common Sense
-
-Machines still struggle with many aspects of real-world understanding that humans take for granted.
-
-### ❌ Autonomous Scientific Genius
-
-Today's AI can assist researchers but cannot independently invent revolutionary technologies.
-
-### ❌ Omniscience
-
-No AI can magically access every device, database, or source of information.
-
-### ❌ Perfect Prediction
-
-The future cannot be predicted with certainty, and no AI can make infallible decisions.
+1.  **Dynamic Interactive Core (`Orb.jsx`)**: Renders the central glowing core of F.R.I.D.A.Y. utilizing Framer Motion. The Orb morphs dynamically between states:
+    *   `idle`: Smooth breathing animation.
+    *   `listening`: Reactive scale ripples pulsing outwards.
+    *   `processing`: High-speed orbital rotation.
+    *   `speaking`: Fluid expanding waves indicating voice output.
+2.  **Cyberspace Background (`ShaderBackground.jsx`)**: Utilizes custom WebGL fragment shaders on an HTML5 canvas to render a glowing grid background that reacts to window resizing and user interactions.
+3.  **Modular AI Dashboard**: Fully equipped with:
+    *   **Chat threads panel** for starting new or reviewing past scenarios.
+    *   **Settings configuration** to toggle features (e.g., Theme, Voice response, Long-term Memory).
+    *   **Notes organizer** to log thought scraps, and a **Task list tracker** for workflow goals.
+4.  **Speech Synthesis & Web Speech APIs**: Placeholders and service bindings in `voiceService.js` for voice command input and output.
 
 ---
 
-# Why These Limitations Exist
+## ⚡ Getting Started
 
-Because some problems are not engineering problems.
+### 🖥️ Frontend Setup
+To run the React dashboard:
+```bash
+# Navigate to the project root
+cd Projects/Friday
 
-They are unsolved scientific problems.
+# Install dependencies
+npm install
 
-Building a true F.R.I.D.A.Y. requires breakthroughs in:
+# Start local Vite development server (usually runs on http://localhost:5173)
+npm run dev
+```
 
-* Artificial General Intelligence
-* Long-Term Machine Memory
-* Common-Sense Reasoning
-* Autonomous Learning
-* World Modeling
-* Machine Consciousness
+To compile a production build:
+```bash
+npm run build
+npm run preview
+```
 
-These remain some of the hardest challenges in computer science and artificial intelligence.
+### 🐍 Backend Setup
+To run the FastAPI server:
+```bash
+# Navigate to the backend directory
+cd Projects/Friday/backend
 
----
+# Create a virtual environment
+python -m venv venv
 
-# Philosophy
+# Activate the virtual environment
+# On Windows (PowerShell):
+venv\Scripts\Activate.ps1
+# On macOS/Linux:
+source venv/bin/activate
 
-F.R.I.D.A.Y. is not an attempt to recreate movie magic.
+# Install dependencies
+pip install -r requirements.txt
 
-It is an attempt to explore how close modern technology can bring us to it.
-
-To build an assistant that is:
-
-**Helpful.**
-**Personal.**
-**Intelligent.**
-**Reliable.**
-**Human-Centric.**
-
-Not because artificial intelligence should replace people—
-
-but because technology should feel like having a trusted companion by your side.
-
----
-
-> *"The future isn't about talking to computers. It's about computers finally understanding how to talk to us."*
-
----
-
-### Inspired by science fiction.
-
-### Built with today's technology.
-
-### Created in pursuit of tomorrow.
+# Start the uvicorn web server (runs on http://127.0.0.1:8000)
+uvicorn app.main:app --reload
+```
+Interactive API docs are available at `http://127.0.0.1:8000/docs`.
