@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Layout,
@@ -15,6 +15,7 @@ import Orb from "./Orb";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useTasks } from "../hooks/useTasks";
+import { sfx } from "../utils/sfx";
 
 export default function ChatWindow({
   messages = [],
@@ -28,13 +29,90 @@ export default function ChatWindow({
   rightPanelOpen = false,
   setRightPanelOpen,
   isVoiceMode = false,
-  setIsVoiceMode
+  setIsVoiceMode,
+  getAnalyserNode
 }) {
   const [attachedFile, setAttachedFile] = useState(null);
   const [isTrayExpanded, setIsTrayExpanded] = useState(false);
   
   // Connect to persistent tasks hook
   const { tasks, createTask, updateTask } = useTasks();
+
+  const visualizerRef = useRef(null);
+
+  // Audio spectrum visualizer render loop
+  useEffect(() => {
+    if (!isVoiceMode) return;
+    const canvas = visualizerRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animationId;
+    const bufferLength = 128;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const draw = () => {
+      animationId = requestAnimationFrame(draw);
+
+      const analyser = getAnalyserNode ? getAnalyserNode() : null;
+      if (analyser) {
+        analyser.getByteTimeDomainData(dataArray);
+      } else {
+        // Fallback procedural sine-wave simulation when Friday speaks or processes
+        const time = Date.now() * 0.006;
+        for (let i = 0; i < bufferLength; i++) {
+          const amp = orbState === "speaking" ? 35 : orbState === "thinking" ? 6 : 14;
+          const freq = orbState === "speaking" ? 0.16 : 0.06;
+          dataArray[i] = 128 + Math.sin(i * freq + time) * amp * Math.sin(i * Math.PI / bufferLength);
+        }
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = 2;
+      
+      let strokeColor = "rgba(0, 240, 255, 0.85)"; // standard cyan
+      if (orbState === "speaking") {
+        strokeColor = "rgba(209, 188, 255, 0.85)"; // creative/speaking purple
+      } else if (orbState === "thinking") {
+        strokeColor = "rgba(255, 255, 255, 0.6)"; // thinking white
+      } else if (orbState === "success") {
+        strokeColor = "rgba(0, 255, 135, 0.85)"; // green success
+      } else if (orbState === "warning") {
+        strokeColor = "rgba(255, 179, 0, 0.85)"; // orange warning
+      }
+      
+      ctx.strokeStyle = strokeColor;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = strokeColor;
+      
+      ctx.beginPath();
+      const sliceWidth = canvas.width / bufferLength;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = (v * canvas.height) / 2;
+
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+
+        x += sliceWidth;
+      }
+
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.stroke();
+    };
+
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
+  }, [isVoiceMode, getAnalyserNode, orbState]);
 
   const [activeFiles, setActiveFiles] = useState([
     { name: "design-spec.pdf", size: "1.2 MB", type: "PDF" },
@@ -294,8 +372,12 @@ export default function ChatWindow({
                     <button
                       key={task.id || idx}
                       onClick={() => {
+                        const newStatus = task.status === "completed" ? "pending" : "completed";
+                        if (newStatus === "completed") {
+                          sfx.playSuccess();
+                        }
                         updateTask(task.id, {
-                          status: task.status === "completed" ? "pending" : "completed"
+                          status: newStatus
                         });
                       }}
                       className="w-full text-left p-2.5 rounded-lg bg-white/[0.01] border border-white/5 hover:border-white/10 transition-colors flex items-start gap-2.5 cursor-pointer"
@@ -369,7 +451,13 @@ export default function ChatWindow({
               {/* Immense centered pulsing Orb face */}
               <div className="relative w-56 h-56 flex items-center justify-center">
                 <div className="absolute inset-0 bg-[#00f0ff]/10 rounded-full blur-3xl animate-pulse" />
-                <Orb state="listening" size="hero" />
+                <canvas
+                  ref={visualizerRef}
+                  width={400}
+                  height={250}
+                  className="absolute w-[180%] h-[180%] pointer-events-none z-0 opacity-80"
+                />
+                <Orb state={orbState} size="hero" />
               </div>
 
               <div className="space-y-3">

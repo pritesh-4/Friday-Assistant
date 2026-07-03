@@ -115,7 +115,6 @@ export default function ChatInput({
 
   return (
     <motion.div
-      layout
       drag="y"
       dragConstraints={{ top: 0, bottom: 0 }}
       dragElastic={{ top: 0.05, bottom: 0.8 }}
@@ -126,8 +125,8 @@ export default function ChatInput({
         backdropFilter: isTrayExpanded ? "blur(40px)" : "blur(0px)",
         boxShadow: isTrayExpanded ? "0 -20px 40px rgba(0, 0, 0, 0.5), 0 -1px 0 rgba(255, 255, 255, 0.05)" : "none"
       }}
-      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className={`absolute bottom-0 left-0 right-0 z-30 w-full overflow-hidden transition-colors duration-300 ${
+      transition={{ type: "spring", stiffness: 260, damping: 28 }}
+      className={`absolute bottom-0 left-0 right-0 z-30 w-full overflow-hidden ${
         isTrayExpanded ? "border-t border-white/10 rounded-t-3xl" : "border-t-0"
       }`}
     >

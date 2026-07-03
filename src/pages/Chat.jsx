@@ -11,6 +11,7 @@ import { useSidebarContext } from "../context/SidebarContext";
 import { useSettingsContext } from "../context/SettingsContext";
 import { useConversations } from "../hooks/useConversations";
 import { useVoice } from "../hooks";
+import { sfx } from "../utils/sfx";
 
 export default function Chat() {
   // 1. Sidebar layouts loaded from global Sidebar Context
@@ -52,7 +53,8 @@ export default function Chat() {
     startListening,
     stopListening,
     speakText,
-    cancelSpeech
+    cancelSpeech,
+    getAnalyserNode
   } = useVoice();
 
   // Dynamic greeting time calculation
@@ -67,8 +69,25 @@ export default function Chat() {
   // Sync ambient Orb visual posture changes with chat typing telemetry and voice activity
   const getOrbState = () => {
     if (isFridayTyping) return "thinking";
-    if (isSpeaking) return "speaking";
     if (isListening) return "listening";
+    
+    if (isSpeaking && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.sender === "friday") {
+        const text = lastMsg.text.toLowerCase();
+        if (text.includes("success") || text.includes("completed") || text.includes("active") || text.includes("verified") || text.includes("stabilized") || text.includes("calibrated")) {
+          return "success";
+        }
+        if (text.includes("warning") || text.includes("error") || text.includes("critical") || text.includes("fail") || text.includes("caution") || text.includes("danger")) {
+          return "warning";
+        }
+        if (text.includes("creative") || text.includes("idea") || text.includes("thought") || text.includes("imagine") || text.includes("matrix") || text.includes("design")) {
+          return "creative";
+        }
+      }
+      return "speaking";
+    }
+    
     return "idle";
   };
   const orbState = getOrbState();
@@ -77,6 +96,7 @@ export default function Chat() {
   // Handle speech-to-text loop when voice mode is activated
   useEffect(() => {
     if (isVoiceMode) {
+      sfx.playChime();
       startListening((text) => {
         if (text.trim()) {
           sendMessage(text);
@@ -87,6 +107,67 @@ export default function Chat() {
       cancelSpeech();
     }
   }, [isVoiceMode, startListening, stopListening, cancelSpeech, sendMessage]);
+
+  // Background Wake Word Detection Loop (runs when voice mode is off)
+  useEffect(() => {
+    if (isVoiceMode) return;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    let backgroundRec = null;
+    let shouldRestart = true;
+
+    const startBackgroundRec = () => {
+      backgroundRec = new SpeechRecognition();
+      backgroundRec.continuous = false;
+      backgroundRec.interimResults = false;
+      backgroundRec.lang = "en-US";
+
+      backgroundRec.onresult = (event) => {
+        const transcript = event.results[0][0].transcript.toLowerCase();
+        if (transcript.includes("friday")) {
+          // Summon Friday!
+          setIsVoiceMode(true);
+        }
+      };
+
+      backgroundRec.onend = () => {
+        if (shouldRestart) {
+          try {
+            backgroundRec.start();
+          } catch (err) {
+            console.warn("Failed to restart background listener:", err);
+          }
+        }
+      };
+
+      backgroundRec.onerror = (event) => {
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          shouldRestart = false;
+        }
+      };
+
+      try {
+        backgroundRec.start();
+      } catch (err) {
+        console.warn("Failed to start background listener:", err);
+      }
+    };
+
+    startBackgroundRec();
+
+    return () => {
+      shouldRestart = false;
+      if (backgroundRec) {
+        try {
+          backgroundRec.abort();
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [isVoiceMode]);
 
   // When a new Friday message is received, read it aloud if voice mode is active
   useEffect(() => {
@@ -111,6 +192,16 @@ export default function Chat() {
       }
     }
   }, [messages, isVoiceMode, isFridayTyping, speakText, startListening, stopListening, sendMessage]);
+
+  // Play alert chime when a new message is received from Friday
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.sender === "friday") {
+        sfx.playAlert();
+      }
+    }
+  }, [messages]);
 
   // Handle message from new command console
   const handleSendInputConsole = (text) => {
@@ -184,6 +275,7 @@ export default function Chat() {
           setRightPanelOpen={setRightPanelOpen}
           isVoiceMode={isVoiceMode}
           setIsVoiceMode={setIsVoiceMode}
+          getAnalyserNode={getAnalyserNode}
         />
 
       </main>

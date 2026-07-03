@@ -69,6 +69,13 @@ export function useVoice() {
     setIsSpeaking(false);
   }, []);
 
+  /**
+   * Retrieves the active analyser node.
+   */
+  const getAnalyserNode = useCallback(() => {
+    return voiceService.getAnalyser();
+  }, []);
+
   useEffect(() => {
     // Cleanup synthesis and listeners on teardown
     return () => {
@@ -84,6 +91,7 @@ export function useVoice() {
     startListening,
     stopListening,
     speakText,
-    cancelSpeech
+    cancelSpeech,
+    getAnalyserNode
   };
 }

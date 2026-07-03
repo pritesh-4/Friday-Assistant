@@ -78,9 +78,29 @@ export default function Orb({ state = "idle", size = "medium" }) {
           stroke: "rgba(0, 240, 255, 0.35)",
           strokeAlt: "rgba(209, 188, 255, 0.4)",
         };
+      case "success":
+        return {
+          glow: "from-[#00ff87]/35 via-[#60efff]/25 to-[#004f1e]/10",
+          core: "from-[#00ff87] via-[#60efff] to-[#00ff87]",
+          stroke: "rgba(0, 255, 135, 0.35)",
+          strokeAlt: "rgba(96, 239, 255, 0.4)",
+        };
+      case "warning":
+        return {
+          glow: "from-[#ffb300]/35 via-[#ff3d00]/25 to-[#542d00]/10",
+          core: "from-[#ffb300] via-[#ff3d00] to-[#ffb300]",
+          stroke: "rgba(255, 179, 0, 0.35)",
+          strokeAlt: "rgba(255, 61, 0, 0.4)",
+        };
+      case "creative":
+        return {
+          glow: "from-[#d1bcff]/35 via-[#f48fb1]/25 to-[#311b92]/10",
+          core: "from-[#d1bcff] via-[#f48fb1] to-[#d1bcff]",
+          stroke: "rgba(209, 188, 255, 0.35)",
+          strokeAlt: "rgba(244, 143, 177, 0.4)",
+        };
       case "error":
         return {
-          // Subtle warm glow, not aggressive red flashing
           glow: "from-[#d1bcff]/15 via-[#ffb4ab]/10 to-transparent",
           core: "from-[#b9cacb] via-[#ffb4ab]/60 to-[#690005]/45",
           stroke: "rgba(185, 202, 203, 0.2)",
@@ -131,6 +151,24 @@ export default function Orb({ state = "idle", size = "medium" }) {
           opacity: [0.8, 1, 0.7, 0.95, 0.8],
           transition: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
         };
+      case "success":
+        return {
+          scale: [0.98, 1.06, 0.98],
+          opacity: [0.8, 0.95, 0.8],
+          transition: { duration: 2.5, repeat: Infinity, ease: "easeInOut" }
+        };
+      case "creative":
+        return {
+          scale: [0.96, 1.10, 0.96],
+          opacity: [0.75, 1, 0.75],
+          transition: { duration: 2.0, repeat: Infinity, ease: "easeInOut" }
+        };
+      case "warning":
+        return {
+          scale: [0.92, 0.98, 0.92],
+          opacity: [0.6, 0.85, 0.6],
+          transition: { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+        };
       case "error":
         return {
           scale: [0.9, 0.93, 0.88, 0.9, 0.86, 0.9],
@@ -176,6 +214,24 @@ export default function Orb({ state = "idle", size = "medium" }) {
           opacity: [0.5, 0.9, 0.4, 0.8, 0.5],
           transition: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
         };
+      case "success":
+        return {
+          scale: [0.98, 1.08, 0.98],
+          opacity: [0.45, 0.65, 0.45],
+          transition: { duration: 2.5, repeat: Infinity }
+        };
+      case "creative":
+        return {
+          scale: [0.95, 1.15, 0.95],
+          opacity: [0.4, 0.7, 0.4],
+          transition: { duration: 2.0, repeat: Infinity }
+        };
+      case "warning":
+        return {
+          scale: [0.92, 1.02, 0.92],
+          opacity: [0.35, 0.55, 0.35],
+          transition: { duration: 1.2, repeat: Infinity }
+        };
       case "error":
         return {
           scale: 0.95,
@@ -208,6 +264,12 @@ export default function Orb({ state = "idle", size = "medium" }) {
         return { rotate: 360, transition: { duration: 12, repeat: Infinity, ease: "linear" } };
       case "speaking":
         return { rotate: [0, 45, -45, 0], transition: { duration: 6, repeat: Infinity, ease: "easeInOut" } };
+      case "success":
+        return { rotate: 360, transition: { duration: 18, repeat: Infinity, ease: "linear" } };
+      case "creative":
+        return { rotate: 360, transition: { duration: 15, repeat: Infinity, ease: "linear" } };
+      case "warning":
+        return { rotate: -360, transition: { duration: 8, repeat: Infinity, ease: "linear" } };
       case "error":
         return { rotate: [0, 5, 2, 8, 0], transition: { duration: 4, repeat: Infinity, ease: "easeInOut" } };
       case "sleeping":

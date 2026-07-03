@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Orb from "./Orb";
 import { formatDate } from "../utils/formatDate";
+import { sfx } from "../utils/sfx";
 import { useSettingsContext } from "../context/SettingsContext";
 import { useTasks } from "../hooks/useTasks";
 import { useNotes } from "../hooks/useNotes";
@@ -214,7 +215,13 @@ export default function Sidebar({
                     className="p-2 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-2 text-xs"
                   >
                     <button
-                      onClick={() => updateTask(task.id, { status: task.status === "completed" ? "pending" : "completed" })}
+                      onClick={() => {
+                        const newStatus = task.status === "completed" ? "pending" : "completed";
+                        if (newStatus === "completed") {
+                          sfx.playSuccess();
+                        }
+                        updateTask(task.id, { status: newStatus });
+                      }}
                       className="flex-grow text-left flex items-start gap-2 cursor-pointer bg-transparent border-0"
                     >
                       <span className={`w-3.5 h-3.5 rounded-md border flex items-center justify-center shrink-0 mt-0.5 ${

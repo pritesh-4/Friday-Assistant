@@ -1,11 +1,23 @@
 let recognition = null;
+let audioContext = null;
+let mediaStream = null;
+let mediaStreamSource = null;
+let analyserNode = null;
 
 /**
  * Service to interface with browser SpeechRecognition and SpeechSynthesis APIs.
  */
 export const voiceService = {
   /**
-   * Starts listening voice capture channels.
+   * Retrieves the active AnalyserNode for audio visualization.
+   * @returns {AnalyserNode|null}
+   */
+  getAnalyser() {
+    return analyserNode;
+  },
+
+  /**
+   * Starts listening voice capture channels and hooks Web Audio Analyser.
    * @param {Function} onResult - Callback when speech is successfully transcribed.
    * @param {Function} onError - Callback for errors.
    * @param {Function} onEnd - Callback when recognition stops.
@@ -48,11 +60,28 @@ export const voiceService = {
     };
 
     recognition.start();
+
+    // Hook microphone stream for real-time visualizer frequencies
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => {
+          mediaStream = stream;
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          mediaStreamSource = audioContext.createMediaStreamSource(stream);
+          analyserNode = audioContext.createAnalyser();
+          analyserNode.fftSize = 256;
+          mediaStreamSource.connect(analyserNode);
+        })
+        .catch((err) => {
+          console.warn("Microphone access denied for visualizer:", err);
+        });
+    }
+
     return recognition;
   },
 
   /**
-   * Stops listening voice capture channels.
+   * Stops listening voice capture channels and cleans up microphone hooks.
    */
   stopListening() {
     if (recognition) {
@@ -63,6 +92,23 @@ export const voiceService = {
       }
       recognition = null;
     }
+
+    // Release microphone stream & close audio contexts
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((track) => track.stop());
+      mediaStream = null;
+    }
+    if (mediaStreamSource) {
+      mediaStreamSource.disconnect();
+      mediaStreamSource = null;
+    }
+    if (audioContext) {
+      if (audioContext.state !== "closed") {
+        audioContext.close();
+      }
+      audioContext = null;
+    }
+    analyserNode = null;
   },
 
   /**
