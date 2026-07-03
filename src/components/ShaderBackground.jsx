@@ -8,8 +8,9 @@ export default function ShaderBackground() {
     if (!canvas) return;
 
     const handleResize = () => {
-      const w = canvas.clientWidth || window.innerWidth;
-      const h = canvas.clientHeight || window.innerHeight;
+      const scale = 0.5; // Render at 50% scale for massive GPU performance gains
+      const w = Math.floor((canvas.clientWidth || window.innerWidth) * scale);
+      const h = Math.floor((canvas.clientHeight || window.innerHeight) * scale);
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w;
         canvas.height = h;

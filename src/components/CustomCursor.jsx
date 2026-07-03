@@ -124,11 +124,9 @@ export default function CustomCursor({ isSystemThinking = false, enabled = true 
       
       {/* 1. Primary Precise Point (Energy Focus Point) */}
       <motion.div
-        style={{ x: mouseX, y: mouseY }}
+        style={{ x: mouseX, y: mouseY, translateX: "-50%", translateY: "-50%" }}
         animate={{
-          scale: pointScale * (isClicked ? 0.6 : 1),
-          x: "-50%",
-          y: "-50%"
+          scale: pointScale * (isClicked ? 0.6 : 1)
         }}
         transition={{ duration: 0.15 }}
         className={`fixed w-2.5 h-2.5 rounded-full ${pointColor} shadow-[0_0_8px_rgba(0,240,255,0.7)] z-50`}
@@ -136,12 +134,10 @@ export default function CustomCursor({ isSystemThinking = false, enabled = true 
 
       {/* 2. Secondary Trailing Halo (Motion prediction spring overlay) */}
       <motion.div
-        style={{ x: haloX, y: haloY }}
+        style={{ x: haloX, y: haloY, translateX: "-50%", translateY: "-50%" }}
         animate={{
           scale: haloScale * (isClicked ? 0.8 : 1),
-          opacity: haloOpacity,
-          x: "-50%",
-          y: "-50%"
+          opacity: haloOpacity
         }}
         transition={{ duration: 0.2 }}
         className={`fixed w-7 h-7 rounded-full border ${haloBorderColor} bg-white/[0.01] flex items-center justify-center`}
@@ -162,8 +158,8 @@ export default function CustomCursor({ isSystemThinking = false, enabled = true 
         {isClicked && (
           <motion.div
             initial={{ opacity: 0.6, scale: 0.2 }}
-            style={{ x: mouseX, y: mouseY }}
-            animate={{ opacity: 0, scale: 2.2, x: "-50%", y: "-50%" }}
+            style={{ x: mouseX, y: mouseY, translateX: "-50%", translateY: "-50%" }}
+            animate={{ opacity: 0, scale: 2.2 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
             className="fixed w-8 h-8 rounded-full border border-[#00f0ff]/50 pointer-events-none"

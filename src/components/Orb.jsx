@@ -310,7 +310,7 @@ export default function Orb({ state = "idle", size = "medium" }) {
           {/* Ring 3: Telemetry HUD outer tick markers */}
           <motion.svg
             animate={getRingRotation()}
-            className="absolute w-[95%] h-[95%] opacity-20"
+            className="absolute w-[95%] h-[95%] opacity-20 will-change-transform"
             viewBox="0 0 100 100"
           >
             <circle
@@ -330,7 +330,7 @@ export default function Orb({ state = "idle", size = "medium" }) {
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <motion.svg
           animate={getRingRotation()}
-          className={`absolute ${currentSize.outerRing} aspect-square transition-all duration-700`}
+          className={`absolute ${currentSize.outerRing} aspect-square transition-all duration-700 will-change-transform`}
           viewBox="0 0 100 100"
         >
           {/* Main outer dotted orbit */}
@@ -373,7 +373,7 @@ export default function Orb({ state = "idle", size = "medium" }) {
             repeat: Infinity,
             ease: "linear",
           }}
-          className={`absolute ${currentSize.innerRing} aspect-square transition-all duration-700`}
+          className={`absolute ${currentSize.innerRing} aspect-square transition-all duration-700 will-change-transform`}
           viewBox="0 0 100 100"
         >
           <circle
@@ -392,7 +392,7 @@ export default function Orb({ state = "idle", size = "medium" }) {
       {/* Living Glowing Core */}
       <motion.div
         animate={getCoreAnimation()}
-        className={`relative rounded-full bg-gradient-to-tr ${colors.core} p-[1.5px] transition-all duration-700 ${currentSize.core} flex items-center justify-center`}
+        className={`relative rounded-full bg-gradient-to-tr ${colors.core} p-[1.5px] transition-all duration-700 ${currentSize.core} flex items-center justify-center will-change-transform`}
         style={{
           boxShadow:
             state === "sleeping"
