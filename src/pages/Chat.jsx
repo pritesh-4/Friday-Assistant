@@ -8,7 +8,9 @@ import CustomCursor from "../components/CustomCursor";
 // Import global configuration contexts & data-fetching hooks
 import { useChatContext } from "../context/ChatContext";
 import { useSidebarContext } from "../context/SidebarContext";
+import { useSettingsContext } from "../context/SettingsContext";
 import { useConversations } from "../hooks/useConversations";
+import { useVoice } from "../hooks";
 
 export default function Chat() {
   // 1. Sidebar layouts loaded from global Sidebar Context
@@ -19,11 +21,10 @@ export default function Chat() {
     setIsCollapsed
   } = useSidebarContext();
 
-  const [orbState, setOrbState] = useState("idle");
+  const { preferences } = useSettingsContext();
+  const userName = preferences?.userName || "Boss";
+
   const [activeTab, setActiveTab] = useState("conversations");
-  
-  const userName = "Pree";
-  const greetingTime = "Evening";
 
   // 2. Chat history and message execution loaded from global Chat Context
   const {
@@ -39,28 +40,77 @@ export default function Chat() {
   const {
     conversations,
     deleteConversation
-  } = useConversations();
+  } = useConversations(activeConversationId, messages);
 
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
 
-  // Sync ambient Orb visual posture changes with chat typing telemetry
+  // 4. Voice Telemetry hook
+  const {
+    isListening,
+    isSpeaking,
+    startListening,
+    stopListening,
+    speakText,
+    cancelSpeech
+  } = useVoice();
+
+  // Dynamic greeting time calculation
+  const getGreetingTime = () => {
+    const hours = new Date().getHours();
+    if (hours < 12) return "Morning";
+    if (hours < 17) return "Afternoon";
+    return "Evening";
+  };
+  const greetingTime = getGreetingTime();
+
+  // Sync ambient Orb visual posture changes with chat typing telemetry and voice activity
+  const getOrbState = () => {
+    if (isFridayTyping) return "thinking";
+    if (isSpeaking) return "speaking";
+    if (isListening) return "listening";
+    return "idle";
+  };
+  const orbState = getOrbState();
+  const setOrbState = () => {};
+
+  // Handle speech-to-text loop when voice mode is activated
   useEffect(() => {
-    const handle = setTimeout(() => {
-      if (isFridayTyping) {
-        setOrbState("thinking");
-      } else if (messages.length > 0 && messages[messages.length - 1]?.sender === "friday") {
-        setOrbState("speaking");
-        const speakTimeout = setTimeout(() => {
-          setOrbState("idle");
-        }, 2500);
-        return () => clearTimeout(speakTimeout);
-      } else {
-        setOrbState("idle");
+    if (isVoiceMode) {
+      startListening((text) => {
+        if (text.trim()) {
+          sendMessage(text);
+        }
+      });
+    } else {
+      stopListening();
+      cancelSpeech();
+    }
+  }, [isVoiceMode, startListening, stopListening, cancelSpeech, sendMessage]);
+
+  // When a new Friday message is received, read it aloud if voice mode is active
+  useEffect(() => {
+    if (isVoiceMode && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.sender === "friday" && !isFridayTyping) {
+        stopListening();
+        speakText(
+          lastMsg.text,
+          null, // onStart
+          () => {
+            // Once speaking finishes, resume listening
+            if (isVoiceMode) {
+              startListening((text) => {
+                if (text.trim()) {
+                  sendMessage(text);
+                }
+              });
+            }
+          }
+        );
       }
-    }, 0);
-    return () => clearTimeout(handle);
-  }, [isFridayTyping, messages]);
+    }
+  }, [messages, isVoiceMode, isFridayTyping, speakText, startListening, stopListening, sendMessage]);
 
   // Handle message from new command console
   const handleSendInputConsole = (text) => {

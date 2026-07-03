@@ -1,8 +1,19 @@
 import { mockTasks } from "../data/tasks";
 import { simulateApiDelay } from "./api";
+import { storage } from "../utils/storage";
+
+const TASKS_KEY = "friday_tasks";
+
+const initializeData = () => {
+  if (!storage.get(TASKS_KEY)) {
+    storage.set(TASKS_KEY, mockTasks);
+  }
+};
+
+initializeData();
 
 /**
- * Service to simulate tasks database operations.
+ * Service to simulate tasks database operations synced with browser LocalStorage.
  */
 export const tasksService = {
   /**
@@ -10,8 +21,9 @@ export const tasksService = {
    * @returns {Promise<Array>} List of tasks.
    */
   async getTasks() {
-    await simulateApiDelay(400);
-    return [...mockTasks];
+    await simulateApiDelay(200);
+    initializeData();
+    return storage.get(TASKS_KEY) || [];
   },
 
   /**
@@ -21,8 +33,11 @@ export const tasksService = {
    * @returns {Promise<boolean>} Completion indicator.
    */
   async updateTask(id, updates) {
-    await simulateApiDelay(350);
-    console.log(`TODO: Synchronize task status updates for task ${id}`, updates);
+    await simulateApiDelay(150);
+    initializeData();
+    const tasks = storage.get(TASKS_KEY) || [];
+    const updatedTasks = tasks.map((t) => (t.id === id ? { ...t, ...updates } : t));
+    storage.set(TASKS_KEY, updatedTasks);
     return true;
   },
 
@@ -32,12 +47,32 @@ export const tasksService = {
    * @returns {Promise<Object>} Created task object.
    */
   async createTask(task) {
-    await simulateApiDelay(450);
+    await simulateApiDelay(200);
+    initializeData();
     const newTask = {
-      ...task,
       id: `task-${Date.now()}`,
-      status: "pending"
+      title: task.title,
+      status: task.status || "pending",
+      priority: task.priority || "medium",
+      dueDate: task.dueDate || new Date().toISOString().split("T")[0]
     };
+    const tasks = storage.get(TASKS_KEY) || [];
+    tasks.push(newTask);
+    storage.set(TASKS_KEY, tasks);
     return newTask;
+  },
+
+  /**
+   * Deletes workspace task.
+   * @param {string} id - Task ID.
+   * @returns {Promise<boolean>} Completion.
+   */
+  async deleteTask(id) {
+    await simulateApiDelay(150);
+    initializeData();
+    const tasks = storage.get(TASKS_KEY) || [];
+    const updatedTasks = tasks.filter((t) => t.id !== id);
+    storage.set(TASKS_KEY, updatedTasks);
+    return true;
   }
 };

@@ -1,48 +1,89 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { voiceService } from "../services/voiceService";
 
 /**
- * Custom hook to simulate speech synthesizers.
+ * Custom hook to manage voice recognition and speech synthesis state.
  */
 export function useVoice() {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [transcript, setTranscript] = useState("");
 
   /**
-   * Starts voice recording simulation.
+   * Starts browser voice capture.
    */
-  const startListening = async () => {
-    const success = await voiceService.startListening();
-    if (success) {
-      setIsListening(true);
-    }
-  };
+  const startListening = useCallback((onResultCallback) => {
+    setIsListening(true);
+    setTranscript("");
+
+    voiceService.startListening(
+      (text) => {
+        setTranscript(text);
+        if (onResultCallback) {
+          onResultCallback(text);
+        }
+      },
+      (error) => {
+        console.error("Speech recognition error:", error);
+        setIsListening(false);
+      },
+      () => {
+        setIsListening(false);
+      }
+    );
+  }, []);
 
   /**
-   * Stops voice recording simulation.
+   * Stops browser voice capture.
    */
-  const stopListening = async () => {
-    const success = await voiceService.stopListening();
-    if (success) {
-      setIsListening(false);
-    }
-  };
+  const stopListening = useCallback(() => {
+    voiceService.stopListening();
+    setIsListening(false);
+  }, []);
 
   /**
    * Reads target speak text aloud.
-   * @param {string} text - dialogue phrase.
+   * @param {string} text - Dialogue phrase.
+   * @param {Function} onStartCallback - Triggered when reading starts.
+   * @param {Function} onEndCallback - Triggered when reading completes.
    */
-  const speakText = async (text) => {
+  const speakText = useCallback((text, onStartCallback, onEndCallback) => {
     setIsSpeaking(true);
-    await voiceService.speak(text);
+    voiceService.speak(
+      text,
+      () => {
+        if (onStartCallback) onStartCallback();
+      },
+      () => {
+        setIsSpeaking(false);
+        if (onEndCallback) onEndCallback();
+      }
+    );
+  }, []);
+
+  /**
+   * Cancels active speech synthesis.
+   */
+  const cancelSpeech = useCallback(() => {
+    voiceService.cancelSpeech();
     setIsSpeaking(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    // Cleanup synthesis and listeners on teardown
+    return () => {
+      voiceService.cancelSpeech();
+      voiceService.stopListening();
+    };
+  }, []);
 
   return {
     isListening,
     isSpeaking,
+    transcript,
     startListening,
     stopListening,
-    speakText
+    speakText,
+    cancelSpeech
   };
 }

@@ -12,10 +12,15 @@ import {
   Activity,
   LogOut,
   X,
-  Plus
+  Plus,
+  Trash2
 } from "lucide-react";
 import Orb from "./Orb";
 import { formatDate } from "../utils/formatDate";
+import { useSettingsContext } from "../context/SettingsContext";
+import { useTasks } from "../hooks/useTasks";
+import { useNotes } from "../hooks/useNotes";
+import { useMemory } from "../hooks/useMemory";
 
 export default function Sidebar({
   isCollapsed = false,
@@ -38,6 +43,25 @@ export default function Sidebar({
   const [hoveredNavItem, setHoveredNavItem] = useState(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null); // 'settings', 'memories', 'notes', 'tasks'
+
+  const { preferences, updateSettings } = useSettingsContext();
+  const { tasks, createTask, updateTask, deleteTask } = useTasks();
+  const { notes, createNote, deleteNote } = useNotes();
+  const { memories, addMemory, removeMemory, searchMemory } = useMemory();
+
+  const [memorySearchQuery, setMemorySearchQuery] = useState("");
+  const [newNoteTitle, setNewNoteTitle] = useState("");
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newMemoryTitle, setNewMemoryTitle] = useState("");
+  const [newMemoryValue, setNewMemoryValue] = useState("");
+  const [newMemoryCategory, setNewMemoryCategory] = useState("personal");
+
+  useEffect(() => {
+    if (activeModal === "memories") {
+      searchMemory(memorySearchQuery);
+    }
+  }, [memorySearchQuery, activeModal, searchMemory]);
 
   // Map mobile vs desktop collapse states
   const collapsed = isMobileOpen ? false : isCollapsed;
@@ -86,34 +110,297 @@ export default function Sidebar({
     }
   };
 
-  const getModalDetails = () => {
+  const getModalTitle = () => {
     switch (activeModal) {
       case "settings":
-        return {
-          title: "Stark OS Settings",
-          message: "The core telemetry configurations are currently running in background sandbox mode. Local configurations page is under development."
-        };
-      case "memories":
-        return {
-          title: "Quantum Memory Core",
-          message: "Long-term synaptic archives are syncing with local vector database indices. Memory core management panel is under development."
-        };
-      case "notes":
-        return {
-          title: "Neural Notes Ledger",
-          message: "Your voice-logged note transcripts are saved in the project notes schema. The interactive notes editor is under development."
-        };
+        return "Friday System Settings";
       case "tasks":
-        return {
-          title: "Task Coordination Matrix",
-          message: "Workspace action checklist points are actively synchronizing. The task manager UI is under development."
-        };
+        return "Workspace Checklists";
+      case "notes":
+        return "Neural Notes Ledger";
+      case "memories":
+        return "Recall Memory Index";
       default:
-        return { title: "", message: "" };
+        return "";
     }
   };
 
-  const modalDetails = getModalDetails();
+  const renderModalContent = () => {
+    switch (activeModal) {
+      case "settings":
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">User Name</label>
+              <input
+                type="text"
+                value={preferences.userName || "Boss"}
+                onChange={(e) => updateSettings({ userName: e.target.value })}
+                className="w-full bg-[#1c1b1b] border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#00f0ff]/50 text-white"
+              />
+            </div>
+            
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-light text-on-surface">Vocal Synthesizer (TTS)</span>
+                <input
+                  type="checkbox"
+                  checked={preferences.voiceEnabled !== false}
+                  onChange={(e) => updateSettings({ voiceEnabled: e.target.checked })}
+                  className="w-4 h-4 accent-[#00f0ff]"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-light text-on-surface">Fluid Animations</span>
+                <input
+                  type="checkbox"
+                  checked={preferences.animations !== false}
+                  onChange={(e) => updateSettings({ animations: e.target.checked })}
+                  className="w-4 h-4 accent-[#00f0ff]"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-light text-on-surface">Ambient Memory Core</span>
+                <input
+                  type="checkbox"
+                  checked={preferences.memoryEnabled !== false}
+                  onChange={(e) => updateSettings({ memoryEnabled: e.target.checked })}
+                  className="w-4 h-4 accent-[#00f0ff]"
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case "tasks":
+        return (
+          <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
+            {/* Add Task Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (newTaskTitle.trim()) {
+                  createTask({ title: newTaskTitle.trim() });
+                  setNewTaskTitle("");
+                }
+              }}
+              className="flex gap-2"
+            >
+              <input
+                type="text"
+                placeholder="New matrix checklist..."
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                className="flex-grow bg-[#1c1b1b] border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-[#00f0ff]/50 text-white"
+              />
+              <button
+                type="submit"
+                className="px-3 bg-secondary text-on-secondary text-xs rounded-xl font-semibold hover:brightness-110 active:scale-95 cursor-pointer"
+              >
+                Add
+              </button>
+            </form>
+
+            {/* Tasks List */}
+            <div className="space-y-1.5">
+              {tasks.length === 0 ? (
+                <p className="text-center text-[10px] text-on-surface-variant/50 font-mono py-4">NO ACTIVE TASKS</p>
+              ) : (
+                tasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="p-2 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-2 text-xs"
+                  >
+                    <button
+                      onClick={() => updateTask(task.id, { status: task.status === "completed" ? "pending" : "completed" })}
+                      className="flex-grow text-left flex items-start gap-2 cursor-pointer bg-transparent border-0"
+                    >
+                      <span className={`w-3.5 h-3.5 rounded-md border flex items-center justify-center shrink-0 mt-0.5 ${
+                        task.status === "completed" ? "bg-secondary border-secondary text-on-secondary" : "border-white/20"
+                      }`}>
+                        {task.status === "completed" && <span className="text-[8px] font-bold">✓</span>}
+                      </span>
+                      <span className={`${task.status === "completed" ? "line-through opacity-40 text-on-surface-variant" : "text-white"}`}>
+                        {task.title}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      className="text-on-surface-variant hover:text-[#ffb4ab] cursor-pointer bg-transparent border-0 p-1 rounded"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+
+      case "notes":
+        return (
+          <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
+            {/* Add Note Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (newNoteTitle.trim() && newNoteContent.trim()) {
+                  createNote({ title: newNoteTitle.trim(), content: newNoteContent.trim() });
+                  setNewNoteTitle("");
+                  setNewNoteContent("");
+                }
+              }}
+              className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2"
+            >
+              <input
+                type="text"
+                placeholder="Note title..."
+                value={newNoteTitle}
+                onChange={(e) => setNewNoteTitle(e.target.value)}
+                className="w-full bg-[#1c1b1b] border border-white/10 rounded-xl px-3 py-1 text-xs focus:outline-none focus:border-[#00f0ff]/50 text-white"
+              />
+              <textarea
+                placeholder="Note contents..."
+                rows={2}
+                value={newNoteContent}
+                onChange={(e) => setNewNoteContent(e.target.value)}
+                className="w-full bg-[#1c1b1b] border border-white/10 rounded-xl px-3 py-1 text-xs focus:outline-none focus:border-[#00f0ff]/50 text-white resize-none"
+              />
+              <button
+                type="submit"
+                className="w-full py-1.5 bg-[#00f0ff]/10 border border-[#00f0ff]/20 hover:bg-[#00f0ff]/20 text-[#00f0ff] font-mono text-[9px] uppercase tracking-widest rounded-xl transition-all duration-300 active:scale-98 cursor-pointer"
+              >
+                Log note to Friday Matrix
+              </button>
+            </form>
+
+            {/* Notes List */}
+            <div className="space-y-2">
+              {notes.length === 0 ? (
+                <p className="text-center text-[10px] text-on-surface-variant/50 font-mono py-4">NO NOTES SAVED</p>
+              ) : (
+                notes.map((note) => (
+                  <div
+                    key={note.id}
+                    className="p-3 rounded-2xl bg-[#1c1b1b]/50 border border-white/5 space-y-1 text-xs relative group"
+                  >
+                    <button
+                      onClick={() => deleteNote(note.id)}
+                      className="absolute top-2.5 right-2.5 text-on-surface-variant hover:text-[#ffb4ab] cursor-pointer bg-transparent border-0"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                    <h5 className="font-semibold text-white pr-5">{note.title}</h5>
+                    <p className="text-[11px] text-on-surface-variant/80 whitespace-pre-line leading-relaxed">{note.content}</p>
+                    <span className="text-[8px] font-mono text-on-surface-variant/40 block pt-1">
+                      {formatDate(note.createdAt)}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+
+      case "memories":
+        return (
+          <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
+            {/* Search Input */}
+            <input
+              type="text"
+              placeholder="Search recollections..."
+              value={memorySearchQuery}
+              onChange={(e) => setMemorySearchQuery(e.target.value)}
+              className="w-full bg-[#1c1b1b] border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-[#00f0ff]/50 text-white font-light"
+            />
+
+            {/* Add Memory Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (newMemoryTitle.trim() && newMemoryValue.trim()) {
+                  addMemory({
+                    title: newMemoryTitle.trim(),
+                    value: newMemoryValue.trim(),
+                    category: newMemoryCategory
+                  });
+                  setNewMemoryTitle("");
+                  setNewMemoryValue("");
+                }
+              }}
+              className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2"
+            >
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Memory topic..."
+                  value={newMemoryTitle}
+                  onChange={(e) => setNewMemoryTitle(e.target.value)}
+                  className="flex-1 bg-[#1c1b1b] border border-white/10 rounded-xl px-2.5 py-1 text-[11px] focus:outline-none focus:border-[#00f0ff]/50 text-white"
+                />
+                <select
+                  value={newMemoryCategory}
+                  onChange={(e) => setNewMemoryCategory(e.target.value)}
+                  className="bg-[#1c1b1b] border border-white/10 rounded-xl px-2 py-1 text-[11px] text-on-surface-variant"
+                >
+                  <option value="personal">Personal</option>
+                  <option value="project">Project</option>
+                  <option value="interests">Interests</option>
+                  <option value="professional">Professional</option>
+                </select>
+              </div>
+              <textarea
+                placeholder="What should Friday recall?"
+                rows={1}
+                value={newMemoryValue}
+                onChange={(e) => setNewMemoryValue(e.target.value)}
+                className="w-full bg-[#1c1b1b] border border-white/10 rounded-xl px-2.5 py-1 text-[11px] focus:outline-none focus:border-[#00f0ff]/50 text-white resize-none"
+              />
+              <button
+                type="submit"
+                className="w-full py-1 bg-[#d1bcff]/10 border border-[#d1bcff]/20 hover:bg-[#d1bcff]/20 text-[#d1bcff] font-mono text-[9px] uppercase tracking-widest rounded-xl transition-all duration-300 active:scale-98 cursor-pointer"
+              >
+                Log memory index
+              </button>
+            </form>
+
+            {/* Memories List */}
+            <div className="space-y-1.5">
+              {memories.length === 0 ? (
+                <p className="text-center text-[10px] text-on-surface-variant/50 font-mono py-4">NO RECOLLECTIONS MATCHING</p>
+              ) : (
+                memories.map((mem) => (
+                  <div
+                    key={mem.id}
+                    className="p-2.5 rounded-xl bg-white/[0.01] border border-white/5 hover:border-white/10 transition-colors flex items-start justify-between gap-3 text-xs"
+                  >
+                    <div className="min-w-0 flex-grow">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[8px] px-1.5 py-0.5 rounded bg-white/5 text-[#00f0ff] uppercase tracking-wide">
+                          {mem.category || "General"}
+                        </span>
+                        <span className="font-semibold text-white truncate">{mem.title}</span>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant/80 mt-1 leading-normal">{mem.value}</p>
+                    </div>
+                    <button
+                      onClick={() => removeMemory(mem.id)}
+                      className="text-on-surface-variant hover:text-[#ffb4ab] cursor-pointer bg-transparent border-0 p-1 rounded mt-0.5 shrink-0"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   const sidebarContent = (
     <div className="h-full flex flex-col justify-between text-on-surface bg-[#131313]/40 backdrop-blur-md p-4 relative z-20">
@@ -411,7 +698,7 @@ export default function Sidebar({
         </AnimatePresence>
       </div>
 
-      {/* Floating Placeholder Modal Overlay */}
+      {/* Floating Interactive Modals Overlay */}
       <AnimatePresence>
         {activeModal && (
           <motion.div
@@ -424,7 +711,7 @@ export default function Sidebar({
               initial={{ scale: 0.95, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
-              className="w-full max-w-sm rounded-3xl bg-[#131313]/95 border border-white/10 shadow-[0_0_35px_rgba(0,240,255,0.06)] p-6 relative overflow-hidden"
+              className="w-full max-w-sm rounded-3xl bg-[#131313]/95 border border-white/10 shadow-[0_0_35px_rgba(0,240,255,0.06)] p-6 relative overflow-hidden font-sans"
             >
               {/* Telemetry background flare */}
               <div className="absolute -top-12 -right-12 w-28 h-28 bg-[#00f0ff]/5 rounded-full blur-2xl pointer-events-none" />
@@ -445,17 +732,11 @@ export default function Sidebar({
                     <Activity size={18} className="text-[#00f0ff] animate-pulse" />
                   </div>
                   <h4 className="font-display-lg text-sm text-gradient font-light uppercase tracking-wide">
-                    {modalDetails.title}
+                    {getModalTitle()}
                   </h4>
                 </div>
 
-                <p className="font-body-md text-xs text-on-surface-variant/80 font-light leading-relaxed">
-                  {modalDetails.message}
-                </p>
-
-                <div className="pt-2 text-[9px] font-mono text-on-surface-variant/40 tracking-wider">
-                  STATUS: DEVELOPMENT_SYNC_CALIBRATING
-                </div>
+                {renderModalContent()}
 
                 <button
                   onClick={() => setActiveModal(null)}

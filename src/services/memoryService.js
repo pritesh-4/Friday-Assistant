@@ -1,8 +1,19 @@
 import { mockMemories } from "../data/memories";
 import { simulateApiDelay } from "./api";
+import { storage } from "../utils/storage";
+
+const MEMORIES_KEY = "friday_memories";
+
+const initializeData = () => {
+  if (!storage.get(MEMORIES_KEY)) {
+    storage.set(MEMORIES_KEY, mockMemories);
+  }
+};
+
+initializeData();
 
 /**
- * Service to simulate vector recall database.
+ * Service to simulate vector recall database synced with browser LocalStorage.
  */
 export const memoryService = {
   /**
@@ -10,8 +21,9 @@ export const memoryService = {
    * @returns {Promise<Array>} List of user memories.
    */
   async getMemories() {
-    await simulateApiDelay(400);
-    return [...mockMemories];
+    await simulateApiDelay(200);
+    initializeData();
+    return storage.get(MEMORIES_KEY) || [];
   },
 
   /**
@@ -20,12 +32,16 @@ export const memoryService = {
    * @returns {Promise<Object>} Created memory object.
    */
   async saveMemory(memory) {
-    await simulateApiDelay(500);
+    await simulateApiDelay(200);
+    initializeData();
     const newMemory = {
       ...memory,
       id: `mem-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
+    const memories = storage.get(MEMORIES_KEY) || [];
+    memories.unshift(newMemory);
+    storage.set(MEMORIES_KEY, memories);
     return newMemory;
   },
 
@@ -35,8 +51,11 @@ export const memoryService = {
    * @returns {Promise<boolean>} Completion indicator.
    */
   async deleteMemory(id) {
-    await simulateApiDelay(300);
-    console.log(`TODO: Connect FastAPI pgvector link to delete memory ${id}`);
+    await simulateApiDelay(150);
+    initializeData();
+    const memories = storage.get(MEMORIES_KEY) || [];
+    const updatedMemories = memories.filter((m) => m.id !== id);
+    storage.set(MEMORIES_KEY, updatedMemories);
     return true;
   },
 
@@ -46,11 +65,13 @@ export const memoryService = {
    * @returns {Promise<Array>} Filtered memories list.
    */
   async searchMemories(query) {
-    await simulateApiDelay(450);
-    if (!query) return [...mockMemories];
-    return mockMemories.filter((m) =>
+    await simulateApiDelay(200);
+    initializeData();
+    const memories = storage.get(MEMORIES_KEY) || [];
+    if (!query) return memories;
+    return memories.filter((m) =>
       m.value.toLowerCase().includes(query.toLowerCase()) ||
-      m.title.toLowerCase().includes(query.toLowerCase())
+      (m.title && m.title.toLowerCase().includes(query.toLowerCase()))
     );
   }
 };

@@ -53,16 +53,17 @@ export function useChat(initialId = null) {
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
-    // Add user message
+    // Add user message to state
     const userMsg = { sender: "user", text, time: timeStr };
     setMessages((prev) => [...prev, userMsg]);
     setIsTyping(true);
 
-    // Call service layer for future backend integration
-    await chatService.sendMessage(activeConversationId, text);
+    // Call service layer for storage persistence
+    const result = await chatService.sendMessage(activeConversationId, text);
+    const targetConversationId = result.conversationId;
 
-    // Simulate Friday typing response using Stark HUD templates
-    setTimeout(() => {
+    // Simulate Friday typing response
+    setTimeout(async () => {
       const responseTemplates = [
         {
           text: "### Telemetry diagnostics complete.\n- Connection matrix: **Aligned**\n- Compilation speed: **380ms**\n\nI have created a config wrapper:\n```javascript\nconst fridayConfig = {\n  identity: \"F.R.I.D.A.Y.\",\n  syncRate: 0.998,\n  status: \"active\"\n};\n```\nLet's run compile scripts when you are ready, Boss.",
@@ -82,18 +83,29 @@ export function useChat(initialId = null) {
 
       const selected = responseTemplates[Math.floor(Math.random() * responseTemplates.length)];
       
-      const fridayMsg = {
+      const fridayMsg = await chatService.saveResponse(targetConversationId, selected);
+      
+      const formatted = {
         sender: "friday",
-        text: selected.text,
-        time: timeStr,
-        contextAwareness: selected.contextAwareness,
-        emotionalHeader: selected.emotionalHeader,
-        citations: selected.citations
+        text: fridayMsg.content,
+        time: new Date(fridayMsg.createdAt).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false
+        }),
+        citations: fridayMsg.citations || [],
+        contextAwareness: fridayMsg.contextAwareness || null,
+        emotionalHeader: fridayMsg.emotionalHeader || null
       };
 
-      setMessages((prev) => [...prev, fridayMsg]);
+      setMessages((prev) => [...prev, formatted]);
       setIsTyping(false);
-    }, 1800);
+      
+      // If a new conversation was created, trigger setting it active
+      if (result.isNew) {
+        setActiveConversationId(targetConversationId);
+      }
+    }, 1500);
   };
 
   /**

@@ -14,6 +14,7 @@ import {
 import Orb from "./Orb";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
+import { useTasks } from "../hooks/useTasks";
 
 export default function ChatWindow({
   messages = [],
@@ -32,13 +33,8 @@ export default function ChatWindow({
   const [attachedFile, setAttachedFile] = useState(null);
   const [isTrayExpanded, setIsTrayExpanded] = useState(false);
   
-  // Custom states for AGI placeholders
-  const [activeTasks, setActiveTasks] = useState([
-    { text: "Build FRIDAY Sidebar UI", completed: true },
-    { text: "Implement Sentient Orb Animations", completed: true },
-    { text: "Redesign ChatInput Console", completed: true },
-    { text: "Compile final production bundle", completed: false }
-  ]);
+  // Connect to persistent tasks hook
+  const { tasks, createTask, updateTask } = useTasks();
 
   const [activeFiles, setActiveFiles] = useState([
     { name: "design-spec.pdf", size: "1.2 MB", type: "PDF" },
@@ -54,12 +50,6 @@ export default function ChatWindow({
     if (setOrbState) {
       setOrbState(active ? "listening" : "idle");
     }
-  };
-
-
-  // Add a task helper
-  const handleAddTask = (text) => {
-    setActiveTasks((prev) => [...prev, { text, completed: false }]);
   };
 
   return (
@@ -295,28 +285,28 @@ export default function ChatWindow({
                     <ListTodo size={12} /> Workspace Tasks
                   </div>
                   <span className="font-mono text-[9px] bg-secondary/10 text-secondary px-1.5 py-0.5 rounded">
-                    {activeTasks.filter(t => !t.completed).length} REMAINING
+                    {tasks.filter(t => t.status !== "completed").length} REMAINING
                   </span>
                 </div>
 
                 <div className="space-y-1.5">
-                  {activeTasks.map((task, idx) => (
+                  {tasks.map((task, idx) => (
                     <button
-                      key={idx}
+                      key={task.id || idx}
                       onClick={() => {
-                        setActiveTasks((prev) =>
-                          prev.map((t, i) => (i === idx ? { ...t, completed: !t.completed } : t))
-                        );
+                        updateTask(task.id, {
+                          status: task.status === "completed" ? "pending" : "completed"
+                        });
                       }}
                       className="w-full text-left p-2.5 rounded-lg bg-white/[0.01] border border-white/5 hover:border-white/10 transition-colors flex items-start gap-2.5 cursor-pointer"
                     >
                       <span className={`w-3.5 h-3.5 rounded-md border flex items-center justify-center shrink-0 mt-0.5 ${
-                        task.completed ? "bg-secondary border-secondary text-on-secondary" : "border-white/20"
+                        task.status === "completed" ? "bg-secondary border-secondary text-on-secondary" : "border-white/20"
                       }`}>
-                        {task.completed && <ChevronRight size={10} />}
+                        {task.status === "completed" && <ChevronRight size={10} />}
                       </span>
-                      <span className={`leading-relaxed text-[11px] ${task.completed ? "line-through opacity-40 text-on-surface-variant" : "text-on-surface"}`}>
-                        {task.text}
+                      <span className={`leading-relaxed text-[11px] ${task.status === "completed" ? "line-through opacity-40 text-on-surface-variant" : "text-on-surface"}`}>
+                        {task.title}
                       </span>
                     </button>
                   ))}
@@ -330,7 +320,7 @@ export default function ChatWindow({
                   const form = e.target;
                   const input = form.elements.newTask;
                   if (input.value.trim()) {
-                    handleAddTask(input.value.trim());
+                    createTask({ title: input.value.trim() });
                     input.value = "";
                   }
                 }}

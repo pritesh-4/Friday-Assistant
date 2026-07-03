@@ -4,7 +4,7 @@ import { chatService } from "../services/chatService";
 /**
  * Custom hook to manage conversations list metadata.
  */
-export function useConversations() {
+export function useConversations(activeId = null, messages = []) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,7 +20,7 @@ export function useConversations() {
       }
     };
     fetchConversations();
-  }, []);
+  }, [activeId, messages.length]);
 
   /**
    * Deletes conversation thread.
