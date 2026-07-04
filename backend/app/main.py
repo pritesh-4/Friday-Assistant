@@ -1,28 +1,98 @@
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from app.config import settings
-from app.routers import chat, settings as settings_router, notes, tasks
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-app = FastAPI(title=settings.PROJECT_NAME)
+from app.core.config import settings
+from app.core.constants import API_TITLE, API_DESCRIPTION, API_VERSION
+from app.core.logging import logger
 
-# Enforce CORS for React client queries
+# Import API routes
+from app.api.routes import (
+    health,
+    chat,
+    memory,
+    voice,
+    files,
+    settings as settings_route,
+)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Handles API startup and shutdown lifecycles.
+    """
+    logger.info("Initializing F.R.I.D.A.Y. API...")
+    logger.info(f"Environment: {settings.app_env}")
+    logger.info(f"Debug Mode: {settings.debug}")
+    yield
+    logger.info("Shutting down F.R.I.D.A.Y. API...")
+
+# Initialize FastAPI application
+app = FastAPI(
+    title=API_TITLE,
+    description=API_DESCRIPTION,
+    version=API_VERSION,
+    lifespan=lifespan
+)
+
+# CORS setup
+origins = [
+    "http://localhost:5173",
+]
+if settings.frontend_url and settings.frontend_url not in origins:
+    origins.append(settings.frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Attach router modules
-app.include_router(chat.router)
-app.include_router(settings_router.router)
-app.include_router(notes.router)
-app.include_router(tasks.router)
+# Custom exception handlers
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """
+    Return clean and consistent HTTP exception responses, with special formatting for 404.
+    """
+    logger.warning(f"HTTP exception: {exc.status_code} - {exc.detail}")
+    if exc.status_code == 404:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": "The requested resource was not found."}
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    """
+    Return clean 500 responses for unhandled application exceptions.
+    """
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "An internal server error occurred."}
+    )
+
+# Router registrations
+app.include_router(health.router, prefix="/health")
+app.include_router(chat.router, prefix="/chat")
+app.include_router(memory.router, prefix="/memory")
+app.include_router(voice.router, prefix="/voice")
+app.include_router(files.router, prefix="/files")
+app.include_router(settings_route.router, prefix="/settings")
 
 @app.get("/")
-def root():
+def read_root():
+    """
+    Root endpoint for FRIDAY API.
+    """
     return {
-        "status": "online",
-        "project": settings.PROJECT_NAME
+        "message": "FRIDAY API is online."
     }
