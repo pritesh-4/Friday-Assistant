@@ -27,8 +27,12 @@ F.R.I.D.A.Y. is a prototype voice-first personal AI operating companion.
     *   `data/`: Mock data storage matching API schemas.
 *   **`/backend` (FastAPI)**:
     *   `app/main.py`: App initiation, CORS config, router mounts.
-    *   `app/routers/`: Modules for `chat.py`, `settings.py`, `notes.py`, and `tasks.py`.
-    *   `app/schemas/schemas.py`: Pydantic settings models.
+    *   `app/api/routes/`: API endpoint modules for chat, files, health, memory, settings, and voice.
+    *   `app/agents/`: AI agents for memory, routing, and task execution.
+    *   `app/services/`: Core logic for LLM interaction, memory, files, and voice processing.
+    *   `app/core/`: Configuration, logging, and security setups.
+    *   `app/db/`: Database configuration and initialization.
+    *   `app/schemas/`: Pydantic models categorized into chat, common, and memory.
 
 ---
 
@@ -43,8 +47,8 @@ F.R.I.D.A.Y. is a prototype voice-first personal AI operating companion.
 *   **API Connection**: The frontend does **not** make real HTTP requests to the backend (i.e. no Axios/Fetch calls to the backend uvicorn server).
 
 ### 2. Backend State
-*   **State**: Mock API skeletons.
-*   **Endpoints**: FastAPI is configured with standard routes matching the application specs (`GET/POST /chats`, `/settings`, `/notes`, `/tasks`), but they return empty arrays or hardcoded success statuses.
+*   **State**: Scaffolded API structure with agents, services, and db placeholders.
+*   **Endpoints**: FastAPI is configured with standard routes matching the application specs (chat, files, health, memory, settings, voice), but they mostly return stub responses or mock data.
 *   **Database**: No database (SQLite/PostgreSQL) is currently connected to the backend.
 
 ---

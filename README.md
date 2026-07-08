@@ -45,17 +45,20 @@ Inspired by Tony Stark's relationship with J.A.R.V.I.S. and F.R.I.D.A.Y. in sci-
 Friday/
 ├── backend/                     # Python FastAPI Backend
 │   ├── app/
-│   │   ├── config.py            # Pydantic configuration & environment setup
-│   │   ├── main.py              # App initialization & CORS configuration
-│   │   ├── routers/             # API Router modules
-│   │   │   ├── chat.py          # Chat threads and messages routes
-│   │   │   ├── notes.py         # Personal notes organizer routes
-│   │   │   ├── settings.py      # User preference routes
-│   │   │   └── tasks.py         # Todo task tracker routes
-│   │   └── schemas/
-│   │       └── schemas.py       # Pydantic models (Message, Conversation, Settings, Note, Task)
+│   │   ├── agents/              # AI Agent definitions (memory, router, task)
+│   │   ├── api/                 # API Routes and dependencies
+│   │   │   ├── dependencies/    # Dependency injection modules
+│   │   │   └── routes/          # API Router modules (chat, files, memory, settings, voice, health)
+│   │   ├── core/                # Core configuration, constants, logging, and security
+│   │   ├── db/                  # Database setup and connection
+│   │   ├── memory/              # Memory management
+│   │   ├── schemas/             # Pydantic models (chat, common, memory)
+│   │   ├── services/            # Business logic and services (file, llm, memory, settings, voice)
+│   │   ├── utils/               # Helper functions and responses
+│   │   └── main.py              # App initialization & CORS configuration
+│   ├── tests/                   # Backend tests
 │   ├── requirements.txt         # Backend Python dependencies
-│   └── .env                     # Local environment variables
+│   └── .env.example             # Example environment variables
 │
 ├── src/                         # React Frontend Source
 │   ├── assets/                  # Images, fonts, and styling assets
