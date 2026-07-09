@@ -101,3 +101,32 @@ body {
   font-family: 'Inter', sans-serif;
   overflow-x: hidden;
 }
+
+/* Custom Text Selection */
+::selection {
+  background-color: rgba(0, 240, 255, 0.2);
+  color: #ffffff;
+}
+::-moz-selection {
+  background-color: rgba(0, 240, 255, 0.2);
+  color: #ffffff;
+}
+
+/* Custom Scrollbar for Webkit */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
