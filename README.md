@@ -2,9 +2,9 @@
 
 ### **Future Responsive Intelligent Digital Assistant for You**
 
-> *"Sometimes the best interface is a conversation."*
+> _"Sometimes the best interface is a conversation."_
 
-F.R.I.D.A.Y. is an ambitious explore-and-build project aiming to create a personal AI operating layer—a companion that understands context, remembers interactions, and assists with workflows. 
+F.R.I.D.A.Y. is an ambitious explore-and-build project aiming to create a personal AI operating layer—a companion that understands context, remembers interactions, and assists with workflows.
 
 This repository contains both the **React Frontend** and a **FastAPI Python Backend** representing a prototype system.
 
@@ -13,29 +13,33 @@ This repository contains both the **React Frontend** and a **FastAPI Python Back
 ## 📖 Summary of Vision & Inspiration
 
 ### 🌌 The Inspiration
+
 Inspired by Tony Stark's relationship with J.A.R.V.I.S. and F.R.I.D.A.Y. in sci-fi, this project explores how close modern LLMs, voice recognition, and agentic memory can bring us to a truly personal companion. Rather than multiple tabs and manual window shifting, the goal is a conversational interface that handles digital interactions behind the scenes.
 
 ### 🎯 Core Vision & Boundaries
-*   **What F.R.I.D.A.Y. aims to be**: A highly personalized AI assistant, voice-first companion, long-term memory system, and computer task orchestrator.
-*   **Current Real-world Boundaries**: While movie-style consciousness, general intelligence (AGI), and perfect reasoning are not currently possible, we can utilize state-of-the-art LLMs, multi-agent frameworks, and vector-store memory to implement advanced assistive capabilities.
+
+- **What F.R.I.D.A.Y. aims to be**: A highly personalized AI assistant, voice-first companion, long-term memory system, and computer task orchestrator.
+- **Current Real-world Boundaries**: While movie-style consciousness, general intelligence (AGI), and perfect reasoning are not currently possible, we can utilize state-of-the-art LLMs, multi-agent frameworks, and vector-store memory to implement advanced assistive capabilities.
 
 ---
 
 ## 🛠️ Technology Stack
 
 ### 💻 Frontend
-*   **Framework**: React 19 + Vite 8
-*   **Routing**: React Router DOM v7 (SPA architecture)
-*   **Styling**: Tailwind CSS v4 (using the `@tailwindcss/vite` plugin)
-*   **Animations**: Framer Motion for smooth, high-fidelity UI transitions
-*   **Icons**: Lucide React
-*   **Background Visuals**: HTML5 Canvas with custom WebGL shaders for the ambient cyber-grid effect
+
+- **Framework**: React 19 + Vite 8
+- **Routing**: React Router DOM v7 (SPA architecture)
+- **Styling**: Tailwind CSS v4 (using the `@tailwindcss/vite` plugin)
+- **Animations**: Framer Motion for smooth, high-fidelity UI transitions
+- **Icons**: Lucide React
+- **Background Visuals**: HTML5 Canvas with custom WebGL shaders for the ambient cyber-grid effect
 
 ### 🐍 Backend
-*   **Framework**: FastAPI (Python 3.x)
-*   **Server**: Uvicorn
-*   **Settings & Validation**: Pydantic v2
-*   **Environment management**: python-dotenv
+
+- **Framework**: FastAPI (Python 3.x)
+- **Server**: Uvicorn
+- **Settings & Validation**: Pydantic v2
+- **Environment management**: python-dotenv
 
 ---
 
@@ -101,15 +105,15 @@ Friday/
 ## ✨ Implemented Features
 
 1.  **Dynamic Interactive Core (`Orb.jsx`)**: Renders the central glowing core of F.R.I.D.A.Y. utilizing Framer Motion. The Orb morphs dynamically between states:
-    *   `idle`: Smooth breathing animation.
-    *   `listening`: Reactive scale ripples pulsing outwards.
-    *   `processing`: High-speed orbital rotation.
-    *   `speaking`: Fluid expanding waves indicating voice output.
+    - `idle`: Smooth breathing animation.
+    - `listening`: Reactive scale ripples pulsing outwards.
+    - `processing`: High-speed orbital rotation.
+    - `speaking`: Fluid expanding waves indicating voice output.
 2.  **Cyberspace Background (`ShaderBackground.jsx`)**: Utilizes custom WebGL fragment shaders on an HTML5 canvas to render a glowing grid background that reacts to window resizing and user interactions.
 3.  **Modular AI Dashboard**: Fully equipped with:
-    *   **Chat threads panel** for starting new or reviewing past scenarios.
-    *   **Settings configuration** to toggle features (e.g., Theme, Voice response, Long-term Memory).
-    *   **Notes organizer** to log thought scraps, and a **Task list tracker** for workflow goals.
+    - **Chat threads panel** for starting new or reviewing past scenarios.
+    - **Settings configuration** to toggle features (e.g., Theme, Voice response, Long-term Memory).
+    - **Notes organizer** to log thought scraps, and a **Task list tracker** for workflow goals.
 4.  **Speech Synthesis & Web Speech APIs**: Placeholders and service bindings in `voiceService.js` for voice command input and output.
 
 ---
@@ -117,7 +121,9 @@ Friday/
 ## ⚡ Getting Started
 
 ### 🖥️ Frontend Setup
+
 To run the React dashboard:
+
 ```bash
 # Navigate to the project root
 cd Projects/Friday
@@ -130,13 +136,16 @@ npm run dev
 ```
 
 To compile a production build:
+
 ```bash
 npm run build
 npm run preview
 ```
 
 ### 🐍 Backend Setup
+
 To run the FastAPI server:
+
 ```bash
 # Navigate to the backend directory
 cd Projects/Friday/backend
@@ -156,7 +165,9 @@ pip install -r requirements.txt
 # Start the uvicorn web server (runs on http://127.0.0.1:8000)
 uvicorn app.main:app --reload
 ```
+
 Interactive API docs are available at `http://127.0.0.1:8000/docs`.
 
 ## Author
-Pritesh Jena[pritesh-4]
+
+Pritesh Jena [[pritesh-4](https://github.com/pritesh-4)]
