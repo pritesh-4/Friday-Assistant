@@ -8,6 +8,8 @@ F.R.I.D.A.Y. is an ambitious explore-and-build project aiming to create a person
 
 This repository contains both the **React Frontend** and a **FastAPI Python Backend** representing a prototype system.
 
+Cureently no memory context for the AI but it will soon be there.
+
 ---
 
 ## 📖 Summary of Vision & Inspiration
