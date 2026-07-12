@@ -1,68 +1,75 @@
-# 📑 Project Context & State: F.R.I.D.A.Y.
+# Project Context & State: F.R.I.D.A.Y.
 
-This file provides a concise, high-level summary of the **F.R.I.D.A.Y.** project's codebase architecture, its current implementation state, and future development steps. It is designed to save context-window tokens for future LLM assistants.
+This file gives a concise, high-level summary of the **F.R.I.D.A.Y.** codebase architecture, the current implementation state, and the next development steps. It is intended to save context for future assistants.
 
 ---
 
-## 🧭 Project Overview & Tech Stack
+## Project Overview & Tech Stack
 
 F.R.I.D.A.Y. is a prototype voice-first personal AI operating companion.
 
-*   **Frontend**: React 19 + Vite 8 + React Router DOM v7 (SPA routing)
-    *   *Styling & Animations*: Tailwind CSS v4, Framer Motion
-    *   *Graphics*: HTML5 Canvas + WebGL custom fragment shaders
-*   **Backend**: FastAPI (Python 3.x) + Uvicorn server + Pydantic v2 validation
+* **Frontend**: React 19 + Vite 8 + React Router DOM v7 for SPA routing.
+    * Styling and animations: Tailwind CSS v4, Framer Motion.
+    * Graphics: HTML5 Canvas and WebGL custom fragment shaders.
+* **Backend**: FastAPI (Python 3.x) + Uvicorn + Pydantic v2 validation.
 
 ---
 
-## 📂 Codebase Architecture Map
+## Codebase Architecture Map
 
-*   **`/src` (React Frontend)**:
-    *   `pages/`: Views for `Home` (landing page with active F.R.I.D.A.Y. Orb), `Chat` (interactive workspace), `Vision` (roadmap details), and `About` (inspiration and boundaries).
-    *   `components/`:
-        *   [`Orb.jsx`](file:///c:/Users/HP/Documents/c_programm/Projects/Friday/src/components/Orb.jsx): Interactive central component morphing between states (`idle`, `listening`, `processing`, `speaking`).
-        *   [`ShaderBackground.jsx`](file:///c:/Users/HP/Documents/c_programm/Projects/Friday/src/components/ShaderBackground.jsx): Canvas shader rendering a digital matrix grid.
-        *   `ChatWindow.jsx`, `ChatMessage.jsx`, `ChatInput.jsx`, `Sidebar.jsx`: Chat dashboard frames.
-    *   `services/`: Core logic helpers (`chatService.js`, `notesService.js`, `tasksService.js`, `voiceService.js`, `settingsService.js`).
-    *   `data/`: Mock data storage matching API schemas.
-*   **`/backend` (FastAPI)**:
-    *   `app/main.py`: App initiation, CORS config, router mounts.
-    *   `app/api/routes/`: API endpoint modules for chat, files, health, memory, settings, and voice.
-    *   `app/agents/`: AI agents for memory, routing, and task execution.
-    *   `app/services/`: Core logic for LLM interaction, memory, files, and voice processing.
-    *   `app/core/`: Configuration, logging, and security setups.
-    *   `app/db/`: Database configuration and initialization.
-    *   `app/schemas/`: Pydantic models categorized into chat, common, and memory.
+* **`/src`** (React frontend)
+    * `pages/`: Views for `Home` (landing page with the active F.R.I.D.A.Y. orb), `Chat` (interactive workspace), `Vision` (roadmap details), and `About` (inspiration and boundaries).
+    * `components/`:
+        * [`Orb.jsx`](src/components/Orb.jsx): Interactive central component that morphs between the `idle`, `listening`, `processing`, and `speaking` states.
+        * [`ShaderBackground.jsx`](src/components/ShaderBackground.jsx): Canvas-based shader background that renders a digital matrix grid.
+        * `ChatWindow.jsx`, `ChatMessage.jsx`, `ChatInput.jsx`, `Sidebar.jsx`: Chat dashboard layout components.
+    * `services/`: Core logic helpers such as `chatService.js`, `notesService.js`, `tasksService.js`, `voiceService.js`, and `settingsService.js`.
+    * `data/`: Mock data storage that matches the expected API schemas.
+* **`/backend`** (FastAPI)
+    * `app/main.py`: Application startup, CORS configuration, and router mounting.
+    * `app/api/routes/`: API endpoint modules for chat, files, health, memory, settings, and voice.
+    * `app/agents/`: AI agents for memory, routing, and task execution.
+    * `app/services/`: Core logic for LLM interaction, memory, files, and voice processing.
+    * `app/core/`: Configuration, logging, and security setup.
+    * `app/db/`: Database configuration and initialization.
+    * `app/schemas/`: Pydantic models grouped into chat, common, and memory schemas.
 
 ---
 
-## ⚡ Current Implementation State
+## Current Implementation State
 
 > [!IMPORTANT]
-> The application is currently a **fully functional UI mock-up** and **scaffolded backend API**. No real integrations or persistence systems are linked yet.
+> The application is currently a **fully functional UI mock-up** with a **scaffolded backend API**. No real integrations or persistence systems are connected yet.
 
 ### 1. Frontend State
-*   **State**: Complete UI mockup. Responsive routing, animated components, custom theme context, custom cursor, and dashboard views are fully functional.
-*   **Services**: Frontend services (`src/services/*.js`) simulate API delays using `setTimeout` and pull local mock data from `src/data/*.js`.
-*   **API Connection**: The frontend does **not** make real HTTP requests to the backend (i.e. no Axios/Fetch calls to the backend uvicorn server).
+* **State**: The frontend is a complete UI mock-up. Responsive routing, animated components, custom theme context, custom cursor, and dashboard views are all functional.
+* **Services**: Frontend services in `src/services/*.js` simulate API delays with `setTimeout` and read local mock data from `src/data/*.js`.
+* **API connection**: The frontend does **not** make real HTTP requests to the backend yet, so there are no Axios or Fetch calls to the Uvicorn server.
 
 ### 2. Backend State
-*   **State**: Scaffolded API structure with agents, services, and db placeholders.
-*   **Endpoints**: FastAPI is configured with standard routes matching the application specs (chat, files, health, memory, settings, voice), but they mostly return stub responses or mock data.
-*   **Database**: No database (SQLite/PostgreSQL) is currently connected to the backend.
+* **State**: The backend has a scaffolded API structure with agents, services, and database placeholders.
+* **Endpoints**: FastAPI is configured with standard routes that match the app specs (chat, files, health, memory, settings, and voice), but most still return stub responses or mock data.
+* **Database**: No database such as SQLite or PostgreSQL is connected yet.
 
 ---
 
-## 🚀 Recommended Roadmap for Future LLMs
+## Recommended Roadmap for Future Work
 
 When continuing development on F.R.I.D.A.Y., focus on the following milestones:
 
-1.  **Frontend-Backend Integration**:
-    *   Replace mock service delay calls in `src/services/` with real HTTP calls (e.g. using `fetch` or `axios`) targeting `http://localhost:8000`.
-2.  **Backend Persistence**:
-    *   Initialize a local SQLite database or database ORM (like SQLAlchemy or Tortoise ORM) inside `backend/`.
-    *   Implement database CRUD models inside routers (`chat.py`, `notes.py`, etc.) to replace placeholders.
-3.  **LLM / AI Model Integration**:
-    *   Implement real LLM providers (e.g., OpenAI SDK, Google Generative AI SDK) in the backend to stream responses to frontend queries.
-4.  **Voice Feature Implementation**:
-    *   Wire Web Speech APIs (Speech Recognition & Speech Synthesis) inside the frontend (`voiceService.js`) to drive the `listening` and `speaking` states of `Orb.jsx`.
+1. **Frontend-Backend Integration**:
+    * Replace mock service delay calls in `src/services/` with real HTTP calls, for example with `fetch` or `axios`, targeting `http://localhost:8000`.
+2. **Backend Persistence**:
+    * Initialize a local SQLite database or add an ORM such as SQLAlchemy or Tortoise ORM inside `backend/`.
+    * Implement database CRUD models inside routers such as `chat.py` and `notes.py` to replace placeholders.
+3. **LLM / AI Model Integration**:
+    * Implement real LLM providers such as the OpenAI SDK or Google Generative AI SDK in the backend so responses can stream to the frontend.
+4. **Voice Feature Implementation**:
+    * Wire Web Speech APIs, including Speech Recognition and Speech Synthesis, into the frontend `voiceService.js` to drive the `listening` and `speaking` states of `Orb.jsx`.
+
+## Extra Notes
+
+* Keep this document short and factual so it stays useful as a handoff note.
+* Update the architecture map whenever a new major feature, route, service, or backend module is added.
+* If the frontend starts using real API calls, document the base URL and the request flow here.
+* If persistence is added, note the database choice and where the initialization logic lives.
