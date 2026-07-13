@@ -1,30 +1,22 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 
 router = APIRouter(tags=["voice"])
 
 @router.get("")
-def get_voice_placeholder():
-    """
-    Placeholder endpoint to retrieve voice configuration or status.
-    """
-    return {
-        "message": "Voice endpoint coming soon."
-    }
+async def get_voice_status():
+    """Describe the intentionally deferred server-side voice capability."""
+    return {"available": False, "detail": "Server-side voice is planned for a later milestone."}
 
 @router.post("/synthesize")
-def post_voice_synthesize_placeholder():
-    """
-    Placeholder endpoint for text-to-speech voice generation.
-    """
-    return {
-        "message": "Voice synthesis endpoint coming soon."
-    }
+async def synthesize_voice():
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Server-side speech synthesis is not implemented yet.",
+    )
 
 @router.post("/transcribe")
-def post_voice_transcribe_placeholder():
-    """
-    Placeholder endpoint for speech-to-text voice transcription.
-    """
-    return {
-        "message": "Voice transcription endpoint coming soon."
-    }
+async def transcribe_voice():
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Server-side transcription is not implemented yet.",
+    )

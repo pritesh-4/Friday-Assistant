@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -7,6 +8,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.config import settings
 from app.core.constants import API_TITLE, API_DESCRIPTION, API_VERSION
 from app.core.logging import logger
+from app.db.database import database
 
 # Import API routes
 from app.api.routes import (
@@ -15,7 +17,9 @@ from app.api.routes import (
     memory,
     voice,
     files,
+    notes,
     settings as settings_route,
+    tasks,
 )
 
 @asynccontextmanager
@@ -26,6 +30,8 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing F.R.I.D.A.Y. API...")
     logger.info(f"Environment: {settings.app_env}")
     logger.info(f"Debug Mode: {settings.debug}")
+    await database.initialize()
+    logger.info("SQLite persistence is ready.")
     yield
     logger.info("Shutting down F.R.I.D.A.Y. API...")
 
@@ -69,6 +75,15 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         content={"detail": exc.detail}
     )
 
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return a predictable validation envelope for browser clients."""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": "Request validation failed.", "errors": exc.errors()},
+    )
+
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     """
@@ -87,6 +102,8 @@ app.include_router(memory.router, prefix="/memory")
 app.include_router(voice.router, prefix="/voice")
 app.include_router(files.router, prefix="/files")
 app.include_router(settings_route.router, prefix="/settings")
+app.include_router(notes.router, prefix="/notes")
+app.include_router(tasks.router, prefix="/tasks")
 
 @app.get("/")
 def read_root():

@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file. The format 
 ## [Unreleased]
 ### Added
 - Comprehensive system documentation in `/docs`.
+- Notes API (`/notes`) and Tasks API (`/tasks`) for workspace management.
+- Backend services refactor (e.g., `chat_service.py`, `workspace_service.py`).
+- GitHub Actions CI workflow for backend tests (`.github/workflows/backend.yml`).
 
 ## [v0.1.0] - MVP Foundation
 ### Added

@@ -28,12 +28,8 @@ export function useTasks() {
    * @param {Object} updates - Target parameter updates.
    */
   const updateTask = async (id, updates) => {
-    const success = await tasksService.updateTask(id, updates);
-    if (success) {
-      setTasks((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
-      );
-    }
+    const updatedTask = await tasksService.updateTask(id, updates);
+    setTasks((prev) => prev.map((t) => (t.id === id ? updatedTask : t)));
   };
 
   /**

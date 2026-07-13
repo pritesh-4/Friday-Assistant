@@ -37,10 +37,9 @@ Testing non-deterministic LLM output requires a different approach:
 - We will implement an `evals` framework to run standard prompts through the Router Agent and assert that the correct tool was selected or the correct intent was classified.
 
 ## GitHub Actions / CI
-*(Planned)*
-- Automatically run linters on every PR.
-- Run `pytest` on the backend.
-- Build the Vite frontend to ensure no build errors.
+- A backend test workflow (`.github/workflows/backend.yml`) runs automatically.
+- It tests API routes, memory services, and ensures correct handling of offline fallbacks via `pytest`.
+- (Planned) Automatically run frontend linters and build the Vite frontend on every PR.
 
 ## Deployment Checklist
 Before pushing to production:

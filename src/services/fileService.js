@@ -1,8 +1,7 @@
-import { mockFiles } from "../data/files";
-import { simulateApiDelay } from "./api";
+import { apiRequest } from "./api";
 
 /**
- * Service to simulate workspace file upload scopes.
+ * Service for validated private file uploads.
  */
 export const fileService = {
   /**
@@ -10,8 +9,7 @@ export const fileService = {
    * @returns {Promise<Array>} List of session files.
    */
   async getFiles() {
-    await simulateApiDelay(400);
-    return [...mockFiles];
+    return apiRequest("/files");
   },
 
   /**
@@ -20,15 +18,9 @@ export const fileService = {
    * @returns {Promise<Object>} Formatted file output details.
    */
   async uploadFile(file) {
-    await simulateApiDelay(600);
-    const newFile = {
-      id: `file-${Date.now()}`,
-      name: file.name || "unnamed-document.pdf",
-      size: file.size || "450 KB",
-      type: file.type || "unknown",
-      createdAt: new Date().toISOString()
-    };
-    return newFile;
+    const body = new FormData();
+    body.append("file", file);
+    return apiRequest("/files", { method: "POST", body });
   },
 
   /**
@@ -37,8 +29,7 @@ export const fileService = {
    * @returns {Promise<boolean>} Completion indicator.
    */
   async deleteFile(id) {
-    await simulateApiDelay(300);
-    console.log(`TODO: Connect storage API wrapper to delete file ${id}`);
+    await apiRequest(`/files/${id}`, { method: "DELETE" });
     return true;
   }
 };

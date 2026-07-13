@@ -1,38 +1,41 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from datetime import datetime
+from typing import Literal
 
-class ChatRequest(BaseModel):
-    """
-    Schema for incoming chat prompts.
-    """
-    message: str
+from pydantic import Field
 
-class ChatResponse(BaseModel):
-    """
-    Schema for chat responses returned to the client.
-    """
-    response: str
+from app.schemas.common import ApiModel
 
-class MessageBase(BaseModel):
-    role: str
-    content: str
 
-class MessageCreate(MessageBase):
-    pass
+class ChatRequest(ApiModel):
+    """A text message sent to an existing or new conversation."""
 
-class Message(MessageBase):
+    message: str = Field(min_length=1, max_length=8_000)
+    conversation_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+class Message(ApiModel):
     id: str
     conversation_id: str
-    created_at: str
-    status: Optional[str] = "completed"
-    citations: Optional[List[str]] = None
-    context_awareness: Optional[str] = None
-    emotional_header: Optional[str] = None
+    role: Literal["user", "assistant", "system"]
+    content: str
+    created_at: datetime
+    status: str = "completed"
+    citations: list[str] | None = None
+    context_awareness: str | None = None
+    emotional_header: str | None = None
 
-class Conversation(BaseModel):
+class Conversation(ApiModel):
     id: str
     title: str
-    last_message: Optional[str] = None
-    updated_at: str
-    pinned: Optional[bool] = False
-    favorite: Optional[bool] = False
+    last_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    pinned: bool = False
+    favorite: bool = False
+
+
+class ChatResponse(ApiModel):
+    conversation: Conversation
+    user_message: Message
+    assistant_message: Message
+    provider: str
+    memories_used: int = 0

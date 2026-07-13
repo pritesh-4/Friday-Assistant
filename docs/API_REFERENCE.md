@@ -70,3 +70,13 @@ Reference for all REST and WebSocket endpoints available on the FRIDAY backend.
   "active": "openai"
 }
 ```
+
+---
+
+## Workspace
+
+### `GET /notes` and `POST /notes`
+**Purpose**: Retrieve and create workspace notes for persistent context.
+
+### `GET /tasks`, `POST /tasks`, `PATCH /tasks/{id}`
+**Purpose**: Manage actionable items and to-do lists within the workspace.

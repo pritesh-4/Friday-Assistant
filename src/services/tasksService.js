@@ -1,19 +1,7 @@
-import { mockTasks } from "../data/tasks";
-import { simulateApiDelay } from "./api";
-import { storage } from "../utils/storage";
-
-const TASKS_KEY = "friday_tasks";
-
-const initializeData = () => {
-  if (!storage.get(TASKS_KEY)) {
-    storage.set(TASKS_KEY, mockTasks);
-  }
-};
-
-initializeData();
+import { apiRequest } from "./api";
 
 /**
- * Service to simulate tasks database operations synced with browser LocalStorage.
+ * Service for persisted workspace tasks.
  */
 export const tasksService = {
   /**
@@ -21,9 +9,7 @@ export const tasksService = {
    * @returns {Promise<Array>} List of tasks.
    */
   async getTasks() {
-    await simulateApiDelay(200);
-    initializeData();
-    return storage.get(TASKS_KEY) || [];
+    return apiRequest("/tasks");
   },
 
   /**
@@ -33,12 +19,7 @@ export const tasksService = {
    * @returns {Promise<boolean>} Completion indicator.
    */
   async updateTask(id, updates) {
-    await simulateApiDelay(150);
-    initializeData();
-    const tasks = storage.get(TASKS_KEY) || [];
-    const updatedTasks = tasks.map((t) => (t.id === id ? { ...t, ...updates } : t));
-    storage.set(TASKS_KEY, updatedTasks);
-    return true;
+    return apiRequest(`/tasks/${id}`, { method: "PATCH", body: updates });
   },
 
   /**
@@ -47,19 +28,7 @@ export const tasksService = {
    * @returns {Promise<Object>} Created task object.
    */
   async createTask(task) {
-    await simulateApiDelay(200);
-    initializeData();
-    const newTask = {
-      id: `task-${Date.now()}`,
-      title: task.title,
-      status: task.status || "pending",
-      priority: task.priority || "medium",
-      dueDate: task.dueDate || new Date().toISOString().split("T")[0]
-    };
-    const tasks = storage.get(TASKS_KEY) || [];
-    tasks.push(newTask);
-    storage.set(TASKS_KEY, tasks);
-    return newTask;
+    return apiRequest("/tasks", { method: "POST", body: task });
   },
 
   /**
@@ -68,11 +37,7 @@ export const tasksService = {
    * @returns {Promise<boolean>} Completion.
    */
   async deleteTask(id) {
-    await simulateApiDelay(150);
-    initializeData();
-    const tasks = storage.get(TASKS_KEY) || [];
-    const updatedTasks = tasks.filter((t) => t.id !== id);
-    storage.set(TASKS_KEY, updatedTasks);
+    await apiRequest(`/tasks/${id}`, { method: "DELETE" });
     return true;
   }
 };
