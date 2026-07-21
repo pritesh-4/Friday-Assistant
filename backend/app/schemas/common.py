@@ -28,6 +28,13 @@ class NoteCreate(ApiModel):
     content: str = Field(min_length=1, max_length=20_000)
 
 
+class NoteUpdate(ApiModel):
+    """Fields that may be updated on an existing note."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    content: str | None = Field(default=None, min_length=1, max_length=20_000)
+
+
 class Note(NoteCreate):
     id: str
     created_at: datetime

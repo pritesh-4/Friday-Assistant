@@ -62,6 +62,9 @@ class ChatService:
             user_message=user_message,
             assistant_message=assistant_message,
             provider=llm_result.provider,
+            model=llm_result.model,
+            latency_ms=llm_result.latency_ms,
+            finish_reason=llm_result.finish_reason,
             memories_used=len(memories),
         )
 

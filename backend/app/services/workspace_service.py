@@ -2,15 +2,29 @@
 
 from fastapi import HTTPException, status
 
+from app.core.logging import get_logger
 from app.db.database import database
-from app.schemas.common import Note, NoteCreate, Task, TaskCreate, TaskUpdate
+from app.schemas.common import Note, NoteCreate, NoteUpdate, Task, TaskCreate, TaskUpdate
 from app.utils.helpers import generate_uuid, get_utc_now
+
+logger = get_logger(__name__)
 
 
 class WorkspaceService:
+    """Business logic for the user's personal notes and task list."""
+
+    # ── Notes ─────────────────────────────────────────────────────────────────
+
     async def list_notes(self) -> list[Note]:
         rows = await database.fetch_all("SELECT * FROM notes ORDER BY updated_at DESC")
         return [Note.model_validate(row) for row in rows]
+
+    async def get_note(self, note_id: str) -> Note:
+        """Retrieve a single note by ID. Raises 404 if not found."""
+        row = await database.fetch_one("SELECT * FROM notes WHERE id = ?", (note_id,))
+        if row is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found.")
+        return Note.model_validate(row)
 
     async def create_note(self, note: NoteCreate) -> Note:
         note_id = generate_uuid()
@@ -24,8 +38,28 @@ class WorkspaceService:
         )
         return Note(id=note_id, created_at=now, updated_at=now, **note.model_dump())
 
+    async def update_note(self, note_id: str, update: NoteUpdate) -> Note:
+        """Partially update a note's title or content. Raises 404 if not found."""
+        values = update.model_dump(exclude_unset=True)
+        if not values:
+            return await self.get_note(note_id)
+
+        now = get_utc_now().isoformat()
+        values["updated_at"] = now
+
+        assignments = ", ".join(f"{col} = ?" for col in values)
+        updated = await database.execute(
+            f"UPDATE notes SET {assignments} WHERE id = ?",  # nosec B608
+            (*values.values(), note_id),
+        )
+        if not updated:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found.")
+        return await self.get_note(note_id)
+
     async def delete_note(self, note_id: str) -> bool:
         return bool(await database.execute("DELETE FROM notes WHERE id = ?", (note_id,)))
+
+    # ── Tasks ─────────────────────────────────────────────────────────────────
 
     async def list_tasks(self) -> list[Task]:
         rows = await database.fetch_all(
@@ -52,15 +86,11 @@ class WorkspaceService:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found.")
             return Task.model_validate(row)
 
-        columns = {
-            "title": "title",
-            "status": "status",
-            "priority": "priority",
-            "due_date": "due_date",
-        }
+        columns = {"title": "title", "status": "status", "priority": "priority", "due_date": "due_date"}
         assignments = ", ".join(f"{columns[key]} = ?" for key in values)
         updated = await database.execute(
-            f"UPDATE tasks SET {assignments} WHERE id = ?", (*values.values(), task_id)  # nosec B608
+            f"UPDATE tasks SET {assignments} WHERE id = ?",  # nosec B608
+            (*values.values(), task_id),
         )
         if not updated:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found.")

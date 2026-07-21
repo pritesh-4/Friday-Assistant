@@ -1,0 +1,1 @@
+"""FRIDAY backend application package."""

@@ -38,4 +38,8 @@ class ChatResponse(ApiModel):
     user_message: Message
     assistant_message: Message
     provider: str
+    model: str
+    latency_ms: int
+    finish_reason: str | None = None
     memories_used: int = 0
+

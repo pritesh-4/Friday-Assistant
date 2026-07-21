@@ -1,26 +1,25 @@
-from pathlib import Path
+"""Integration tests for the FRIDAY API.
+
+The ``client`` fixture is defined in ``conftest.py`` and injected automatically.
+"""
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.config import settings
-from app.db.database import database
-from app.main import app
-
-
-@pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """Run every test against an isolated database and the offline LLM fallback."""
-    database.configure(f"sqlite:///{(tmp_path / 'friday-test.db').as_posix()}")
-    monkeypatch.setattr(settings, "openai_api_key", None)
-    with TestClient(app) as test_client:
-        yield test_client
-
 
 def test_health_and_readiness(client: TestClient):
-    assert client.get("/").json() == {"message": "FRIDAY API is online."}
-    assert client.get("/health").json() == {"status": "ok", "service": "FRIDAY API"}
-    assert client.get("/health/ready").json() == {"status": "ok", "database": "ready"}
+    root = client.get("/").json()
+    assert root["message"] == "FRIDAY API is online."
+    assert root["version"]
+
+    health = client.get("/health").json()
+    assert health["status"] == "ok"
+    assert health["service"] == "FRIDAY API"
+    assert health["version"]
+
+    ready = client.get("/health/ready").json()
+    assert ready["status"] == "ok"
+    assert ready["database"] == "ready"
 
 
 def test_chat_persists_messages_and_uses_offline_fallback(client: TestClient):
@@ -35,20 +34,55 @@ def test_chat_persists_messages_and_uses_offline_fallback(client: TestClient):
     conversation_id = payload["conversation"]["id"]
     messages = client.get(f"/chat/{conversation_id}/messages")
     assert messages.status_code == 200
-    assert [message["role"] for message in messages.json()] == ["user", "assistant"]
+    assert [m["role"] for m in messages.json()] == ["user", "assistant"]
 
     conversations = client.get("/chat").json()
     assert conversations[0]["id"] == conversation_id
 
 
-def test_memory_settings_notes_and_tasks_are_persisted(client: TestClient):
+def test_memory_crud_and_search(client: TestClient):
+    # Create
     memory = client.post(
         "/memory",
         json={"title": "Preferred style", "value": "Concise answers", "category": "preferences"},
     )
     assert memory.status_code == 201
-    assert client.get("/memory?query=concise").json()[0]["id"] == memory.json()["id"]
+    memory_id = memory.json()["id"]
 
+    # Search
+    assert client.get("/memory?query=concise").json()[0]["id"] == memory_id
+
+    # Get by ID
+    fetched = client.get(f"/memory/{memory_id}")
+    assert fetched.status_code == 200
+    assert fetched.json()["id"] == memory_id
+
+    # Categories
+    cats = client.get("/memory/categories").json()
+    assert "preferences" in cats
+
+    # Update
+    updated = client.patch(f"/memory/{memory_id}", json={"value": "Very concise answers"})
+    assert updated.status_code == 200
+    assert "Very concise" in updated.json()["value"]
+
+    # Pin
+    pinned = client.post(f"/memory/{memory_id}/pin")
+    assert pinned.status_code == 200
+    assert pinned.json()["pinned"] is True
+
+    # Unpin
+    unpinned = client.delete(f"/memory/{memory_id}/pin")
+    assert unpinned.status_code == 200
+    assert unpinned.json()["pinned"] is False
+
+    # Delete
+    deleted = client.delete(f"/memory/{memory_id}")
+    assert deleted.status_code == 204
+    assert client.get(f"/memory/{memory_id}").status_code == 404
+
+
+def test_settings_notes_and_tasks(client: TestClient):
     settings_response = client.put(
         "/settings",
         json={
@@ -63,11 +97,33 @@ def test_memory_settings_notes_and_tasks_are_persisted(client: TestClient):
     assert settings_response.status_code == 200
     assert settings_response.json()["sidebarCollapsed"] is True
 
+    # Notes CRUD
     note = client.post("/notes", json={"title": "MVP", "content": "Ship the text path first."})
     assert note.status_code == 201
-    assert client.get("/notes").json()[0]["id"] == note.json()["id"]
+    note_id = note.json()["id"]
+    assert client.get("/notes").json()[0]["id"] == note_id
+    assert client.get(f"/notes/{note_id}").status_code == 200
+    patched = client.patch(f"/notes/{note_id}", json={"title": "MVP v2"})
+    assert patched.status_code == 200
+    assert patched.json()["title"] == "MVP v2"
 
+    # Tasks CRUD
     task = client.post("/tasks", json={"title": "Run tests", "priority": "high"})
     assert task.status_code == 201
     completed = client.patch(f"/tasks/{task.json()['id']}", json={"status": "completed"})
     assert completed.json()["status"] == "completed"
+
+
+def test_voice_status(client: TestClient):
+    response = client.get("/voice")
+    assert response.status_code == 200
+    assert response.json()["available"] is False
+
+    assert client.post("/voice/transcribe").status_code == 501
+    assert client.post("/voice/synthesize").status_code == 501
+
+
+def test_404_returns_consistent_envelope(client: TestClient):
+    response = client.get("/nonexistent-path")
+    assert response.status_code == 404
+    assert "detail" in response.json()

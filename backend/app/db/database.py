@@ -31,81 +31,121 @@ class Database:
         return connection
 
     def _initialize_sync(self) -> None:
-        migrations: list[tuple[int, str]] = [
+        # Each migration is (version, list_of_sql_statements).
+        # Using a list of statements instead of one big script allows us to
+        # catch benign errors (e.g. "duplicate column") on a per-statement basis.
+        migrations: list[tuple[int, list[str]]] = [
+
             (
                 1,
-                """
-                CREATE TABLE IF NOT EXISTS conversations (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    last_message TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    pinned INTEGER NOT NULL DEFAULT 0,
-                    favorite INTEGER NOT NULL DEFAULT 0
-                );
-                CREATE TABLE IF NOT EXISTS messages (
-                    id TEXT PRIMARY KEY,
-                    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-                    role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-                    content TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'completed',
-                    citations TEXT,
-                    context_awareness TEXT,
-                    emotional_header TEXT
-                );
-                CREATE INDEX IF NOT EXISTS idx_messages_conversation_created
-                    ON messages(conversation_id, created_at);
-                CREATE TABLE IF NOT EXISTS memories (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    value TEXT NOT NULL,
-                    category TEXT NOT NULL DEFAULT 'general',
-                    created_at TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category);
-                CREATE TABLE IF NOT EXISTS notes (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'pending',
-                    priority TEXT NOT NULL DEFAULT 'medium',
-                    due_date TEXT
-                );
-                CREATE TABLE IF NOT EXISTS user_settings (
-                    id INTEGER PRIMARY KEY CHECK (id = 1),
-                    theme TEXT NOT NULL DEFAULT 'dark',
-                    animations INTEGER NOT NULL DEFAULT 1,
-                    voice_enabled INTEGER NOT NULL DEFAULT 1,
-                    sidebar_collapsed INTEGER NOT NULL DEFAULT 0,
-                    memory_enabled INTEGER NOT NULL DEFAULT 1,
-                    notifications_enabled INTEGER NOT NULL DEFAULT 1
-                );
-                CREATE TABLE IF NOT EXISTS files (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    content_type TEXT NOT NULL,
-                    size_bytes INTEGER NOT NULL,
-                    storage_path TEXT NOT NULL UNIQUE,
-                    created_at TEXT NOT NULL
-                );
-                """,
-            )
+                [
+                    """
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        last_message TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        pinned INTEGER NOT NULL DEFAULT 0,
+                        favorite INTEGER NOT NULL DEFAULT 0
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS messages (
+                        id TEXT PRIMARY KEY,
+                        conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+                        role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+                        content TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'completed',
+                        citations TEXT,
+                        context_awareness TEXT,
+                        emotional_header TEXT
+                    )
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_messages_conversation_created
+                        ON messages(conversation_id, created_at)
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS memories (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        value TEXT NOT NULL,
+                        category TEXT NOT NULL DEFAULT 'general',
+                        created_at TEXT NOT NULL
+                    )
+                    """,
+                    "CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category)",
+                    """
+                    CREATE TABLE IF NOT EXISTS notes (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS tasks (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'pending',
+                        priority TEXT NOT NULL DEFAULT 'medium',
+                        due_date TEXT
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS user_settings (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        theme TEXT NOT NULL DEFAULT 'dark',
+                        animations INTEGER NOT NULL DEFAULT 1,
+                        voice_enabled INTEGER NOT NULL DEFAULT 1,
+                        sidebar_collapsed INTEGER NOT NULL DEFAULT 0,
+                        memory_enabled INTEGER NOT NULL DEFAULT 1,
+                        notifications_enabled INTEGER NOT NULL DEFAULT 1
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS files (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        content_type TEXT NOT NULL,
+                        size_bytes INTEGER NOT NULL,
+                        storage_path TEXT NOT NULL UNIQUE,
+                        created_at TEXT NOT NULL
+                    )
+                    """,
+                ],
+            ),
+            (
+                2,
+                # SQLite ALTER TABLE does not support IF NOT EXISTS.
+                # We apply each statement individually and ignore the
+                # "duplicate column name" error so migrations are re-entrant.
+                [
+                    "ALTER TABLE memories ADD COLUMN source TEXT NOT NULL DEFAULT 'user'",
+                    "ALTER TABLE memories ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
+                    "ALTER TABLE memories ADD COLUMN updated_at TEXT",
+                    "CREATE INDEX IF NOT EXISTS idx_memories_pinned ON memories(pinned)",
+                ],
+            ),
         ]
 
         with self._connect() as connection:
             current_version = connection.execute("PRAGMA user_version").fetchone()[0]
-            for version, script in migrations:
+            for version, statements in migrations:
                 if version > current_version:
-                    connection.executescript(script)
-                    connection.execute(f"PRAGMA user_version = {version}")
+                    for sql in statements:
+                        try:
+                            connection.execute(sql)
+                        except Exception as exc:  # noqa: BLE001
+                            # "duplicate column name" is harmless when a migration
+                            # is applied to a DB that already has the column.
+                            if "duplicate column name" in str(exc).lower():
+                                continue
+                            raise
+                    connection.execute(f"PRAGMA user_version = {version}")  # nosec B608
             connection.execute("INSERT OR IGNORE INTO user_settings (id) VALUES (1)")
 
     async def initialize(self) -> None:
