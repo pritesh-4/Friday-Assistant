@@ -3,7 +3,6 @@
 The ``client`` fixture is defined in ``conftest.py`` and injected automatically.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 
 

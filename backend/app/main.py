@@ -10,7 +10,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
 from app.core.constants import API_DESCRIPTION, API_TITLE, API_VERSION
-from app.core.logging import get_logger, logger
+from app.core.logging import get_logger
 from app.db.database import database
 
 # Import API routes
