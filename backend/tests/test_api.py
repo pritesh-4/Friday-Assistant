@@ -166,3 +166,23 @@ def test_tool_manager():
     tools_prompt = tool_manager.get_tools_prompt()
     assert "web_search" in tools_prompt
 
+
+def test_router_agent_vision_detection_and_sanitization():
+    from app.agents.router_agent import RouterAgent
+
+    agent = RouterAgent()
+    multimodal_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What is in this diagram?"},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo..."}},
+            ],
+        }
+    ]
+    assert agent._contains_images(multimodal_messages) is True
+
+    sanitized = agent._sanitize_for_text_only(multimodal_messages)
+    assert "[Attached Image]" in sanitized[0]["content"]
+
+
