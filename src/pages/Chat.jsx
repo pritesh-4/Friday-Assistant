@@ -53,8 +53,7 @@ export default function Chat() {
     startListening,
     stopListening,
     speakText,
-    cancelSpeech,
-    getAnalyserNode
+    cancelSpeech
   } = useVoice();
 
   // Dynamic greeting time calculation

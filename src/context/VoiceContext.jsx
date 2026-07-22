@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useRef, useEffect, useCallback } from "react";
 import { VoiceRecorderService } from "../services/voice/recorder";
 

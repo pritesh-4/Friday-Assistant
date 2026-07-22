@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Paperclip,
-  Mic,
   ArrowUpRight,
   Brain,
   Globe,
@@ -17,7 +16,6 @@ import VoiceRecorder from "./Chat/VoiceRecorder";
 export default function ChatInput({
   onSendMessage,
   onAttachFile,
-  onToggleVoiceMode,
   attachedFile = null,
   onRemoveAttachedFile,
   isTrayExpanded = false,

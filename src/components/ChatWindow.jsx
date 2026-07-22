@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Layout,
@@ -6,7 +6,6 @@ import {
   Database,
   ListTodo,
   FileText,
-  Volume2,
   Activity,
   Trash2,
   ArrowUpRight
@@ -23,7 +22,6 @@ export default function ChatWindow({
   onSendMessage,
   onClearHistory,
   orbState = "idle",
-  setOrbState,
   isFridayTyping = false,
   userName = "Pree",
   greetingTime = "Evening",
