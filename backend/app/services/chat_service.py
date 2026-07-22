@@ -41,9 +41,44 @@ class ChatService:
         return [Message.model_validate(row) for row in rows]
 
     async def send_message(self, request: ChatRequest) -> ChatResponse:
+        from pathlib import Path
+        import base64
+        import json
+        from app.services.document_parser import DocumentParser
+
         conversation = await self._get_or_create_conversation(request)
+        
+        # Handle file attachments
+        structured_content = [{"type": "text", "text": request.message.strip()}]
+        has_files = False
+        if request.file_ids:
+            for file_id in request.file_ids:
+                row = await database.fetch_one("SELECT * FROM files WHERE id = ?", (file_id,))
+                if row:
+                    has_files = True
+                    file_path = Path(row["storage_path"])
+                    if row["content_type"].startswith("image/"):
+                        with open(file_path, "rb") as f:
+                            b64_data = base64.b64encode(f.read()).decode("utf-8")
+                        structured_content.append({
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{row['content_type']};base64,{b64_data}"}
+                        })
+                    else:
+                        text = DocumentParser.parse(file_path, row["content_type"])
+                        if text:
+                            structured_content.append({
+                                "type": "text",
+                                "text": f"\n\n[Attached File: {row['name']}]\n{text}"
+                            })
+
+        content_for_db = request.message.strip()
+        if has_files:
+            # Store JSON representation for memory if there are files
+            content_for_db = json.dumps(structured_content)
+
         user_message = await self._create_message(
-            conversation.id, "user", request.message.strip()
+            conversation.id, "user", content_for_db
         )
         
         session_id = conversation.id
@@ -53,9 +88,17 @@ class ChatService:
         if not ctx.messages:
             history = await self.get_messages(conversation.id, limit=16)
             for msg in history:
-                ctx.messages.append({"role": msg.role, "content": msg.content})
+                # If content is JSON (multimodal), parse it, else keep as text
+                try:
+                    parsed = json.loads(msg.content)
+                    if isinstance(parsed, list):
+                        ctx.messages.append({"role": msg.role, "content": parsed})
+                    else:
+                        ctx.messages.append({"role": msg.role, "content": msg.content})
+                except Exception:
+                    ctx.messages.append({"role": msg.role, "content": msg.content})
         else:
-            memory_manager.append_message(session_id, "user", request.message.strip())
+            memory_manager.append_message(session_id, "user", structured_content if has_files else request.message.strip())
 
         # 2. Retrieve Long-Term Memories
         memories = await self.memory_service.retrieve_memories(request.message, limit=5)

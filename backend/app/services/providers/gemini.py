@@ -3,6 +3,8 @@
 import time
 from collections.abc import Sequence
 
+from typing import Any
+
 import httpx
 
 from app.core.config import settings
@@ -24,7 +26,7 @@ class GeminiProvider(LLMProvider):
     def is_configured(self) -> bool:
         return bool(settings.gemini_api_key)
 
-    async def generate_response(self, messages: Sequence[dict[str, str]]) -> LLMResult:
+    async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         if not self.is_configured:
             raise LLMProviderError("Gemini is not configured (missing GEMINI_API_KEY).")
 

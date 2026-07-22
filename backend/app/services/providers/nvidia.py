@@ -2,6 +2,7 @@
 
 import time
 from collections.abc import Sequence
+from typing import Any
 
 import httpx
 
@@ -13,7 +14,7 @@ class NvidiaProvider(LLMProvider):
     """
     NVIDIA NIM Provider.
     
-    Provides access to Llama and other open models via NVIDIA's accelerated inference API.
+    Uses NVIDIA's high-performance inference microservices (OpenAI-compatible).
     """
 
     @property
@@ -24,7 +25,7 @@ class NvidiaProvider(LLMProvider):
     def is_configured(self) -> bool:
         return bool(settings.nvidia_api_key)
 
-    async def generate_response(self, messages: Sequence[dict[str, str]]) -> LLMResult:
+    async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         if not self.is_configured:
             raise LLMProviderError("NVIDIA NIM is not configured (missing NVIDIA_API_KEY).")
 

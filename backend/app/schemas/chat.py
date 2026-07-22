@@ -11,6 +11,7 @@ class ChatRequest(ApiModel):
 
     message: str = Field(min_length=1, max_length=8_000)
     conversation_id: str | None = Field(default=None, min_length=1, max_length=64)
+    file_ids: list[str] | None = None
 
 class Message(ApiModel):
     id: str

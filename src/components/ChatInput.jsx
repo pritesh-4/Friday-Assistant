@@ -26,8 +26,10 @@ export default function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [isResearchActive, setIsResearchActive] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   
   const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Focus management and global shortcuts
   useEffect(() => {
@@ -106,10 +108,28 @@ export default function ChatInput({
     }
   };
 
-  // Simulate file upload choice
-  const handleFileUploadSim = () => {
-    if (onAttachFile) {
-      onAttachFile();
+  // Real file upload trigger
+  const handleFileUploadClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    try {
+      if (onAttachFile) {
+        await onAttachFile(file);
+      }
+    } finally {
+      setIsUploading(false);
+      // Reset input so the same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -256,18 +276,29 @@ export default function ChatInput({
                   {/* Attach File */}
                   <button
                     type="button"
-                    onClick={handleFileUploadSim}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/5 hover:border-white/15 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5 transition-all duration-200 cursor-pointer text-xs font-light"
+                    onClick={handleFileUploadClick}
+                    disabled={isUploading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/5 hover:border-white/15 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5 transition-all duration-200 cursor-pointer text-xs font-light disabled:opacity-50"
                   >
                     <Paperclip size={13} />
-                    <span className="hidden sm:inline">Attach File</span>
+                    <span className="hidden sm:inline">{isUploading ? "Uploading..." : "Attach File"}</span>
                   </button>
+
+                  {/* Hidden file input */}
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileChange} 
+                    className="hidden" 
+                    accept=".pdf,.txt,.md,.docx,.csv,.json,.png,.jpg,.jpeg,.webp,.gif"
+                  />
 
                   {/* Upload Image */}
                   <button
                     type="button"
-                    onClick={handleFileUploadSim}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/5 hover:border-white/15 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5 transition-all duration-200 cursor-pointer text-xs font-light"
+                    onClick={handleFileUploadClick}
+                    disabled={isUploading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/5 hover:border-white/15 text-on-surface-variant hover:text-on-surface bg-[#1c1b1b]/50 hover:bg-white/5 transition-all duration-200 cursor-pointer text-xs font-light disabled:opacity-50"
                   >
                     <Image size={13} />
                     <span className="hidden sm:inline">Upload Image</span>

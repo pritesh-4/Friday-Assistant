@@ -16,6 +16,7 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useTasks } from "../hooks/useTasks";
 import { sfx } from "../utils/sfx";
+import { fileService } from "../services/fileService";
 
 export default function ChatWindow({
   messages = [],
@@ -121,6 +122,20 @@ export default function ChatWindow({
 
   // Determine transition state
   const isConversationStarted = messages.length > 0;
+
+  // Handle message from new command console
+  const handleSendInputConsole = (text) => {
+    if (!text.trim() || isFridayTyping) return;
+    
+    // Pass attached file ID if exists
+    let fileIds = [];
+    if (attachedFile && attachedFile.id) {
+      fileIds.push(attachedFile.id);
+    }
+    
+    onSendMessage(text, fileIds);
+    setAttachedFile(null); // clear after sending
+  };
 
   // Sync state between voice mode and F.R.I.D.A.Y.'s main orb
   const handleVoiceToggle = (active) => {
@@ -274,11 +289,17 @@ export default function ChatWindow({
 
         {/* Bottom Workspace Controller: ChatInput Console */}
         <ChatInput
-          onSendMessage={onSendMessage}
-          onAttachFile={() => {
-            const newFile = { name: "matrix-overlay.config", size: "24 KB", type: "Config" };
-            setAttachedFile(newFile);
-            setActiveFiles((prev) => [...prev, newFile]);
+          onSendMessage={handleSendInputConsole}
+          onAttachFile={async (file) => {
+            try {
+              const uploaded = await fileService.uploadFile(file);
+              const newFile = { id: uploaded.id, name: uploaded.name, size: (uploaded.sizeBytes / 1024).toFixed(1) + " KB", type: uploaded.contentType };
+              setAttachedFile(newFile);
+              setActiveFiles((prev) => [...prev, newFile]);
+            } catch (err) {
+              console.error("Upload failed", err);
+              // Provide visual error feedback
+            }
           }}
           onToggleVoiceMode={handleVoiceToggle}
           isFridayListening={isVoiceMode}

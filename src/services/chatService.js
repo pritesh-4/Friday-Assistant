@@ -31,12 +31,18 @@ export const chatService = {
    * Sends one prompt and receives the stored assistant response.
    * @param {string|null} conversationId - Conversation thread ID.
    * @param {string} content - User dialogue text.
+   * @param {Array<string>} fileIds - Array of file IDs attached to the message.
    * @returns {Promise<Object>} Object containing message info and new thread metadata.
    */
-  async sendMessage(conversationId, content) {
+  async sendMessage(conversationId, content, fileIds = []) {
+    const body = { message: content, conversationId: conversationId || undefined };
+    if (fileIds && fileIds.length > 0) {
+      body.file_ids = fileIds;
+    }
+    
     const response = await apiRequest("/chat", {
       method: "POST",
-      body: { message: content, conversationId: conversationId || undefined }
+      body: body
     });
     return {
       conversation: response.conversation,

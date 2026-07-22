@@ -2,6 +2,7 @@
 
 import time
 from collections.abc import Sequence
+from typing import Any
 
 import httpx
 
@@ -13,7 +14,7 @@ class OpenRouterProvider(LLMProvider):
     """
     OpenRouter Provider.
     
-    A unified API to access various models. Prioritizing free models in this configuration.
+    Serves as an aggregator for multiple models, supporting a unified API.
     """
 
     @property
@@ -24,7 +25,7 @@ class OpenRouterProvider(LLMProvider):
     def is_configured(self) -> bool:
         return bool(settings.openrouter_api_key)
 
-    async def generate_response(self, messages: Sequence[dict[str, str]]) -> LLMResult:
+    async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         if not self.is_configured:
             raise LLMProviderError("OpenRouter is not configured (missing OPENROUTER_API_KEY).")
 

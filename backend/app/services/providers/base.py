@@ -2,7 +2,7 @@
 
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from typing import Any, Sequence
 from dataclasses import dataclass
 
 from app.core.logging import get_logger
@@ -44,7 +44,7 @@ class LLMProvider(ABC):
         pass
 
     @abstractmethod
-    async def generate_response(self, messages: Sequence[dict[str, str]]) -> LLMResult:
+    async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         """
         Generate a text response from the given message history.
         

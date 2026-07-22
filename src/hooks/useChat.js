@@ -21,18 +21,30 @@ export function useChat(initialId = null) {
       try {
         const history = await chatService.getMessages(activeConversationId);
         // Map backend schema roles to frontend receiver formats if different
-        const formatted = history.map((m) => ({
-          sender: m.role,
-          text: m.content,
-          time: new Date(m.createdAt).toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false
-          }),
-          citations: m.citations || [],
-          contextAwareness: m.contextAwareness || null,
-          emotionalHeader: m.emotionalHeader || null
-        }));
+        const formatted = history.map((m) => {
+          let parsedText = m.content;
+          try {
+            const data = JSON.parse(m.content);
+            if (Array.isArray(data)) {
+               // Extract text from structured content
+               parsedText = data.map(item => item.text || (item.image_url ? "[Image Attached]" : "")).join(" ").trim();
+            }
+          } catch {
+            // Not JSON
+          }
+          return {
+            sender: m.role,
+            text: parsedText,
+            time: new Date(m.createdAt).toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false
+            }),
+            citations: m.citations || [],
+            contextAwareness: m.contextAwareness || null,
+            emotionalHeader: m.emotionalHeader || null
+          };
+        });
         setMessages(formatted);
       } catch (err) {
         console.error("Failed to load conversation history:", err);
