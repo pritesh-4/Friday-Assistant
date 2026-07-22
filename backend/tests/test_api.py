@@ -126,3 +126,43 @@ def test_404_returns_consistent_envelope(client: TestClient):
     response = client.get("/nonexistent-path")
     assert response.status_code == 404
     assert "detail" in response.json()
+
+
+def test_file_upload_and_deletion(client: TestClient):
+    # Upload text file
+    response = client.post(
+        "/files",
+        files={"file": ("test_doc.txt", b"Hello Friday project context", "text/plain")},
+    )
+    assert response.status_code == 201
+    uploaded = response.json()
+    assert uploaded["name"] == "test_doc.txt"
+    file_id = uploaded["id"]
+
+    # List files
+    files_list = client.get("/files").json()
+    assert any(f["id"] == file_id for f in files_list)
+
+    # Delete file
+    delete_res = client.delete(f"/files/{file_id}")
+    assert delete_res.status_code == 204
+
+
+def test_document_parser(tmp_path):
+    from app.services.document_parser import DocumentParser
+
+    txt_file = tmp_path / "sample.txt"
+    txt_file.write_text("FRIDAY AI assistant context", encoding="utf-8")
+    assert DocumentParser.parse(txt_file, "text/plain") == "FRIDAY AI assistant context"
+
+    json_file = tmp_path / "sample.json"
+    json_file.write_text('{"key": "value"}', encoding="utf-8")
+    assert "key" in DocumentParser.parse(json_file, "application/json")
+
+
+def test_tool_manager():
+    from app.tools import tool_manager
+
+    tools_prompt = tool_manager.get_tools_prompt()
+    assert "web_search" in tools_prompt
+

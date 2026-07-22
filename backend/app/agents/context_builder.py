@@ -17,7 +17,7 @@ class ContextBuilder:
         self,
         session_messages: list[dict[str, Any]],
         memories: list[Memory],
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """
         Constructs the final list of messages for the LLM.
 
@@ -25,7 +25,7 @@ class ContextBuilder:
             session_messages: A list of dicts with 'role' and 'content', representing recent history.
             memories: A list of relevant long-term memories for context.
         """
-        messages = [{"role": "system", "content": self.system_prompt}]
+        messages: list[dict[str, Any]] = [{"role": "system", "content": self.system_prompt}]
         
         if memories:
             memory_context = "\n".join(
@@ -42,6 +42,6 @@ class ContextBuilder:
         messages.extend(
             {"role": msg["role"], "content": msg["content"]}
             for msg in session_messages
-            if msg["role"] in {"user", "assistant"}
+            if msg["role"] in {"user", "assistant", "system"}
         )
         return messages
