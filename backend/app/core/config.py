@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # ── Persistence ───────────────────────────────────────────────────────────
     database_url: str = "sqlite:///./friday.db"
     uploads_directory: Path = Path("./data/uploads")
+    voice_uploads_directory: Path = Path("./data/voice_uploads")
     max_upload_size_bytes: int = 10 * 1024 * 1024  # 10 MB
 
     # ── LLM Providers ─────────────────────────────────────────────────────────

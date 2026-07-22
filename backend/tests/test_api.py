@@ -122,6 +122,36 @@ def test_voice_status(client: TestClient):
     assert client.post("/voice/synthesize").status_code == 501
 
 
+def test_voice_upload(client: TestClient):
+    # Success upload
+    res = client.post(
+        "/voice/upload",
+        files={"file": ("test.webm", b"fake audio content", "audio/webm")},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "completed"
+    assert "upload_id" in data
+    assert data["mime_type"] == "audio/webm"
+    assert data["size"] == len(b"fake audio content")
+
+    # Invalid MIME type
+    res2 = client.post(
+        "/voice/upload",
+        files={"file": ("test.txt", b"fake text content", "text/plain")},
+    )
+    assert res2.status_code == 415
+    assert "Unsupported media type" in res2.json()["detail"]
+
+    # Empty file
+    res3 = client.post(
+        "/voice/upload",
+        files={"file": ("empty.webm", b"", "audio/webm")},
+    )
+    assert res3.status_code == 400
+    assert "Empty file upload" in res3.json()["detail"]
+
+
 def test_404_returns_consistent_envelope(client: TestClient):
     response = client.get("/nonexistent-path")
     assert response.status_code == 404

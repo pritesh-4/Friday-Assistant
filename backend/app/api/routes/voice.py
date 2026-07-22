@@ -8,7 +8,7 @@ intentionally present to:
   3. Provide a clear extension point for the VoiceService implementation.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 
 from app.api.dependencies import get_voice_service
 from app.services.voice_service import VoiceService
@@ -31,6 +31,18 @@ async def get_voice_status(
         "detail": "Server-side voice is planned for a future milestone.",
         "browser_fallback": True,
     }
+
+
+@router.post("/upload", summary="Upload a voice recording")
+async def upload_voice(
+    file: UploadFile = File(...),
+    service: VoiceService = Depends(get_voice_service),
+) -> dict:
+    """
+    Upload a voice recording to the temporary storage directory.
+    Validates MIME type, file size, and handles saving securely.
+    """
+    return await service.upload_audio(file)
 
 
 @router.post("/transcribe", summary="Transcribe audio to text")
