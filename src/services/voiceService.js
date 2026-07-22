@@ -61,6 +61,20 @@ export const voiceService = {
 
     recognition.start();
 
+    // Clean up any existing visualizer hooks before starting a new one
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((track) => track.stop());
+      mediaStream = null;
+    }
+    if (mediaStreamSource) {
+      mediaStreamSource.disconnect();
+      mediaStreamSource = null;
+    }
+    if (audioContext && audioContext.state !== "closed") {
+      audioContext.close();
+      audioContext = null;
+    }
+
     // Hook microphone stream for real-time visualizer frequencies
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })

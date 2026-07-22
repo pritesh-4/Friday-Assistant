@@ -4,6 +4,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Sequence
 from dataclasses import dataclass
+import httpx
 
 from app.core.logging import get_logger
 
@@ -68,3 +69,43 @@ class LLMProvider(ABC):
     def _track_latency(self, start_time: float) -> int:
         """Helper to calculate elapsed time in milliseconds."""
         return int((time.monotonic() - start_time) * 1000)
+
+    async def _make_openai_compatible_request(
+        self,
+        url: str,
+        headers: dict[str, str],
+        payload: dict[str, Any],
+        model: str,
+        timeout_seconds: float,
+    ) -> LLMResult:
+        """Helper to make a request to any OpenAI-compatible API and parse the response."""
+        start_time = time.monotonic()
+        timeout = httpx.Timeout(timeout_seconds)
+
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.error("%s provider HTTP error: %s", self.name, exc)
+            raise LLMProviderError(f"{self.name} API error: {exc}") from exc
+
+        data = response.json()
+        try:
+            choice = data["choices"][0]
+            content = choice["message"]["content"]
+            finish_reason = choice.get("finish_reason")
+        except (KeyError, IndexError, TypeError) as exc:
+            logger.error("%s response parsing error: %s", self.name, exc)
+            raise LLMProviderError(f"Invalid response format from {self.name} API.") from exc
+
+        if not isinstance(content, str) or not content.strip():
+            raise LLMProviderError(f"{self.name} returned an empty response.")
+
+        return LLMResult(
+            content=content.strip(),
+            provider=self.name,
+            model=model,
+            latency_ms=self._track_latency(start_time),
+            finish_reason=finish_reason,
+        )

@@ -12,6 +12,7 @@ import {
   Image,
   X
 } from "lucide-react";
+import VoiceRecorder from "./Chat/VoiceRecorder";
 
 export default function ChatInput({
   onSendMessage,
@@ -380,6 +381,21 @@ export default function ChatInput({
                     <Globe size={13} />
                     <span>Research</span>
                   </button>
+
+                  <VoiceRecorder 
+                    onRecordComplete={async (audio) => {
+                      if (onAttachFile && audio.blob) {
+                        // Create a file object from the blob
+                        const file = new File([audio.blob], `voice_message_${Date.now()}.webm`, { type: audio.blob.type });
+                        setIsUploading(true);
+                        try {
+                          await onAttachFile(file);
+                        } finally {
+                          setIsUploading(false);
+                        }
+                      }
+                    }} 
+                  />
 
                   {/* Quick Actions popover */}
                   <AnimatePresence>
