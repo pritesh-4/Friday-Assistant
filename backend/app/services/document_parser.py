@@ -42,16 +42,17 @@ class DocumentParser:
         text = []
         with open(file_path, "rb") as f:
             reader = pypdf.PdfReader(f)
-            for page in reader.pages:
+            for idx, page in enumerate(reader.pages, start=1):
                 page_text = page.extract_text()
                 if page_text:
-                    text.append(page_text)
-        return "\n".join(text)
+                    text.append(f"--- [Page {idx}] ---\n{page_text.strip()}")
+        return "\n\n".join(text)
 
     @staticmethod
     def _parse_docx(file_path: Path) -> str:
         doc = docx.Document(file_path)
-        return "\n".join([p.text for p in doc.paragraphs])
+        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        return "\n\n".join(paragraphs)
 
     @staticmethod
     def _parse_csv(file_path: Path) -> str:

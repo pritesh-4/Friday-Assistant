@@ -30,7 +30,10 @@ class FileService:
         return [StoredFile.model_validate(row) for row in rows]
 
     async def save_uploaded_file(self, upload: UploadFile) -> StoredFile:
-        original_name = Path(upload.filename or "").name
+        import re
+        raw_name = Path(upload.filename or "").name
+        # Sanitize filename to prevent malicious header injections or unsafe filesystem chars
+        original_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", raw_name) or "unnamed_file"
         suffix = Path(original_name).suffix.lower()
         if not original_name or suffix not in self.allowed_extensions:
             raise HTTPException(
@@ -48,7 +51,13 @@ class FileService:
             )
 
         file_id = generate_uuid()
-        storage_path = (settings.uploads_directory / f"{file_id}{suffix}").resolve()
+        uploads_dir = settings.uploads_directory.resolve()
+        storage_path = (uploads_dir / f"{file_id}{suffix}").resolve()
+        
+        # Verify no path traversal outside uploads directory
+        if not str(storage_path).startswith(str(uploads_dir)):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid storage path.")
+
         await asyncio.to_thread(storage_path.parent.mkdir, parents=True, exist_ok=True)
         await asyncio.to_thread(storage_path.write_bytes, content)
 

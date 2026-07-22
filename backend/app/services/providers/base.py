@@ -43,6 +43,12 @@ class LLMProvider(ABC):
         """True if the provider has all necessary configuration (like API keys) to run."""
         pass
 
+    @property
+    @abstractmethod
+    def supports_vision(self) -> bool:
+        """True if the provider model supports multimodal image/vision inputs."""
+        pass
+
     @abstractmethod
     async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         """

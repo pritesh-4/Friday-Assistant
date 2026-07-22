@@ -117,6 +117,34 @@ class RouterAgent:
             finish_reason="max_iterations"
         )
 
+    def _contains_images(self, messages: list[dict[str, Any]]) -> bool:
+        """Check if any message in history contains an image_url element."""
+        for msg in messages:
+            content = msg.get("content")
+            if isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "image_url":
+                        return True
+        return False
+
+    def _sanitize_for_text_only(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Converts multimodal image payloads to text descriptions for text-only LLMs."""
+        sanitized = []
+        for msg in messages:
+            content = msg.get("content")
+            if isinstance(content, list):
+                text_parts = []
+                for item in content:
+                    if isinstance(item, dict):
+                        if item.get("type") == "text":
+                            text_parts.append(item.get("text", ""))
+                        elif item.get("type") == "image_url":
+                            text_parts.append("[Attached Image]")
+                sanitized.append({"role": msg.get("role", "user"), "content": " ".join(text_parts).strip()})
+            else:
+                sanitized.append(msg)
+        return sanitized
+
     async def _call_providers(self, messages: list[dict[str, Any]]) -> LLMResult:
         chain = []
         for p in settings.fallback_chain:
@@ -124,6 +152,31 @@ class RouterAgent:
                 chain.append(p)
                 
         errors = []
+        has_images = self._contains_images(messages)
+
+        # 1. If images are present, prioritize vision-capable providers
+        if has_images:
+            for provider_name in chain:
+                provider = self.llm_service.get_provider(provider_name)
+                if provider and provider.supports_vision:
+                    try:
+                        return await provider.generate_response(messages)
+                    except Exception as exc:
+                        logger.error(f"Vision provider {provider_name} failed: {exc}")
+                        errors.append(f"{provider_name} (vision): {exc}")
+            
+            for provider_name, provider in self.llm_service.available_providers.items():
+                if provider.supports_vision and provider_name not in chain:
+                    try:
+                        return await provider.generate_response(messages)
+                    except Exception as exc:
+                        errors.append(f"{provider_name} (vision): {exc}")
+
+            # Degrade to text-sanitized payload for text-only providers
+            logger.warning("No vision provider succeeded. Degrading payload for text-only LLMs.")
+            messages = self._sanitize_for_text_only(messages)
+
+        # 2. Standard text execution chain
         for provider_name in chain:
             provider = self.llm_service.get_provider(provider_name)
             if not provider:

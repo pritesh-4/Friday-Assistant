@@ -25,6 +25,10 @@ class OpenRouterProvider(LLMProvider):
     def is_configured(self) -> bool:
         return bool(settings.openrouter_api_key)
 
+    @property
+    def supports_vision(self) -> bool:
+        return True
+
     async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         if not self.is_configured:
             raise LLMProviderError("OpenRouter is not configured (missing OPENROUTER_API_KEY).")

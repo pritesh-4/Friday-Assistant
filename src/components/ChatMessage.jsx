@@ -173,6 +173,7 @@ export default function ChatMessage({
   const [copied, setCopied] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState(null);
 
   // Copy message text helper
   const handleCopyText = () => {
@@ -360,6 +361,28 @@ export default function ChatMessage({
           <Share2 size={13} />
         </button>
       </div>
+
+      {/* Lightbox Modal for Image Enlargement */}
+      <AnimatePresence>
+        {lightboxImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxImage(null)}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 cursor-zoom-out"
+          >
+            <motion.img
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              src={lightboxImage}
+              alt="Enlarged Multimodal Asset"
+              className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl border border-white/10 object-contain"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

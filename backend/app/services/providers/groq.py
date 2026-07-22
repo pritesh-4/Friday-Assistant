@@ -26,6 +26,10 @@ class GroqProvider(LLMProvider):
     def is_configured(self) -> bool:
         return bool(settings.groq_api_key)
 
+    @property
+    def supports_vision(self) -> bool:
+        return False
+
     async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         if not self.is_configured:
             raise LLMProviderError("Groq is not configured (missing GROQ_API_KEY).")

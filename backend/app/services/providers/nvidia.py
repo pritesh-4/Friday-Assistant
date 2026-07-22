@@ -25,6 +25,10 @@ class NvidiaProvider(LLMProvider):
     def is_configured(self) -> bool:
         return bool(settings.nvidia_api_key)
 
+    @property
+    def supports_vision(self) -> bool:
+        return False
+
     async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         if not self.is_configured:
             raise LLMProviderError("NVIDIA NIM is not configured (missing NVIDIA_API_KEY).")

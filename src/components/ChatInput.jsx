@@ -27,6 +27,7 @@ export default function ChatInput({
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [isResearchActive, setIsResearchActive] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -126,9 +127,59 @@ export default function ChatInput({
       }
     } finally {
       setIsUploading(false);
-      // Reset input so the same file can be selected again
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  // Drag & Drop & Paste handlers
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0 && onAttachFile) {
+      setIsUploading(true);
+      try {
+        for (let i = 0; i < files.length; i++) {
+          await onAttachFile(files[i]);
+        }
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
+  const handlePaste = async (e) => {
+    const items = e.clipboardData?.items;
+    if (!items || !onAttachFile) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === "file") {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          setIsUploading(true);
+          try {
+            await onAttachFile(file);
+          } finally {
+            setIsUploading(false);
+          }
+        }
       }
     }
   };
@@ -235,10 +286,21 @@ export default function ChatInput({
 
             {/* Console Input Wrapper */}
             <div 
-              className={`w-full rounded-2xl border bg-black/40 backdrop-blur-md p-4 flex flex-col gap-3 transition-colors duration-300 ${
-                isFocused ? "border-[#00f0ff]/40 shadow-[0_0_20px_rgba(0,240,255,0.05)]" : "border-white/10"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`w-full rounded-2xl border bg-black/40 backdrop-blur-md p-4 flex flex-col gap-3 transition-all duration-300 relative ${
+                isDragOver ? "border-[#00f0ff] bg-[#00f0ff]/10 shadow-[0_0_30px_rgba(0,240,255,0.2)]" : isFocused ? "border-[#00f0ff]/40 shadow-[0_0_20px_rgba(0,240,255,0.05)]" : "border-white/10"
               }`}
             >
+              {isDragOver && (
+                <div className="absolute inset-0 rounded-2xl bg-[#00f0ff]/10 border-2 border-dashed border-[#00f0ff] flex items-center justify-center pointer-events-none z-50 backdrop-blur-sm">
+                  <div className="flex items-center gap-2 font-mono text-xs text-[#00f0ff] uppercase tracking-wider font-semibold">
+                    <Paperclip size={16} className="animate-bounce" /> Drop files to upload to FRIDAY
+                  </div>
+                </div>
+              )}
+
               {/* Textarea */}
               <textarea
                 ref={textareaRef}
@@ -247,8 +309,9 @@ export default function ChatInput({
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
                 onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
                 rows={1}
-                placeholder="Ask anything… or simply talk."
+                placeholder="Ask anything… or paste screenshots / drop files."
                 className="w-full bg-transparent resize-none text-sm text-on-surface placeholder:text-on-surface-variant/45 focus:outline-none py-1 font-light leading-relaxed max-h-[160px] scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent"
                 style={{ height: "auto" }}
               />
