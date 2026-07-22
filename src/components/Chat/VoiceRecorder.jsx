@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Mic, Square, AlertCircle, RefreshCw } from "lucide-react";
+import { motion } from "framer-motion";
 import { useVoiceRecorder } from "../../hooks/useVoiceRecorder";
 import VoicePlayer from "./VoicePlayer";
 
@@ -17,7 +18,8 @@ function formatTime(seconds) {
 export default function VoiceRecorder({
   onRecordComplete,
   onCancel,
-  autoStart = false
+  autoStart = false,
+  variant = "toolbar"
 }) {
   const {
     status,
@@ -164,6 +166,26 @@ export default function VoiceRecorder({
   }
 
   // Idle state
+  if (variant === "hero") {
+    return (
+      <motion.button
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.96 }}
+        onClick={(e) => {
+          e.stopPropagation();
+          startRecording();
+        }}
+        className="flex items-center gap-3 px-8 py-3.5 rounded-full bg-gradient-to-r from-[#00f0ff]/10 via-[#00dbe9]/20 to-[#d1bcff]/15 border border-[#00f0ff]/30 text-on-surface hover:border-[#00f0ff]/60 hover:shadow-[0_0_25px_rgba(0,240,255,0.25)] transition-all duration-300 relative overflow-hidden group cursor-pointer"
+      >
+        <div className="absolute inset-0 bg-[#00f0ff]/5 rounded-full blur-xl group-hover:scale-125 transition-transform duration-500" />
+        <Mic size={18} className="text-[#00f0ff] animate-pulse" />
+        <span className="font-display-lg text-sm tracking-wider font-light uppercase">
+          Talk to F.R.I.D.A.Y.
+        </span>
+      </motion.button>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2">
       <button

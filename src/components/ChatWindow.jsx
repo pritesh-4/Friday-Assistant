@@ -28,92 +28,13 @@ export default function ChatWindow({
   userName = "Pree",
   greetingTime = "Evening",
   rightPanelOpen = false,
-  setRightPanelOpen,
-  isVoiceMode = false,
-  setIsVoiceMode,
-  getAnalyserNode
+  setRightPanelOpen
 }) {
   const [attachedFile, setAttachedFile] = useState(null);
   const [isTrayExpanded, setIsTrayExpanded] = useState(false);
   
   // Connect to persistent tasks hook
   const { tasks, createTask, updateTask } = useTasks();
-
-  const visualizerRef = useRef(null);
-
-  // Audio spectrum visualizer render loop
-  useEffect(() => {
-    if (!isVoiceMode) return;
-    const canvas = visualizerRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let animationId;
-    const bufferLength = 128;
-    const dataArray = new Uint8Array(bufferLength);
-
-    const draw = () => {
-      animationId = requestAnimationFrame(draw);
-
-      const analyser = getAnalyserNode ? getAnalyserNode() : null;
-      if (analyser) {
-        analyser.getByteTimeDomainData(dataArray);
-      } else {
-        // Fallback procedural sine-wave simulation when Friday speaks or processes
-        const time = Date.now() * 0.006;
-        for (let i = 0; i < bufferLength; i++) {
-          const amp = orbState === "speaking" ? 35 : orbState === "thinking" ? 6 : 14;
-          const freq = orbState === "speaking" ? 0.16 : 0.06;
-          dataArray[i] = 128 + Math.sin(i * freq + time) * amp * Math.sin(i * Math.PI / bufferLength);
-        }
-      }
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.lineWidth = 2;
-      
-      let strokeColor = "rgba(0, 240, 255, 0.85)"; // standard cyan
-      if (orbState === "speaking") {
-        strokeColor = "rgba(209, 188, 255, 0.85)"; // creative/speaking purple
-      } else if (orbState === "thinking") {
-        strokeColor = "rgba(255, 255, 255, 0.6)"; // thinking white
-      } else if (orbState === "success") {
-        strokeColor = "rgba(0, 255, 135, 0.85)"; // green success
-      } else if (orbState === "warning") {
-        strokeColor = "rgba(255, 179, 0, 0.85)"; // orange warning
-      }
-      
-      ctx.strokeStyle = strokeColor;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = strokeColor;
-      
-      ctx.beginPath();
-      const sliceWidth = canvas.width / bufferLength;
-      let x = 0;
-
-      for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0;
-        const y = (v * canvas.height) / 2;
-
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-
-        x += sliceWidth;
-      }
-
-      ctx.lineTo(canvas.width, canvas.height / 2);
-      ctx.stroke();
-    };
-
-    draw();
-
-    return () => {
-      cancelAnimationFrame(animationId);
-    };
-  }, [isVoiceMode, getAnalyserNode, orbState]);
 
   const [activeFiles, setActiveFiles] = useState([
     { name: "design-spec.pdf", size: "1.2 MB", type: "PDF" },
@@ -138,12 +59,6 @@ export default function ChatWindow({
   };
 
   // Sync state between voice mode and F.R.I.D.A.Y.'s main orb
-  const handleVoiceToggle = (active) => {
-    setIsVoiceMode(active);
-    if (setOrbState) {
-      setOrbState(active ? "listening" : "idle");
-    }
-  };
 
   return (
     <div className="flex-1 flex h-full overflow-hidden bg-transparent relative z-10">
@@ -301,8 +216,6 @@ export default function ChatWindow({
               // Provide visual error feedback
             }
           }}
-          onToggleVoiceMode={handleVoiceToggle}
-          isFridayListening={isVoiceMode}
           attachedFile={attachedFile}
           onRemoveAttachedFile={() => setAttachedFile(null)}
           isChatEmpty={!isConversationStarted}
@@ -448,60 +361,7 @@ export default function ChatWindow({
         )}
       </AnimatePresence>
 
-      {/* Immersive Fullscreen Voice Mode Overlay */}
-      <AnimatePresence>
-        {isVoiceMode && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#0e0e0e]/95 backdrop-blur-2xl z-40 flex flex-col items-center justify-center p-6 text-center"
-          >
-            <div className="absolute inset-0 bg-radial-gradient from-transparent via-[#131313]/90 to-[#131313] pointer-events-none" />
-            
-            <div className="relative space-y-12 max-w-lg z-10 flex flex-col items-center justify-center">
-              
-              {/* Dynamic blinking mic tag */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#d1bcff]/30 bg-[#d1bcff]/15">
-                <span className="w-2 h-2 rounded-full bg-[#d1bcff] animate-ping" />
-                <span className="font-label-sm text-[10px] text-secondary tracking-widest uppercase">
-                  Voice Synced Mode
-                </span>
-              </div>
 
-              {/* Immense centered pulsing Orb face */}
-              <div className="relative w-56 h-56 flex items-center justify-center">
-                <div className="absolute inset-0 bg-[#00f0ff]/10 rounded-full blur-3xl animate-pulse" />
-                <canvas
-                  ref={visualizerRef}
-                  width={400}
-                  height={250}
-                  className="absolute w-[180%] h-[180%] pointer-events-none z-0 opacity-80"
-                />
-                <Orb state={orbState} size="hero" />
-              </div>
-
-              <div className="space-y-3">
-                <h2 className="font-display-lg text-lg text-gradient font-light">
-                  Talk to F.R.I.D.A.Y.
-                </h2>
-                <p className="font-body-md text-xs text-on-surface-variant max-w-sm mx-auto leading-relaxed">
-                  The vocal synthesizer pathways are fully synchronized. Go ahead, speak.
-                </p>
-              </div>
-
-              {/* Stop capture trigger button */}
-              <button
-                onClick={() => handleVoiceToggle(false)}
-                className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-[#690005] to-[#93000a] text-white border border-error/20 hover:border-error/60 font-label-sm text-xs uppercase tracking-widest hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-2"
-              >
-                <Volume2 size={14} /> Disconnect Channel
-              </button>
-
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
     </div>
   );

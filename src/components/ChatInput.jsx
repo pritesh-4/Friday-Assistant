@@ -88,13 +88,6 @@ export default function ChatInput({
     }
   };
 
-  // Toggle voice mode simulation
-  const handleVoiceToggleClick = () => {
-    if (onToggleVoiceMode) {
-      onToggleVoiceMode(true);
-    }
-  };
-
   // Drag handler for Framer Motion
   const handleDragEnd = (event, info) => {
     if (isTrayExpanded) {
@@ -185,6 +178,19 @@ export default function ChatInput({
     }
   };
 
+  const handleRecordComplete = async (audio) => {
+    if (onAttachFile && audio.blob) {
+      // Create a file object from the blob
+      const file = new File([audio.blob], `voice_message_${Date.now()}.webm`, { type: audio.blob.type });
+      setIsUploading(true);
+      try {
+        await onAttachFile(file);
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
   return (
     <motion.div
       drag="y"
@@ -213,22 +219,11 @@ export default function ChatInput({
             transition={{ duration: 0.3 }}
             className="w-full flex flex-col items-center justify-center py-4 px-6 select-none"
           >
-            {/* Large Voice Button */}
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={(e) => {
-                e.stopPropagation(); // prevent expanding the tray
-                handleVoiceToggleClick();
-              }}
-              className="flex items-center gap-3 px-8 py-3.5 rounded-full bg-gradient-to-r from-[#00f0ff]/10 via-[#00dbe9]/20 to-[#d1bcff]/15 border border-[#00f0ff]/30 text-on-surface hover:border-[#00f0ff]/60 hover:shadow-[0_0_25px_rgba(0,240,255,0.25)] transition-all duration-300 relative overflow-hidden group cursor-pointer"
-            >
-              <div className="absolute inset-0 bg-[#00f0ff]/5 rounded-full blur-xl group-hover:scale-125 transition-transform duration-500" />
-              <Mic size={18} className="text-[#00f0ff] animate-pulse" />
-              <span className="font-display-lg text-sm tracking-wider font-light uppercase">
-                Talk to F.R.I.D.A.Y.
-              </span>
-            </motion.button>
+            {/* Large Voice Button / Active Recording Controls */}
+            <VoiceRecorder 
+              variant="hero" 
+              onRecordComplete={handleRecordComplete} 
+            />
             
             <button
               onClick={() => setIsTrayExpanded(true)}
@@ -383,18 +378,8 @@ export default function ChatInput({
                   </button>
 
                   <VoiceRecorder 
-                    onRecordComplete={async (audio) => {
-                      if (onAttachFile && audio.blob) {
-                        // Create a file object from the blob
-                        const file = new File([audio.blob], `voice_message_${Date.now()}.webm`, { type: audio.blob.type });
-                        setIsUploading(true);
-                        try {
-                          await onAttachFile(file);
-                        } finally {
-                          setIsUploading(false);
-                        }
-                      }
-                    }} 
+                    variant="toolbar"
+                    onRecordComplete={handleRecordComplete} 
                   />
 
                   {/* Quick Actions popover */}
@@ -455,15 +440,6 @@ export default function ChatInput({
 
                 {/* Right actions menu */}
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleVoiceToggleClick}
-                    className="p-2.5 rounded-xl border border-white/5 hover:border-[#d1bcff]/30 text-on-surface-variant hover:text-[#d1bcff] bg-[#1c1b1b]/50 hover:bg-[#d1bcff]/5 transition-all duration-300 active:scale-95 cursor-pointer flex items-center justify-center"
-                    title="Voice Mode"
-                  >
-                    <Mic size={14} />
-                  </button>
-
                   <button
                     type="button"
                     onClick={handleSubmit}

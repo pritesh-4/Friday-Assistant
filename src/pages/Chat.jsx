@@ -273,9 +273,6 @@ export default function Chat() {
           greetingTime={greetingTime}
           rightPanelOpen={rightPanelOpen}
           setRightPanelOpen={setRightPanelOpen}
-          isVoiceMode={isVoiceMode}
-          setIsVoiceMode={setIsVoiceMode}
-          getAnalyserNode={getAnalyserNode}
         />
 
       </main>

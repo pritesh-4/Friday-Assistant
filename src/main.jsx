@@ -6,7 +6,8 @@ import {
   ChatProvider,
   SidebarProvider,
   SettingsProvider,
-  MemoryProvider
+  MemoryProvider,
+  VoiceProvider
 } from "./context";
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -14,9 +15,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <SettingsProvider>
       <SidebarProvider>
         <MemoryProvider>
-          <ChatProvider>
-            <App />
-          </ChatProvider>
+          <VoiceProvider>
+            <ChatProvider>
+              <App />
+            </ChatProvider>
+          </VoiceProvider>
         </MemoryProvider>
       </SidebarProvider>
     </SettingsProvider>
