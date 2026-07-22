@@ -1,14 +1,11 @@
 """Groq LLM provider implementation."""
 
-import time
 from collections.abc import Sequence
 
 from typing import Any
 
-import httpx
-
 from app.core.config import settings
-from app.services.providers.base import LLMProvider, LLMProviderError, LLMResult, logger
+from app.services.providers.base import LLMProvider, LLMProviderError, LLMResult
 
 
 class GroqProvider(LLMProvider):
