@@ -37,13 +37,16 @@ class Settings(BaseSettings):
     groq_model: str = "llama-3.3-70b-versatile"
     
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-2.5-flash"
     
     openrouter_api_key: str | None = None
-    openrouter_model: str = "google/gemini-2.0-flash:free"
+    openrouter_model: str = "openrouter/auto"
     
     nvidia_api_key: str | None = None
     nvidia_model: str = "meta/llama-3.1-8b-instruct"
+    
+    # Provider routing rules (comma-separated list of provider names)
+    fallback_chain: list[str] = ["groq", "gemini", "openrouter", "nvidia"]
     
     # Generic request configuration
     llm_request_timeout_seconds: float = 45.0

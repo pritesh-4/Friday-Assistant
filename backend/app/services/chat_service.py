@@ -2,11 +2,14 @@
 
 from fastapi import HTTPException, status
 
+from app.agents.context_builder import ContextBuilder
+from app.agents.memory_agent import MemoryAgent
 from app.agents.router_agent import RouterAgent
 from app.db.database import database
+from app.memory.memory_manager import memory_manager
 from app.schemas.chat import ChatRequest, ChatResponse, Conversation, Message
-from app.services.llm_service import LLMProviderError, LLMService
 from app.services.memory_service import MemoryService
+from app.services.providers.base import LLMProviderError
 from app.utils.helpers import generate_uuid, get_utc_now
 
 
@@ -14,9 +17,10 @@ class ChatService:
     """Implement the smallest reliable text-chat vertical slice."""
 
     def __init__(self) -> None:
-        self.llm_service = LLMService()
         self.memory_service = MemoryService()
         self.router_agent = RouterAgent()
+        self.context_builder = ContextBuilder()
+        self.memory_agent = MemoryAgent()
 
     async def list_conversations(self) -> list[Conversation]:
         rows = await database.fetch_all("SELECT * FROM conversations ORDER BY updated_at DESC")
@@ -41,21 +45,43 @@ class ChatService:
         user_message = await self._create_message(
             conversation.id, "user", request.message.strip()
         )
-        history = await self.get_messages(conversation.id, limit=16)
+        
+        session_id = conversation.id
+        ctx = memory_manager.get_context(session_id)
+        
+        # 1. Manage Session Memory
+        if not ctx.messages:
+            history = await self.get_messages(conversation.id, limit=16)
+            for msg in history:
+                ctx.messages.append({"role": msg.role, "content": msg.content})
+        else:
+            memory_manager.append_message(session_id, "user", request.message.strip())
+
+        # 2. Retrieve Long-Term Memories
         memories = await self.memory_service.retrieve_memories(request.message, limit=5)
 
+        # 3. Build Context Prompt
+        messages = self.context_builder.build_messages(ctx.messages, memories)
+
+        # 4. Route and Execute Provider
         try:
-            llm_result = await self.llm_service.generate_response(
-                self.router_agent.build_messages(history, memories)
-            )
+            llm_result = await self.router_agent.route_and_execute(messages)
         except LLMProviderError as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
             ) from exc
 
+        # 5. Save Response and update session
         assistant_message = await self._create_message(
             conversation.id, "assistant", llm_result.content
         )
+        memory_manager.append_message(session_id, "assistant", llm_result.content)
+        
+        # 6. Extract and Store new Memories
+        extracted = self.memory_agent.extract_memories(request.message)
+        for mem in extracted:
+            await self.memory_service.store_memory(mem)
+
         conversation = await self._get_conversation(conversation.id)
         return ChatResponse(
             conversation=conversation,
@@ -69,6 +95,7 @@ class ChatService:
         )
 
     async def delete_conversation(self, conversation_id: str) -> bool:
+        memory_manager.clear_context(conversation_id)
         return bool(
             await database.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
         )
