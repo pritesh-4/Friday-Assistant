@@ -70,7 +70,15 @@ class MemoryService:
         return await self.list_memories(query=query, limit=limit)
 
     async def store_memory(self, memory: MemoryCreate) -> Memory:
-        """Persist a new memory and return the saved record."""
+        """Persist a new memory and return the saved record, avoiding exact duplicates."""
+        existing = await database.fetch_one(
+            "SELECT * FROM memories WHERE lower(value) = ? AND lower(category) = ?",
+            (memory.value.lower(), memory.category.lower())
+        )
+        if existing:
+            logger.debug("Memory duplicate skipped: %s", memory.value)
+            return Memory.model_validate(existing)
+
         memory_id = generate_uuid()
         created_at = get_utc_now().isoformat()
         await database.execute(
