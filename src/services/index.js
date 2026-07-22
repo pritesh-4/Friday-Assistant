@@ -7,3 +7,5 @@ export * from "./voiceService";
 export * from "./fileService";
 export * from "./notificationService";
 export * from "./settingsService";
+export * from "./voice/recorder";
+

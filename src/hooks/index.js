@@ -8,3 +8,5 @@ export * from "./useVoice";
 export * from "./useSidebar";
 export * from "./useSettings";
 export * from "./useNotifications";
+export * from "./useVoiceRecorder";
+
