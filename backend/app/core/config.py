@@ -89,6 +89,19 @@ class Settings(BaseSettings):
         """Accept lower-case log level strings from env files."""
         return str(v).upper()
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def resolve_database_url(cls, v: str) -> str:
+        """
+        If APP_ENV=production and database_url is a relative SQLite URL (e.g. sqlite:///./friday.db),
+        remap it to sqlite:///tmp/friday/friday.db so SQLite can write cleanly on Render's ephemeral filesystem.
+        """
+        if os.environ.get("APP_ENV") == "production" and isinstance(v, str):
+            raw = v.removeprefix("sqlite://").lstrip("/")
+            if raw.startswith(".") or not raw.startswith("tmp/"):
+                return "sqlite:///tmp/friday/friday.db"
+        return v
+
     @field_validator("uploads_directory", "voice_uploads_directory", mode="before")
     @classmethod
     def resolve_upload_dirs(cls, v: str | Path) -> Path:

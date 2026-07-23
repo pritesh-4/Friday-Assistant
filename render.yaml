@@ -1,10 +1,10 @@
 services:
   - type: web
     name: friday-backend
-    env: python
+    runtime: python
     rootDir: backend
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     # /health is the liveness probe — responds instantly, never queries DB.
     # DO NOT use /health/ready here — it queries SQLite and can fail during startup,
     # causing Render to boot-loop the service.
@@ -18,7 +18,7 @@ services:
       # NOTE: Data is lost on every redeploy. For persistent storage,
       # switch to a managed database (e.g., Render PostgreSQL).
       - key: DATABASE_URL
-        value: sqlite:////tmp/friday/friday.db
+        value: sqlite:///tmp/friday/friday.db
       # Voice features require native C libraries (ctranslate2, onnxruntime).
       # Keep VOICE_ENABLED=false on Render free tier unless requirements-voice.txt
       # is installed and the plan has sufficient build memory.

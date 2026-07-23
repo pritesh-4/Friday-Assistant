@@ -20,10 +20,12 @@ class Database:
 
     def configure(self, database_url: str) -> None:
         """Set the SQLite database used by the application or a test."""
-        if not database_url.startswith("sqlite:///"):
+        if not database_url.startswith("sqlite://"):
             raise ValueError("FRIDAY currently supports SQLite DATABASE_URL values only.")
 
-        raw_path = database_url.removeprefix("sqlite:///")
+        raw_path = database_url.removeprefix("sqlite://")
+        if raw_path.startswith("//"):
+            raw_path = "/" + raw_path.lstrip("/")
         self.path = Path(raw_path).expanduser().resolve()
 
         # Ensure the parent directory exists immediately on configure so that
