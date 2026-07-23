@@ -1,0 +1,15 @@
+# Development, testing, and linting tools.
+# Install with: pip install -r requirements-dev.txt
+# (After installing requirements.txt first)
+
+-r requirements.txt
+
+# ── Testing ───────────────────────────────────────────────────────────────────────
+pytest>=8.0,<9.0
+httpx==0.28.1
+
+# ── Linting / Formatting ──────────────────────────────────────────────────────────
+ruff==0.8.6
+
+# ── Dev Server ────────────────────────────────────────────────────────────────────
+watchfiles==1.0.3

@@ -1,5 +1,6 @@
 """FRIDAY API — application entry point."""
 
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
@@ -24,35 +25,78 @@ from app.api.routes import (
     tasks,
     voice,
 )
-from app.ai.whisper.loader import initialize_whisper_model
-from app.ai.tts.loader import initialize_tts_model
 
 _log = get_logger("main")
 
+# Module-level startup timestamp for uptime reporting in /health.
+# Set during the lifespan startup event so it reflects actual service readiness.
+_startup_time: float | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle API startup and shutdown lifecycles."""
-    _log.info("Initializing F.R.I.D.A.Y. API — version %s", API_VERSION)
-    _log.info("Environment: %s | Debug: %s | Log level: %s", settings.app_env, settings.debug, settings.log_level)
-    await database.initialize()
-    _log.info("SQLite persistence is ready: %s", database.path)
-    
-    # Initialize Faster-Whisper
-    # Running in a separate thread if it blocks, but it's okay during startup
+    global _startup_time
+
+    _log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    _log.info("  F.R.I.D.A.Y. API  —  version %s", API_VERSION)
+    _log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    _log.info("✓ Environment : %s", settings.app_env)
+    _log.info("✓ Debug mode  : %s", settings.debug)
+    _log.info("✓ Log level   : %s", settings.log_level)
+    _log.info("✓ Voice       : %s", "enabled" if settings.voice_enabled else "disabled")
+
+    # ── Stage 1: Database ─────────────────────────────────────────────────────
+    _log.info("[1/3] Initializing database...")
     try:
-        initialize_whisper_model(model_name="distil-large-v3", device="auto", compute_type="default")
-    except Exception as e:
-        _log.error("Failed to load whisper model, STT features will not work: %s", e)
-        
-    # Initialize Kokoro TTS
-    try:
-        initialize_tts_model()
-    except Exception as e:
-        _log.error("Failed to load TTS model, speech synthesis will not work: %s", e)
-        
+        await database.initialize()
+        _log.info("✓ SQLite persistence ready: %s", database.path)
+    except Exception as exc:
+        _log.critical(
+            "FATAL: Database initialization failed — cannot start without persistence. "
+            "Error: %s",
+            exc,
+            exc_info=True,
+        )
+        raise  # DB failure IS a fatal error — we cannot serve without persistence.
+
+    # ── Stage 2: Voice models (optional) ──────────────────────────────────────
+    if settings.voice_enabled:
+        _log.info("[2/3] Initializing voice models (VOICE_ENABLED=true)...")
+
+        # Import loaders here to keep them off the module-level import path.
+        # If faster-whisper or kokoro-onnx aren't installed, these modules
+        # still import safely — they just won't do anything useful.
+        try:
+            from app.ai.whisper.loader import initialize_whisper_model
+            whisper_ok = initialize_whisper_model(
+                model_name="distil-large-v3", device="auto", compute_type="default"
+            )
+            if not whisper_ok:
+                _log.warning("Whisper model unavailable — STT features will be disabled.")
+        except Exception as exc:
+            _log.error("Whisper initialization error: %s", exc, exc_info=True)
+
+        try:
+            from app.ai.tts.loader import initialize_tts_model
+            tts_ok = initialize_tts_model()
+            if not tts_ok:
+                _log.warning("Kokoro TTS unavailable — speech synthesis will be disabled.")
+        except Exception as exc:
+            _log.error("TTS initialization error: %s", exc, exc_info=True)
+
+        _log.info("✓ Voice initialization complete.")
+    else:
+        _log.info("[2/3] Voice models skipped (VOICE_ENABLED=false).")
+
+    # ── Stage 3: Ready ────────────────────────────────────────────────────────
+    _startup_time = time.monotonic()
+    _log.info("[3/3] All routes registered. API is ready.")
+    _log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
     yield
+
+    # ── Shutdown ──────────────────────────────────────────────────────────────
     _log.info("Shutting down F.R.I.D.A.Y. API.")
 
 
@@ -107,7 +151,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Return a safe 500 response for unhandled exceptions, without leaking internals."""
-    _log.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    _log.error(
+        "Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "An internal server error occurred."},

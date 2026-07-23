@@ -5,7 +5,22 @@ services:
     rootDir: backend
     buildCommand: "pip install -r requirements.txt"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
-    healthCheckPath: /health/ready
+    # /health is the liveness probe — responds instantly, never queries DB.
+    # DO NOT use /health/ready here — it queries SQLite and can fail during startup,
+    # causing Render to boot-loop the service.
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
+      - key: APP_ENV
+        value: production
+      # Use /tmp for SQLite on Render's ephemeral filesystem.
+      # NOTE: Data is lost on every redeploy. For persistent storage,
+      # switch to a managed database (e.g., Render PostgreSQL).
+      - key: DATABASE_URL
+        value: sqlite:////tmp/friday/friday.db
+      # Voice features require native C libraries (ctranslate2, onnxruntime).
+      # Keep VOICE_ENABLED=false on Render free tier unless requirements-voice.txt
+      # is installed and the plan has sufficient build memory.
+      - key: VOICE_ENABLED
+        value: false

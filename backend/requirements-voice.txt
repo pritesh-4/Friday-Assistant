@@ -1,0 +1,20 @@
+# Optional voice feature dependencies (STT + TTS).
+# These require native C/CUDA libraries and are NOT installed on Render by default.
+#
+# To enable voice features:
+#   1. Set VOICE_ENABLED=true in your environment
+#   2. Install: pip install -r requirements-voice.txt
+#
+# WARNING: faster-whisper requires ctranslate2 with native binaries.
+#          kokoro-onnx is a heavy ONNX package (~300MB model download).
+#          Do NOT include these in Render deployments unless on a paid plan
+#          with sufficient build memory and time.
+
+-r requirements.txt
+
+# ── Speech-to-Text ────────────────────────────────────────────────────────────────
+faster-whisper==1.0.3
+
+# ── Text-to-Speech ───────────────────────────────────────────────────────────────
+kokoro-onnx==0.4.6
+soundfile==0.12.1

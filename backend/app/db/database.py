@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+from app.core.logging import get_logger
+
+_log = get_logger("db.database")
 
 
 class Database:
@@ -22,6 +25,21 @@ class Database:
 
         raw_path = database_url.removeprefix("sqlite:///")
         self.path = Path(raw_path).expanduser().resolve()
+
+        # Ensure the parent directory exists immediately on configure so that
+        # paths like /tmp/friday/friday.db are created before the first connect.
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Warn operators in production that SQLite data is ephemeral on
+        # platforms like Render free tier (filesystem wiped on each redeploy).
+        if settings.is_production:
+            _log.warning(
+                "⚠ Running SQLite in production mode. "
+                "Database path: %s. "
+                "Data will be LOST on redeploy if stored on an ephemeral filesystem (e.g., Render free tier). "
+                "Consider migrating to a managed database for persistent storage.",
+                self.path,
+            )
 
     def _connect(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
