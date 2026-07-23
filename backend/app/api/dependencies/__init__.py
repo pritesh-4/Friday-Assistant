@@ -29,6 +29,7 @@ from app.services.voice.transcription_service import TranscriptionService
 from app.services.workspace_service import WorkspaceService
 
 from app.services.voice.speech_service import SpeechService
+from app.services.streaming_coordinator import StreamingCoordinator
 
 # ── Singleton instances ────────────────────────────────────────────────────────
 # Created once at module load time and reused across all requests.
@@ -43,6 +44,7 @@ _file_service = FileService()
 _voice_service = VoiceService()
 _transcription_service = TranscriptionService()
 _speech_service = SpeechService()
+_streaming_coordinator = StreamingCoordinator()
 
 
 # ── Provider functions ─────────────────────────────────────────────────────────
@@ -84,6 +86,11 @@ def get_transcription_service() -> TranscriptionService:
 def get_speech_service() -> SpeechService:
     """Provide the shared SpeechService instance."""
     return _speech_service
+
+
+def get_streaming_coordinator() -> StreamingCoordinator:
+    """Provide the shared StreamingCoordinator instance."""
+    return _streaming_coordinator
 
 
 def get_memory_manager() -> MemoryManager:

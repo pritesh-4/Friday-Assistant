@@ -197,3 +197,114 @@ class RouterAgent:
                 errors.append(f"{provider_name}: {exc}")
                 
         raise LLMProviderError(f"All providers failed. Details: {' | '.join(errors)}")
+
+    async def _call_providers_stream(self, messages: list[dict[str, Any]]) -> Any:
+        chain = []
+        for p in settings.fallback_chain:
+            if p not in chain:
+                chain.append(p)
+                
+        errors = []
+        has_images = self._contains_images(messages)
+
+        if has_images:
+            for provider_name in chain:
+                provider = self.llm_service.get_provider(provider_name)
+                if provider and provider.supports_vision:
+                    try:
+                        return provider.stream_response(messages)
+                    except Exception as exc:
+                        logger.error(f"Vision provider {provider_name} stream failed: {exc}")
+                        errors.append(f"{provider_name} (vision): {exc}")
+            
+            for provider_name, provider in self.llm_service.available_providers.items():
+                if provider.supports_vision and provider_name not in chain:
+                    try:
+                        return provider.stream_response(messages)
+                    except Exception as exc:
+                        errors.append(f"{provider_name} (vision): {exc}")
+
+            logger.warning("No vision provider succeeded. Degrading payload for text-only LLMs.")
+            messages = self._sanitize_for_text_only(messages)
+
+        for provider_name in chain:
+            provider = self.llm_service.get_provider(provider_name)
+            if not provider:
+                continue
+            try:
+                return provider.stream_response(messages)
+            except Exception as exc:
+                logger.error(f"Provider {provider_name} stream failed: {exc}")
+                errors.append(f"{provider_name}: {exc}")
+                
+        active_providers = self.llm_service.available_providers
+        for provider_name, provider in active_providers.items():
+            if provider_name in chain:
+                continue
+            try:
+                return provider.stream_response(messages)
+            except Exception as exc:
+                errors.append(f"{provider_name}: {exc}")
+                
+        raise LLMProviderError(f"All stream providers failed. Details: {' | '.join(errors)}")
+
+    async def route_and_stream(self, messages: list[dict[str, Any]]) -> Any:
+        """
+        Selects a provider, streams the response, and handles any tool calls in a loop.
+        Yields text chunks.
+        """
+        active_providers = self.llm_service.available_providers
+        if not active_providers:
+            yield (
+                "I saved your message to this conversation. Configure at least one "
+                "provider in backend/.env to enable AI-generated replies."
+            )
+            return
+
+        current_messages = self._inject_tools_prompt(messages)
+        max_iterations = 3
+
+        for _ in range(max_iterations):
+            try:
+                stream_generator = await self._call_providers_stream(current_messages)
+            except LLMProviderError as exc:
+                yield f"Error: {exc}"
+                return
+
+            is_tool_call = False
+            buffer = ""
+            first_chunk_processed = False
+
+            async for chunk in stream_generator:
+                if not first_chunk_processed:
+                    first_chunk_processed = True
+                    if chunk.strip().startswith("{"):
+                        is_tool_call = True
+                
+                if is_tool_call:
+                    buffer += chunk
+                else:
+                    buffer += chunk
+                    yield chunk
+            
+            if is_tool_call:
+                content = buffer.strip()
+                try:
+                    tool_call = json.loads(content)
+                    tool_name = tool_call.get("tool")
+                    tool_kwargs = tool_call.get("kwargs", {})
+                    
+                    if tool_name:
+                        current_messages.append({"role": "assistant", "content": content})
+                        tool_result = await tool_manager.execute_tool(tool_name, tool_kwargs)
+                        observation = f"Tool '{tool_name}' result:\n{tool_result}"
+                        current_messages.append({"role": "system", "content": observation})
+                        continue
+                except json.JSONDecodeError:
+                    yield content
+                    return
+            
+            # If not a tool call, we streamed the response successfully
+            return
+            
+        yield "I used too many tools and had to stop. Please try asking in a different way."

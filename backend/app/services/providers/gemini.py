@@ -47,3 +47,25 @@ class GeminiProvider(LLMProvider):
             model=settings.gemini_model,
             timeout_seconds=settings.llm_request_timeout_seconds,
         )
+
+    async def stream_response(self, messages: Sequence[dict[str, Any]]) -> Any:
+        if not self.is_configured:
+            raise LLMProviderError("Gemini is not configured (missing GEMINI_API_KEY).")
+
+        payload = {
+            "model": settings.gemini_model,
+            "messages": list(messages),
+        }
+        headers = {
+            "Authorization": f"Bearer {settings.gemini_api_key}",
+            "Content-Type": "application/json",
+        }
+
+        async for chunk in self._make_openai_compatible_stream_request(
+            url="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            headers=headers,
+            payload=payload,
+            model=settings.gemini_model,
+            timeout_seconds=settings.llm_request_timeout_seconds,
+        ):
+            yield chunk

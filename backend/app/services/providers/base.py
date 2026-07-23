@@ -109,3 +109,58 @@ class LLMProvider(ABC):
             latency_ms=self._track_latency(start_time),
             finish_reason=finish_reason,
         )
+
+    @abstractmethod
+    async def stream_response(self, messages: Sequence[dict[str, Any]]) -> Any: # Returns AsyncGenerator[str, None]
+        """
+        Generate a text response from the given message history as an asynchronous stream.
+        
+        Args:
+            messages: A sequence of dicts containing 'role' and 'content' keys.
+            
+        Yields:
+            String chunks of the generated response as they arrive.
+        """
+        pass
+
+    async def _make_openai_compatible_stream_request(
+        self,
+        url: str,
+        headers: dict[str, str],
+        payload: dict[str, Any],
+        model: str,
+        timeout_seconds: float,
+    ) -> Any: # Returns AsyncGenerator[str, None]
+        """Helper to make a streaming request to any OpenAI-compatible API and yield chunks."""
+        import json
+        
+        payload["stream"] = True
+        timeout = httpx.Timeout(timeout_seconds)
+
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                async with client.stream("POST", url, headers=headers, json=payload) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        line = line.strip()
+                        if not line or not line.startswith("data: "):
+                            continue
+                            
+                        data_str = line[len("data: "):].strip()
+                        if data_str == "[DONE]":
+                            break
+                            
+                        try:
+                            data = json.loads(data_str)
+                            if "choices" in data and len(data["choices"]) > 0:
+                                delta = data["choices"][0].get("delta", {})
+                                chunk = delta.get("content", "")
+                                if chunk:
+                                    yield chunk
+                        except (json.JSONDecodeError, KeyError, IndexError) as exc:
+                            logger.debug("%s streaming parsing skipped for chunk: %s", self.name, exc)
+                            continue
+        except httpx.HTTPError as exc:
+            logger.error("%s provider HTTP stream error: %s", self.name, exc)
+            raise LLMProviderError(f"{self.name} API streaming error: {exc}") from exc
+

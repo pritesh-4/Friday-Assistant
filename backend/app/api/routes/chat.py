@@ -1,10 +1,12 @@
 """Chat route — conversation management and message sending."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 
-from app.api.dependencies import get_chat_service
+from app.api.dependencies import get_chat_service, get_streaming_coordinator
 from app.schemas.chat import ChatRequest, ChatResponse, Conversation, Message
 from app.services.chat_service import ChatService
+from app.services.streaming_coordinator import StreamingCoordinator
 
 router = APIRouter(tags=["chat"])
 
@@ -24,6 +26,18 @@ async def send_chat_message(
 ) -> ChatResponse:
     """Persist a user message and return the generated assistant reply."""
     return await service.send_message(request)
+
+
+@router.post("/stream", status_code=status.HTTP_200_OK)
+async def stream_chat_message(
+    request: ChatRequest,
+    coordinator: StreamingCoordinator = Depends(get_streaming_coordinator),
+) -> StreamingResponse:
+    """Stream assistant replies using Server-Sent Events (SSE)."""
+    return StreamingResponse(
+        coordinator.stream_chat(request),
+        media_type="text/event-stream",
+    )
 
 
 @router.get("/{conversation_id}/messages", response_model=list[Message])

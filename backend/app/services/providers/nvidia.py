@@ -47,3 +47,26 @@ class NvidiaProvider(LLMProvider):
             model=settings.nvidia_model,
             timeout_seconds=settings.llm_request_timeout_seconds,
         )
+
+    async def stream_response(self, messages: Sequence[dict[str, Any]]) -> Any:
+        if not self.is_configured:
+            raise LLMProviderError("NVIDIA NIM is not configured (missing NVIDIA_API_KEY).")
+
+        payload = {
+            "model": settings.nvidia_model,
+            "messages": list(messages),
+        }
+        headers = {
+            "Authorization": f"Bearer {settings.nvidia_api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+
+        async for chunk in self._make_openai_compatible_stream_request(
+            url="https://integrate.api.nvidia.com/v1/chat/completions",
+            headers=headers,
+            payload=payload,
+            model=settings.nvidia_model,
+            timeout_seconds=settings.llm_request_timeout_seconds,
+        ):
+            yield chunk

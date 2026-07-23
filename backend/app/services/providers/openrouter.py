@@ -48,3 +48,27 @@ class OpenRouterProvider(LLMProvider):
             model=settings.openrouter_model,
             timeout_seconds=settings.llm_request_timeout_seconds,
         )
+
+    async def stream_response(self, messages: Sequence[dict[str, Any]]) -> Any:
+        if not self.is_configured:
+            raise LLMProviderError("OpenRouter is not configured (missing OPENROUTER_API_KEY).")
+
+        payload = {
+            "model": settings.openrouter_model,
+            "messages": list(messages),
+        }
+        headers = {
+            "Authorization": f"Bearer {settings.openrouter_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": settings.frontend_url,
+            "X-Title": settings.app_name,
+        }
+
+        async for chunk in self._make_openai_compatible_stream_request(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            payload=payload,
+            model=settings.openrouter_model,
+            timeout_seconds=settings.llm_request_timeout_seconds,
+        ):
+            yield chunk

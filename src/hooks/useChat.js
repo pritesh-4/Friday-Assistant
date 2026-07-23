@@ -56,10 +56,11 @@ export function useChat(initialId = null) {
   }, [activeConversationId]);
 
   /**
-   * Sends a user message and appends the backend-generated response.
+   * Sends a user message and appends the backend-generated response via streaming.
    * @param {string} text - Message text.
+   * @param {Array<string>} fileIds - Array of attached file IDs.
    */
-  const sendMessage = async (text) => {
+  const sendMessage = async (text, fileIds = []) => {
     if (!text.trim()) return;
     
     const now = new Date();
@@ -67,41 +68,66 @@ export function useChat(initialId = null) {
 
     // Add user message to state
     const userMsg = { sender: "user", text, time: timeStr };
-    setMessages((prev) => [...prev, userMsg]);
+    
+    // Add empty friday message placeholder
+    const fridayMsgId = Date.now().toString(); // temporary ID for the stream
+    const emptyFridayMsg = {
+      id: fridayMsgId,
+      sender: "friday",
+      text: "",
+      time: timeStr,
+      isStreaming: true
+    };
+    
+    setMessages((prev) => [...prev, userMsg, emptyFridayMsg]);
     setIsTyping(true);
 
     try {
-      const result = await chatService.sendMessage(activeConversationId, text);
-      const fridayMsg = result.assistantMessage;
-      const formatted = {
-        sender: "friday",
-        text: fridayMsg.content,
-        time: new Date(fridayMsg.createdAt).toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false
-        }),
-        citations: fridayMsg.citations || [],
-        contextAwareness: fridayMsg.contextAwareness || null,
-        emotionalHeader: fridayMsg.emotionalHeader || null
-      };
-
-      setMessages((prev) => [...prev, formatted]);
-      if (result.isNew) {
-        setActiveConversationId(result.conversationId);
-      }
-    } catch (err) {
-      console.error("Failed to send chat message:", err);
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "friday",
-          text: "I could not reach the assistant backend. Please verify that it is running and try again.",
-          time: timeStr,
-          emotionalHeader: "warning"
+      await chatService.streamMessage(
+        activeConversationId, 
+        text, 
+        fileIds, 
+        (chunk, metadata, isDone) => {
+          if (metadata && metadata.conversationId && !activeConversationId) {
+            setActiveConversationId(metadata.conversationId);
+          }
+          
+          if (chunk) {
+            setMessages((prev) => {
+              const newMsgs = [...prev];
+              const lastMsg = newMsgs[newMsgs.length - 1];
+              if (lastMsg && lastMsg.id === fridayMsgId) {
+                lastMsg.text += chunk;
+              }
+              return newMsgs;
+            });
+          }
+          
+          if (isDone) {
+            setIsTyping(false);
+            setMessages((prev) => {
+              const newMsgs = [...prev];
+              const lastMsg = newMsgs[newMsgs.length - 1];
+              if (lastMsg && lastMsg.id === fridayMsgId) {
+                lastMsg.isStreaming = false;
+              }
+              return newMsgs;
+            });
+          }
         }
-      ]);
-    } finally {
+      );
+    } catch (err) {
+      console.error("Failed to stream chat message:", err);
+      setMessages((prev) => {
+        const newMsgs = [...prev];
+        const lastMsg = newMsgs[newMsgs.length - 1];
+        if (lastMsg && lastMsg.id === fridayMsgId) {
+          lastMsg.text = "I could not reach the assistant backend. Please verify that it is running and try again.";
+          lastMsg.emotionalHeader = "warning";
+          lastMsg.isStreaming = false;
+        }
+        return newMsgs;
+      });
       setIsTyping(false);
     }
   };

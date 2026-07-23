@@ -47,3 +47,25 @@ class GroqProvider(LLMProvider):
             model=settings.groq_model,
             timeout_seconds=settings.llm_request_timeout_seconds,
         )
+
+    async def stream_response(self, messages: Sequence[dict[str, Any]]) -> Any:
+        if not self.is_configured:
+            raise LLMProviderError("Groq is not configured (missing GROQ_API_KEY).")
+
+        payload = {
+            "model": settings.groq_model,
+            "messages": list(messages),
+        }
+        headers = {
+            "Authorization": f"Bearer {settings.groq_api_key}",
+            "Content-Type": "application/json",
+        }
+
+        async for chunk in self._make_openai_compatible_stream_request(
+            url="https://api.groq.com/openai/v1/chat/completions",
+            headers=headers,
+            payload=payload,
+            model=settings.groq_model,
+            timeout_seconds=settings.llm_request_timeout_seconds,
+        ):
+            yield chunk
