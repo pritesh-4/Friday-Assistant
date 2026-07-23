@@ -25,8 +25,9 @@ from app.api.routes import (
     voice,
 )
 from app.ai.whisper.loader import initialize_whisper_model
-
+from app.ai.tts.loader import initialize_tts_model
 _log = get_logger("main")
+
 
 
 @asynccontextmanager
@@ -43,6 +44,12 @@ async def lifespan(app: FastAPI):
         initialize_whisper_model(model_name="distil-large-v3", device="auto", compute_type="default")
     except Exception as e:
         _log.error("Failed to load whisper model, STT features will not work: %s", e)
+        
+    # Initialize Kokoro TTS
+    try:
+        initialize_tts_model()
+    except Exception as e:
+        _log.error("Failed to load TTS model, speech synthesis will not work: %s", e)
         
     yield
     _log.info("Shutting down F.R.I.D.A.Y. API.")

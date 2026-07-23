@@ -8,11 +8,13 @@ intentionally present to:
   3. Provide a clear extension point for the VoiceService implementation.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
+from pydantic import BaseModel
 
-from app.api.dependencies import get_voice_service, get_transcription_service
+from app.api.dependencies import get_voice_service, get_transcription_service, get_speech_service
 from app.services.voice_service import VoiceService
 from app.services.voice.transcription_service import TranscriptionService
+from app.services.voice.speech_service import SpeechService
 from app.schemas.voice import TranscriptionResult
 
 router = APIRouter(tags=["voice"])
@@ -66,17 +68,23 @@ async def transcribe_voice(
     return TranscriptionResult(**result)
 
 
-@router.post("/synthesize", summary="Synthesize text to speech")
-async def synthesize_voice(
-    service: VoiceService = Depends(get_voice_service),
-) -> None:
-    """
-    Convert text to an audio stream using the configured TTS provider.
 
-    **Not yet implemented.** Browser-side SpeechSynthesis API is the current
-    TTS mechanism.
+class SpeakRequest(BaseModel):
+    text: str
+
+@router.post("/speak", summary="Synthesize text to speech")
+async def speak_voice(
+    request: SpeakRequest,
+    speech_service: SpeechService = Depends(get_speech_service),
+) -> Response:
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Server-side speech synthesis is not implemented yet.",
-    )
+    Convert text to an audio stream (WAV) using the Kokoro TTS engine.
+    Returns binary audio/wav.
+    """
+    try:
+        audio_bytes = await speech_service.synthesize(request.text)
+        return Response(content=audio_bytes, media_type="audio/wav")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS synthesis failed: {str(e)}")

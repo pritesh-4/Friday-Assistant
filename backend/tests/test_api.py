@@ -120,7 +120,7 @@ def test_voice_status(client: TestClient):
 
     # transcription expects a file, so a plain post without one is 422
     assert client.post("/voice/transcribe").status_code == 422
-    assert client.post("/voice/synthesize").status_code == 501
+    assert client.post("/voice/speak", json={"text": "Hello"}).status_code == 200
 
 
 def test_voice_upload(client: TestClient):

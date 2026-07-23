@@ -28,6 +28,8 @@ from app.services.voice_service import VoiceService
 from app.services.voice.transcription_service import TranscriptionService
 from app.services.workspace_service import WorkspaceService
 
+from app.services.voice.speech_service import SpeechService
+
 # ── Singleton instances ────────────────────────────────────────────────────────
 # Created once at module load time and reused across all requests.
 # These are module-level singletons — not class attributes — so they remain
@@ -40,6 +42,7 @@ _settings_service = SettingsService()
 _file_service = FileService()
 _voice_service = VoiceService()
 _transcription_service = TranscriptionService()
+_speech_service = SpeechService()
 
 
 # ── Provider functions ─────────────────────────────────────────────────────────
@@ -77,6 +80,10 @@ def get_voice_service() -> VoiceService:
 def get_transcription_service() -> TranscriptionService:
     """Provide the shared TranscriptionService instance."""
     return _transcription_service
+
+def get_speech_service() -> SpeechService:
+    """Provide the shared SpeechService instance."""
+    return _speech_service
 
 
 def get_memory_manager() -> MemoryManager:

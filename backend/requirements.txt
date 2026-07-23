@@ -48,3 +48,5 @@ duckduckgo-search
 pypdf
 python-docx
 faster-whisper
+kokoro-onnx
+soundfile
