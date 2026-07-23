@@ -34,9 +34,12 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setattr(settings, "gemini_api_key", None)
     monkeypatch.setattr(settings, "openrouter_api_key", None)
     monkeypatch.setattr(settings, "nvidia_api_key", None)
+    monkeypatch.setattr(settings, "voice_enabled", True)
     
     # Mock whisper and TTS initialization to prevent downloading large models during tests
     from unittest.mock import patch
-    with patch("app.main.initialize_whisper_model"), patch("app.main.initialize_tts_model"), patch("app.services.voice.speech_service.SpeechService.synthesize", return_value=b"fake_audio"):
+    with patch("app.ai.whisper.loader.initialize_whisper_model", return_value=True), \
+         patch("app.ai.tts.loader.initialize_tts_model", return_value=True), \
+         patch("app.services.voice.speech_service.SpeechService.synthesize", return_value=b"fake_audio"):
         with TestClient(app) as test_client:
             yield test_client

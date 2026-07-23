@@ -13,7 +13,7 @@ def test_health_and_readiness(client: TestClient):
 
     health = client.get("/health").json()
     assert health["status"] == "ok"
-    assert health["service"] == "FRIDAY API"
+    assert health["services"]["api"] is True
     assert health["version"]
 
     ready = client.get("/health/ready").json()

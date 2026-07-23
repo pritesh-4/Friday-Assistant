@@ -1,9 +1,5 @@
 import pytest
 from unittest.mock import patch
-from fastapi.testclient import TestClient
-from app.main import app
-
-client = TestClient(app)
 
 @pytest.fixture
 def mock_upload():
@@ -25,12 +21,12 @@ def mock_transcribe():
         }
         yield mock
 
-def test_get_voice_status():
+def test_get_voice_status(client):
     response = client.get("/voice")
     assert response.status_code == 200
     assert response.json()["available"] is True
     
-def test_transcribe_voice_success(mock_upload, mock_transcribe):
+def test_transcribe_voice_success(client, mock_upload, mock_transcribe):
     # Simulate a file upload
     file_content = b"fake audio content"
     files = {"file": ("test.webm", file_content, "audio/webm")}
@@ -48,7 +44,7 @@ def test_transcribe_voice_success(mock_upload, mock_transcribe):
     mock_upload.assert_called_once()
     mock_transcribe.assert_called_once()
 
-def test_transcribe_voice_upload_failure():
+def test_transcribe_voice_upload_failure(client):
     with patch("app.services.voice_service.VoiceService.upload_audio") as mock:
         # We can simulate an exception
         from fastapi import HTTPException
@@ -61,7 +57,7 @@ def test_transcribe_voice_upload_failure():
         assert response.status_code == 400
         assert "Empty filename" in response.json()["detail"]
 
-def test_transcribe_voice_inference_failure(mock_upload):
+def test_transcribe_voice_inference_failure(client, mock_upload):
     with patch("app.services.voice.transcription_service.TranscriptionService.transcribe") as mock:
         from fastapi import HTTPException
         mock.side_effect = HTTPException(status_code=500, detail="Failed to transcribe audio file due to an internal error.")
