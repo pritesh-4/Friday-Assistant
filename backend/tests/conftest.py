@@ -34,5 +34,9 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setattr(settings, "gemini_api_key", None)
     monkeypatch.setattr(settings, "openrouter_api_key", None)
     monkeypatch.setattr(settings, "nvidia_api_key", None)
-    with TestClient(app) as test_client:
-        yield test_client
+    
+    # Mock whisper initialization to prevent downloading large models during tests
+    from unittest.mock import patch
+    with patch("app.main.initialize_whisper_model"):
+        with TestClient(app) as test_client:
+            yield test_client

@@ -47,4 +47,4 @@ websockets==16.0
 duckduckgo-search
 pypdf
 python-docx
-
+faster-whisper

@@ -116,9 +116,10 @@ def test_settings_notes_and_tasks(client: TestClient):
 def test_voice_status(client: TestClient):
     response = client.get("/voice")
     assert response.status_code == 200
-    assert response.json()["available"] is False
+    assert response.json()["available"] is True
 
-    assert client.post("/voice/transcribe").status_code == 501
+    # transcription expects a file, so a plain post without one is 422
+    assert client.post("/voice/transcribe").status_code == 422
     assert client.post("/voice/synthesize").status_code == 501
 
 

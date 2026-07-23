@@ -25,6 +25,7 @@ from app.services.file_service import FileService
 from app.services.memory_service import MemoryService
 from app.services.settings_service import SettingsService
 from app.services.voice_service import VoiceService
+from app.services.voice.transcription_service import TranscriptionService
 from app.services.workspace_service import WorkspaceService
 
 # ── Singleton instances ────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ _workspace_service = WorkspaceService()
 _settings_service = SettingsService()
 _file_service = FileService()
 _voice_service = VoiceService()
+_transcription_service = TranscriptionService()
 
 
 # ── Provider functions ─────────────────────────────────────────────────────────
@@ -70,6 +72,11 @@ def get_file_service() -> FileService:
 def get_voice_service() -> VoiceService:
     """Provide the shared VoiceService instance."""
     return _voice_service
+
+
+def get_transcription_service() -> TranscriptionService:
+    """Provide the shared TranscriptionService instance."""
+    return _transcription_service
 
 
 def get_memory_manager() -> MemoryManager:

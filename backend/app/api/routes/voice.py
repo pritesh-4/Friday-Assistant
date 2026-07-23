@@ -10,8 +10,10 @@ intentionally present to:
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 
-from app.api.dependencies import get_voice_service
+from app.api.dependencies import get_voice_service, get_transcription_service
 from app.services.voice_service import VoiceService
+from app.services.voice.transcription_service import TranscriptionService
+from app.schemas.voice import TranscriptionResult
 
 router = APIRouter(tags=["voice"])
 
@@ -27,9 +29,9 @@ async def get_voice_status(
     (e.g. Web Speech API) instead of routing through this endpoint.
     """
     return {
-        "available": False,
-        "detail": "Server-side voice is planned for a future milestone.",
-        "browser_fallback": True,
+        "available": True,
+        "detail": "Server-side Faster-Whisper transcription is enabled.",
+        "browser_fallback": False,
     }
 
 
@@ -45,20 +47,23 @@ async def upload_voice(
     return await service.upload_audio(file)
 
 
-@router.post("/transcribe", summary="Transcribe audio to text")
+@router.post("/transcribe", summary="Transcribe audio to text", response_model=TranscriptionResult)
 async def transcribe_voice(
-    service: VoiceService = Depends(get_voice_service),
-) -> None:
+    file: UploadFile = File(...),
+    voice_service: VoiceService = Depends(get_voice_service),
+    transcription_service: TranscriptionService = Depends(get_transcription_service),
+) -> TranscriptionResult:
     """
-    Transcribe an audio file to text using the configured STT provider.
-
-    **Not yet implemented.** Browser-side Web Speech API is the current
-    transcription mechanism.
+    Transcribe an audio file to text using the Faster-Whisper STT provider.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Server-side speech transcription is not implemented yet.",
-    )
+    # Integrate with existing upload workflow
+    upload_result = await voice_service.upload_audio(file)
+    file_path = voice_service.upload_dir / upload_result["filename"]
+    
+    # Process transcription
+    result = await transcription_service.transcribe(str(file_path))
+    
+    return TranscriptionResult(**result)
 
 
 @router.post("/synthesize", summary="Synthesize text to speech")

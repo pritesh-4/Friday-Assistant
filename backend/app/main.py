@@ -24,6 +24,7 @@ from app.api.routes import (
     tasks,
     voice,
 )
+from app.ai.whisper.loader import initialize_whisper_model
 
 _log = get_logger("main")
 
@@ -35,6 +36,14 @@ async def lifespan(app: FastAPI):
     _log.info("Environment: %s | Debug: %s | Log level: %s", settings.app_env, settings.debug, settings.log_level)
     await database.initialize()
     _log.info("SQLite persistence is ready: %s", database.path)
+    
+    # Initialize Faster-Whisper
+    # Running in a separate thread if it blocks, but it's okay during startup
+    try:
+        initialize_whisper_model(model_name="distil-large-v3", device="auto", compute_type="default")
+    except Exception as e:
+        _log.error("Failed to load whisper model, STT features will not work: %s", e)
+        
     yield
     _log.info("Shutting down F.R.I.D.A.Y. API.")
 
