@@ -4,14 +4,14 @@ services:
     env: python
     rootDir: backend
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
     # /health is the liveness probe — responds instantly, never queries DB.
     # DO NOT use /health/ready here — it queries SQLite and can fail during startup,
     # causing Render to boot-loop the service.
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.12.0
+        value: 3.12
       - key: APP_ENV
         value: production
       # Use /tmp for SQLite on Render's ephemeral filesystem.

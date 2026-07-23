@@ -53,9 +53,6 @@ async def get_voice_status() -> dict[str, Any]:
     This endpoint always responds — it does not raise 503 even when voice is disabled,
     so the frontend can check capability without error handling.
     """
-    from app.ai.whisper.loader import is_whisper_available
-    from app.ai.tts.loader import is_tts_available
-
     if not settings.voice_enabled:
         return {
             "available": False,
@@ -64,6 +61,9 @@ async def get_voice_status() -> dict[str, Any]:
             "detail": _VOICE_DISABLED_DETAIL,
             "browser_fallback": True,
         }
+
+    from app.ai.whisper.loader import is_whisper_available
+    from app.ai.tts.loader import is_tts_available
 
     return {
         "available": True,

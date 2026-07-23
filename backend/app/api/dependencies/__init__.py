@@ -41,10 +41,11 @@ _memory_service = MemoryService()
 _workspace_service = WorkspaceService()
 _settings_service = SettingsService()
 _file_service = FileService()
-_voice_service = VoiceService()
-_transcription_service = TranscriptionService()
-_speech_service = SpeechService()
 _streaming_coordinator = StreamingCoordinator()
+
+_voice_service: VoiceService | None = None
+_transcription_service: TranscriptionService | None = None
+_speech_service: SpeechService | None = None
 
 
 # ── Provider functions ─────────────────────────────────────────────────────────
@@ -76,15 +77,25 @@ def get_file_service() -> FileService:
 
 def get_voice_service() -> VoiceService:
     """Provide the shared VoiceService instance."""
+    global _voice_service
+    if _voice_service is None:
+        _voice_service = VoiceService()
     return _voice_service
 
 
 def get_transcription_service() -> TranscriptionService:
     """Provide the shared TranscriptionService instance."""
+    global _transcription_service
+    if _transcription_service is None:
+        _transcription_service = TranscriptionService()
     return _transcription_service
+
 
 def get_speech_service() -> SpeechService:
     """Provide the shared SpeechService instance."""
+    global _speech_service
+    if _speech_service is None:
+        _speech_service = SpeechService()
     return _speech_service
 
 

@@ -101,11 +101,11 @@ class Settings(BaseSettings):
             # Remap ./data/uploads → /tmp/friday/uploads, etc.
             # Strip leading './' or '.' component before joining.
             relative_part = path.relative_to(path.anchor) if path.anchor else path
-            # Remove leading 'data/' prefix if present so paths stay clean
-            parts = relative_part.parts
-            if parts and parts[0] in ("data", "."):
-                relative_part = Path(*parts[1:]) if len(parts) > 1 else Path("uploads")
-            return Path("/tmp/friday") / relative_part
+            parts = list(relative_part.parts)
+            while parts and parts[0] in ("data", ".", ".."):
+                parts.pop(0)
+            clean_rel = Path(*parts) if parts else Path("uploads")
+            return Path("/tmp/friday") / clean_rel
         return path
 
     @property

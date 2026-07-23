@@ -34,7 +34,7 @@ class Database:
         # platforms like Render free tier (filesystem wiped on each redeploy).
         if settings.is_production:
             _log.warning(
-                "⚠ Running SQLite in production mode. "
+                "[WARNING] Running SQLite in production mode. "
                 "Database path: %s. "
                 "Data will be LOST on redeploy if stored on an ephemeral filesystem (e.g., Render free tier). "
                 "Consider migrating to a managed database for persistent storage.",
