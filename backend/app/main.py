@@ -26,6 +26,7 @@ from app.api.routes import (
 )
 from app.ai.whisper.loader import initialize_whisper_model
 from app.ai.tts.loader import initialize_tts_model
+
 _log = get_logger("main")
 
 

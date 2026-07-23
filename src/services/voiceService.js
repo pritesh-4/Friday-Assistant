@@ -61,7 +61,8 @@ export const voiceService = {
 
     recognition.start();
 
-    // Clean up any existing visualizer hooks before starting a new one
+    // Release any previous visualizer hooks before opening a new microphone stream.
+    // Without this guard, rapid startListening calls create multiple open hardware streams.
     if (mediaStream) {
       mediaStream.getTracks().forEach((track) => track.stop());
       mediaStream = null;

@@ -6,12 +6,16 @@ from app.core.config import settings
 ALLOWED_MIME_TYPES = {"audio/webm", "audio/wav", "audio/ogg", "audio/mp4"}
 MAX_FILE_SIZE = settings.max_upload_size_bytes
 
+
 class VoiceService:
     """
-    Service responsible for handling speech-to-text (STT) and text-to-speech (TTS) services,
-    and voice file uploads.
+    Service responsible for validating and storing uploaded voice audio files.
+
+    STT (transcription) is handled by TranscriptionService.
+    TTS (synthesis) is handled by SpeechService.
+    This service solely owns the upload lifecycle.
     """
-    
+
     def __init__(self):
         self.upload_dir = settings.voice_uploads_directory
         self.upload_dir.mkdir(parents=True, exist_ok=True)
@@ -19,6 +23,7 @@ class VoiceService:
     async def upload_audio(self, file: UploadFile) -> dict:
         """
         Validates and stores an uploaded audio file.
+        Returns upload metadata including the filename and MIME type.
         """
         if not file.filename:
             raise HTTPException(status_code=400, detail="Empty filename")
@@ -33,7 +38,7 @@ class VoiceService:
         content = await file.read()
         if not content:
             raise HTTPException(status_code=400, detail="Empty file upload")
-        
+
         file_size = len(content)
         if file_size > MAX_FILE_SIZE:
             raise HTTPException(
@@ -42,10 +47,9 @@ class VoiceService:
             )
 
         upload_id = str(uuid.uuid4())
-        # Use simple extension matching
         ext = os.path.splitext(file.filename)[1].lower()
         if not ext:
-            ext = ".webm" # fallback
+            ext = ".webm"  # fallback
         safe_filename = f"{upload_id}{ext}"
         file_path = self.upload_dir / safe_filename
 
@@ -57,18 +61,7 @@ class VoiceService:
             "filename": safe_filename,
             "mime_type": file.content_type,
             "size": file_size,
-            "duration": None, # Future Whisper implementation
-            "status": "completed"
+            "duration": None,
+            "status": "completed",
         }
 
-    async def transcribe_audio(self, audio_data: bytes) -> str:
-        """
-        Transcribe audio binary content to text.
-        """
-        return ""
-
-    async def synthesize_speech(self, text: str) -> bytes:
-        """
-        Synthesize speech audio content from text.
-        """
-        return b""
