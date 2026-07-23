@@ -12,7 +12,7 @@ import {
   X
 } from "lucide-react";
 import VoiceRecorder from "./Chat/VoiceRecorder";
-import { voiceUploadService } from "../services/voice/uploadService";
+import { voiceSessionManager } from "../services/voice/sessionManager";
 
 export default function ChatInput({
   onSendMessage,
@@ -185,45 +185,25 @@ export default function ChatInput({
       setIsUploading(true);
       setUploadProgress(0);
       try {
-        const uploadedMeta = await voiceUploadService.uploadVoice(
+        const transcript = await voiceSessionManager.processVoiceInput(
           audio.blob,
           audio.blob.type || "audio/webm",
-          (progress) => setUploadProgress(progress)
+          (progress) => setUploadProgress(progress),
+          (text) => setInputText(text) // Visually reflect transcription
         );
         
-        // Pass the metadata back up via onAttachFile but mock it as a File for compatibility
-        // Alternatively, since ChatWindow handles onAttachFile to upload, we can bypass
-        // the generic upload if we directly pass the completed metadata. 
-        // For now we preserve chat logic by creating a mock file that ChatWindow knows how to handle,
-        // or actually since onAttachFile uploads it again... Wait.
-        // If we use onAttachFile, ChatWindow will upload it AGAIN using fileService.
-        // We should just update attachedFile via a new prop or invoke a new method.
-        // Actually, if we send the message right away, or if we want to attach it.
-        // Let's send a fake file to onAttachFile with a special flag. No, that's messy.
-        // The instructions say "Keep upload logic completely separate from recording logic".
-        // And "Preserve all existing chat and voice recording functionality".
-        // Let's create an onVoiceUploadComplete prop, or if missing, just send a message.
-        // Wait, what does ChatWindow do right now with onAttachFile?
-        // It uploads it. So we don't want ChatWindow to upload it again.
-        
-        // As a clean integration, if this component is responsible for voice uploads,
-        // let's pass a synthetic event up with the result.
-        if (onAttachFile) {
-          // We can attach a synthetic file object that has an alreadyUploaded flag
-          // But ChatWindow's onAttachFile specifically calls fileService.uploadFile(file).
-          // To prevent double upload, we must fix how ChatWindow handles it, or we just 
-          // add onVoiceUploaded prop. Let's add onVoiceUploaded.
-          
-          // But wait, I shouldn't modify too many files if I can avoid it.
-          // Let's just dispatch a CustomEvent or pass it to onSendMessage.
-          
-          const text = `Voice message recorded: ${uploadedMeta.filename}`;
-          if (onSendMessage) {
-            onSendMessage(text, [uploadedMeta.upload_id]);
-          }
+        if (transcript && onSendMessage) {
+          // Add a small delay for visual feedback before auto-submitting
+          setTimeout(() => {
+            onSendMessage(transcript);
+            setInputText("");
+            if (textareaRef.current) {
+              textareaRef.current.style.height = "auto";
+            }
+          }, 600);
         }
       } catch (error) {
-        console.error("Voice upload failed:", error);
+        console.error("Voice processing failed:", error);
       } finally {
         setIsUploading(false);
         setUploadProgress(0);
