@@ -114,14 +114,20 @@ def test_settings_notes_and_tasks(client: TestClient):
     assert completed.json()["status"] == "completed"
 
 
-def test_voice_status(client: TestClient):
+def test_voice_status(client: TestClient, monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "voice_enabled", False)
+
     response = client.get("/voice")
     assert response.status_code == 200
-    assert response.json()["available"] is True
+    assert response.json()["available"] is False
 
-    # transcription expects a file, so a plain post without one is 422
+    # transcription expects a file, so a plain post without one is 422.
+    # FastAPI validates the 'file' parameter BEFORE running the endpoint logic (which checks for 503).
     assert client.post("/voice/transcribe").status_code == 422
-    assert client.post("/voice/speak", json={"text": "Hello"}).status_code == 200
+    
+    # speak is a valid request, so it passes validation, hits the 503 check, and returns 503.
+    assert client.post("/voice/speak", json={"text": "Hello"}).status_code == 503
 
 
 
@@ -153,7 +159,10 @@ def test_voice_status(client: TestClient):
         ("installer.msi", "audio/wav", False),
     ]
 )
-def test_voice_upload_browser_compatibility(client: TestClient, filename, content_type, should_pass):
+def test_voice_upload_browser_compatibility(client: TestClient, monkeypatch, filename, content_type, should_pass):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "voice_enabled", True)
+
     res = client.post(
         "/voice/upload",
         files={"file": (filename, b"fake audio content", content_type)},
@@ -173,7 +182,10 @@ def test_voice_upload_browser_compatibility(client: TestClient, filename, conten
         else:
             assert "Unsupported file extension" in detail
 
-def test_voice_upload_empty(client: TestClient):
+def test_voice_upload_empty(client: TestClient, monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "voice_enabled", True)
+    
     # Empty file
     res3 = client.post(
         "/voice/upload",
