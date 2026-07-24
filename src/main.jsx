@@ -15,13 +15,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <SettingsProvider>
       <SidebarProvider>
         <MemoryProvider>
-          <VoiceProvider>
-            <ChatProvider>
+          <ChatProvider>
+            <VoiceProvider>
               <App />
-            </ChatProvider>
-          </VoiceProvider>
+            </VoiceProvider>
+          </ChatProvider>
         </MemoryProvider>
       </SidebarProvider>
     </SettingsProvider>
   </BrowserRouter>,
 )
+

@@ -4,13 +4,14 @@ import Sidebar from "../components/Sidebar";
 import ShaderBackground from "../components/ShaderBackground";
 import ChatWindow from "../components/ChatWindow";
 import CustomCursor from "../components/CustomCursor";
+import VoiceOverlay from "../components/VoiceOverlay";
 
 // Import global configuration contexts & data-fetching hooks
 import { useChatContext } from "../context/ChatContext";
 import { useSidebarContext } from "../context/SidebarContext";
 import { useSettingsContext } from "../context/SettingsContext";
 import { useConversations } from "../hooks/useConversations";
-import { useVoice } from "../hooks";
+import { useSharedVoice } from "../context/VoiceContext";
 import { sfx } from "../utils/sfx";
 
 export default function Chat() {
@@ -44,17 +45,9 @@ export default function Chat() {
   } = useConversations(activeConversationId, messages);
 
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
-  const [isVoiceMode, setIsVoiceMode] = useState(false);
 
-  // 4. Voice Telemetry hook
-  const {
-    isListening,
-    isSpeaking,
-    startListening,
-    stopListening,
-    speakText,
-    cancelSpeech
-  } = useVoice();
+  // 4. Unified Voice Session — single source of truth for all voice state
+  const { voiceState } = useSharedVoice();
 
   // Dynamic greeting time calculation
   const getGreetingTime = () => {
@@ -65,12 +58,18 @@ export default function Chat() {
   };
   const greetingTime = getGreetingTime();
 
-  // Sync ambient Orb visual posture changes with chat typing telemetry and voice activity
+  // Sync ambient Orb visual posture with chat typing telemetry and voice state
   const getOrbState = () => {
+    // Voice states take priority when voice is active
+    if (voiceState === "listening") return "listening";
+    if (voiceState === "processing" || voiceState === "thinking") return "thinking";
+    if (voiceState === "speaking") return "speaking";
+    if (voiceState === "error") return "error";
+
+    // Fall back to chat-based states
     if (isFridayTyping) return "thinking";
-    if (isListening) return "listening";
-    
-    if (isSpeaking && messages.length > 0) {
+
+    if (messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg.sender === "friday") {
         const text = lastMsg.text.toLowerCase();
@@ -84,113 +83,12 @@ export default function Chat() {
           return "creative";
         }
       }
-      return "speaking";
     }
     
     return "idle";
   };
   const orbState = getOrbState();
   const setOrbState = () => {};
-
-  // Handle speech-to-text loop when voice mode is activated
-  useEffect(() => {
-    if (isVoiceMode) {
-      sfx.playChime();
-      startListening((text) => {
-        if (text.trim()) {
-          sendMessage(text);
-        }
-      });
-    } else {
-      stopListening();
-      cancelSpeech();
-    }
-  }, [isVoiceMode, startListening, stopListening, cancelSpeech, sendMessage]);
-
-  // Background Wake Word Detection Loop (runs when voice mode is off)
-  useEffect(() => {
-    if (isVoiceMode) return;
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-
-    let backgroundRec = null;
-    let shouldRestart = true;
-
-    const startBackgroundRec = () => {
-      backgroundRec = new SpeechRecognition();
-      backgroundRec.continuous = false;
-      backgroundRec.interimResults = false;
-      backgroundRec.lang = "en-US";
-
-      backgroundRec.onresult = (event) => {
-        const transcript = event.results[0][0].transcript.toLowerCase();
-        if (transcript.includes("friday")) {
-          // Summon Friday!
-          setIsVoiceMode(true);
-        }
-      };
-
-      backgroundRec.onend = () => {
-        if (shouldRestart) {
-          try {
-            backgroundRec.start();
-          } catch (err) {
-            console.warn("Failed to restart background listener:", err);
-          }
-        }
-      };
-
-      backgroundRec.onerror = (event) => {
-        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-          shouldRestart = false;
-        }
-      };
-
-      try {
-        backgroundRec.start();
-      } catch (err) {
-        console.warn("Failed to start background listener:", err);
-      }
-    };
-
-    startBackgroundRec();
-
-    return () => {
-      shouldRestart = false;
-      if (backgroundRec) {
-        try {
-          backgroundRec.abort();
-        } catch {
-          // ignore
-        }
-      }
-    };
-  }, [isVoiceMode]);
-
-  // When a new Friday message is received, read it aloud if voice mode is active
-  useEffect(() => {
-    if (isVoiceMode && messages.length > 0) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg.sender === "friday" && !isFridayTyping) {
-        stopListening();
-        speakText(
-          lastMsg.text,
-          null, // onStart
-          () => {
-            // Once speaking finishes, resume listening
-            if (isVoiceMode) {
-              startListening((text) => {
-                if (text.trim()) {
-                  sendMessage(text);
-                }
-              });
-            }
-          }
-        );
-      }
-    }
-  }, [messages, isVoiceMode, isFridayTyping, speakText, startListening, stopListening, sendMessage]);
 
   // Play alert chime when a new message is received from Friday
   useEffect(() => {
@@ -212,6 +110,9 @@ export default function Chat() {
     <div className="flex h-screen w-screen overflow-hidden bg-[#131313] text-on-surface relative font-sans">
       <ShaderBackground />
       <CustomCursor isSystemThinking={isFridayTyping} />
+
+      {/* Voice Overlay — renders over everything when voice session is active */}
+      <VoiceOverlay />
 
       {/* Actual Sidebar (Desktop Collapsible / Mobile Sliding Drawer) */}
       <Sidebar

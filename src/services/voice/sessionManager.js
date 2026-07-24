@@ -1,50 +1,249 @@
+import { VoiceStateMachine } from "./voiceStateMachine";
+import { VoiceRecorderService } from "./recorder";
 import { voiceUploadService } from "./uploadService";
+import { speechQueue } from "./speechQueue";
 
 /**
  * VoiceSessionManager
- * 
- * Orchestrates the conversion of spoken audio into standard chat messages.
- * Responsible for:
- * - Receiving audio blobs.
- * - Submitting them for backend transcription.
- * - Validating the resulting transcript.
- * - Calling a callback with the valid transcript to trigger the standard chat flow.
+ *
+ * Central orchestrator for the FRIDAY voice conversation loop.
+ * Owns the state machine and coordinates the full pipeline:
+ *
+ *   Mic → Record → Upload/Transcribe → sendMessage() → AI Response → TTS → Speaker → Loop
+ *
+ * Handles:
+ *   - Session lifecycle (open / close)
+ *   - Recording with configurable silence timeout
+ *   - Transcription via backend STT
+ *   - Handing transcript to the chat pipeline (via callback)
+ *   - TTS playback via speechQueue
+ *   - Interruption (cancel speech mid-sentence, resume listening)
+ *   - Error recovery
+ *   - Resource cleanup
  */
-export const voiceSessionManager = {
+export class VoiceSessionManager {
   /**
-   * Process a recorded audio blob into a complete chat turn.
-   * 
-   * @param {Blob} audioBlob - The recorded audio.
-   * @param {string} mimeType - The mime type of the audio.
-   * @param {Function} onProgress - Callback for upload progress (0-100).
-   * @param {Function} onTranscriptComplete - Callback providing the finalized transcript string.
-   * @returns {Promise<string>} The valid transcript string.
+   * @param {object} options
+   * @param {function} options.onStateChange  - (newState, prevState) callback
+   * @param {function} options.onTranscript   - (transcriptText) callback — sends text into chat pipeline
+   * @param {function} options.onError        - (errorMessage) callback
    */
-  async processVoiceInput(audioBlob, mimeType, onProgress, onTranscriptComplete) {
-    try {
-      // 1. Send to backend STT engine
-      const result = await voiceUploadService.transcribeVoice(
-        audioBlob,
-        mimeType,
-        onProgress
-      );
-      
-      // 2. Validate Transcript
-      const transcript = result?.transcript?.trim();
-      if (!transcript) {
-        console.warn("Voice Session Manager: Received empty transcription. Ignoring input.");
-        return null;
-      }
-      
-      // 3. Forward to the existing chat flow
-      if (onTranscriptComplete) {
-        onTranscriptComplete(transcript);
-      }
-      
-      return transcript;
-    } catch (error) {
-      console.error("Voice Session Manager: Failed to process voice input", error);
-      throw error;
+  constructor({ onStateChange, onTranscript, onError } = {}) {
+    this._stateMachine = new VoiceStateMachine((newState, prevState) => {
+      if (onStateChange) onStateChange(newState, prevState);
+    });
+
+    this._onTranscript = onTranscript || (() => {});
+    this._onError = onError || (() => {});
+
+    this._recorder = null;
+    this._silenceTimer = null;
+    this._isDestroyed = false;
+
+    // Configurable silence timeout (ms) before auto-stopping recording.
+    this.silenceTimeoutMs = 2500;
+  }
+
+  // ── Public API ──────────────────────────────────────────────────────────────
+
+  /** @returns {string} Current voice state. */
+  get state() {
+    return this._stateMachine.state;
+  }
+
+  /** @returns {boolean} Whether a voice session is active. */
+  get isActive() {
+    return this._stateMachine.isActive;
+  }
+
+  /**
+   * Open a voice session and start listening.
+   */
+  async open() {
+    if (this._isDestroyed) return;
+    if (this._stateMachine.isActive) return; // Already active
+
+    const ok = this._stateMachine.transition("listening");
+    if (!ok) return;
+
+    await this._startRecording();
+  }
+
+  /**
+   * Close the voice session entirely. Releases all resources.
+   */
+  close() {
+    this._clearSilenceTimer();
+    speechQueue.stop();
+
+    if (this._recorder) {
+      this._recorder.cleanup();
+      this._recorder = null;
+    }
+
+    this._stateMachine.reset();
+  }
+
+  /**
+   * Interrupt FRIDAY while speaking — cancel TTS and resume listening.
+   */
+  async interrupt() {
+    if (this._stateMachine.state !== "speaking") return;
+
+    speechQueue.stop();
+    const ok = this._stateMachine.transition("listening");
+    if (ok) {
+      await this._startRecording();
     }
   }
-};
+
+  /**
+   * Manually stop recording (e.g., user clicks stop).
+   */
+  async stopRecording() {
+    if (this._stateMachine.state !== "listening") return;
+    this._clearSilenceTimer();
+    await this._processRecording();
+  }
+
+  /**
+   * Called externally when the AI response is complete and ready for TTS.
+   * @param {string} responseText - The AI's response text.
+   */
+  speakResponse(responseText) {
+    if (!this._stateMachine.isActive) return;
+
+    // Only transition to speaking if we're in thinking state
+    if (this._stateMachine.state !== "thinking") return;
+
+    const ok = this._stateMachine.transition("speaking");
+    if (!ok) return;
+
+    // Clean markdown artifacts from text before speaking
+    const cleanText = responseText
+      .replace(/[#*`_>\-[\]()]/g, " ")
+      .replace(/\n+/g, " ")
+      .trim();
+
+    if (!cleanText) {
+      // Empty response — skip TTS and resume listening
+      this._resumeListening();
+      return;
+    }
+
+    speechQueue.add(
+      cleanText,
+      null, // onStart
+      () => {
+        // TTS finished — resume listening if session is still active
+        if (this._stateMachine.isActive && this._stateMachine.state === "speaking") {
+          this._resumeListening();
+        }
+      }
+    );
+  }
+
+  /**
+   * Destroy this manager instance. Called on component unmount.
+   */
+  destroy() {
+    this._isDestroyed = true;
+    this.close();
+  }
+
+  // ── Internal Methods ────────────────────────────────────────────────────────
+
+  async _startRecording() {
+    try {
+      if (!this._recorder) {
+        this._recorder = new VoiceRecorderService();
+      }
+
+      await this._recorder.start();
+      this._startSilenceTimer();
+    } catch (err) {
+      this._handleError(err.message || "Failed to access microphone.");
+    }
+  }
+
+  async _processRecording() {
+    const ok = this._stateMachine.transition("processing");
+    if (!ok) return;
+
+    let result;
+    try {
+      result = await this._recorder.stop();
+    } catch (err) {
+      this._handleError(err.message || "Recording failed.");
+      return;
+    }
+
+    // Transcribe via backend
+    try {
+      const transcriptionResult = await voiceUploadService.transcribeVoice(
+        result.blob,
+        result.mimeType || "audio/webm",
+        null, // No progress callback for now
+        3     // retries
+      );
+
+      const transcript = transcriptionResult?.transcript?.trim();
+      if (!transcript) {
+        // Silence / no speech detected — resume listening
+        console.info("[VoiceSession] Empty transcription, resuming listening.");
+        this._resumeListening();
+        return;
+      }
+
+      // Transition to thinking — the AI pipeline will process this
+      const thinkOk = this._stateMachine.transition("thinking");
+      if (thinkOk) {
+        this._onTranscript(transcript);
+      }
+    } catch (err) {
+      this._handleError(err.message || "Transcription failed.");
+    }
+  }
+
+  async _resumeListening() {
+    if (!this._stateMachine.isActive || this._isDestroyed) return;
+
+    const ok = this._stateMachine.transition("listening");
+    if (ok) {
+      await this._startRecording();
+    }
+  }
+
+  _startSilenceTimer() {
+    this._clearSilenceTimer();
+    this._silenceTimer = setTimeout(() => {
+      if (this._stateMachine.state === "listening") {
+        this._processRecording();
+      }
+    }, this.silenceTimeoutMs);
+  }
+
+  _clearSilenceTimer() {
+    if (this._silenceTimer) {
+      clearTimeout(this._silenceTimer);
+      this._silenceTimer = null;
+    }
+  }
+
+  _handleError(message) {
+    console.error("[VoiceSession] Error:", message);
+    this._stateMachine.transition("error");
+    this._onError(message);
+  }
+
+  /**
+   * Retry from error state — resume listening.
+   */
+  async retry() {
+    if (this._stateMachine.state !== "error") return;
+    const ok = this._stateMachine.transition("listening");
+    if (ok) {
+      await this._startRecording();
+    }
+  }
+}

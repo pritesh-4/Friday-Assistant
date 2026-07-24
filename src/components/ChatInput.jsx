@@ -9,10 +9,10 @@ import {
   Lightbulb,
   FileText,
   Image,
-  X
+  X,
+  Mic
 } from "lucide-react";
-import VoiceRecorder from "./Chat/VoiceRecorder";
-import { voiceSessionManager } from "../services/voice/sessionManager";
+import { useSharedVoice } from "../context/VoiceContext";
 
 export default function ChatInput({
   onSendMessage,
@@ -27,11 +27,13 @@ export default function ChatInput({
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [isResearchActive, setIsResearchActive] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
   
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Unified voice session — single entry point for all voice interactions
+  const { openVoice } = useSharedVoice();
 
   // Focus management and global shortcuts
   useEffect(() => {
@@ -115,14 +117,12 @@ export default function ChatInput({
     if (!file) return;
     
     setIsUploading(true);
-    setUploadProgress(0); // For regular files, we just show indeterminate for now if onAttachFile doesn't support progress
     try {
       if (onAttachFile) {
         await onAttachFile(file);
       }
     } finally {
       setIsUploading(false);
-      setUploadProgress(0);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -180,37 +180,6 @@ export default function ChatInput({
     }
   };
 
-  const handleRecordComplete = async (audio) => {
-    if (audio.blob) {
-      setIsUploading(true);
-      setUploadProgress(0);
-      try {
-        const transcript = await voiceSessionManager.processVoiceInput(
-          audio.blob,
-          audio.blob.type || "audio/webm",
-          (progress) => setUploadProgress(progress),
-          (text) => setInputText(text) // Visually reflect transcription
-        );
-        
-        if (transcript && onSendMessage) {
-          // Add a small delay for visual feedback before auto-submitting
-          setTimeout(() => {
-            onSendMessage(transcript);
-            setInputText("");
-            if (textareaRef.current) {
-              textareaRef.current.style.height = "auto";
-            }
-          }, 600);
-        }
-      } catch (error) {
-        console.error("Voice processing failed:", error);
-      } finally {
-        setIsUploading(false);
-        setUploadProgress(0);
-      }
-    }
-  };
-
   return (
     <motion.div
       drag="y"
@@ -230,7 +199,7 @@ export default function ChatInput({
     >
       <AnimatePresence mode="wait">
         {!isTrayExpanded ? (
-          /* COLLAPSED STATE (Default State) */
+          /* COLLAPSED STATE — Voice-first entry point */
           <motion.div
             key="collapsed-tray"
             initial={{ opacity: 0, y: 15 }}
@@ -239,11 +208,22 @@ export default function ChatInput({
             transition={{ duration: 0.3 }}
             className="w-full flex flex-col items-center justify-center py-4 px-6 select-none"
           >
-            {/* Large Voice Button / Active Recording Controls */}
-            <VoiceRecorder 
-              variant="hero" 
-              onRecordComplete={handleRecordComplete} 
-            />
+            {/* "Talk with FRIDAY" button — opens unified VoiceOverlay */}
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                openVoice();
+              }}
+              className="flex items-center gap-3 px-8 py-3.5 rounded-full bg-gradient-to-r from-[#00f0ff]/10 via-[#00dbe9]/20 to-[#d1bcff]/15 border border-[#00f0ff]/30 text-on-surface hover:border-[#00f0ff]/60 hover:shadow-[0_0_25px_rgba(0,240,255,0.25)] transition-all duration-300 relative overflow-hidden group cursor-pointer"
+            >
+              <div className="absolute inset-0 bg-[#00f0ff]/5 rounded-full blur-xl group-hover:scale-125 transition-transform duration-500" />
+              <Mic size={18} className="text-[#00f0ff] animate-pulse" />
+              <span className="font-display-lg text-sm tracking-wider font-light uppercase">
+                Talk to F.R.I.D.A.Y.
+              </span>
+            </motion.button>
             
             <button
               onClick={() => setIsTrayExpanded(true)}
@@ -264,7 +244,7 @@ export default function ChatInput({
             </div>
           </motion.div>
         ) : (
-          /* EXPANDED STATE */
+          /* EXPANDED STATE — Text input */
           <motion.div
             key="expanded-tray"
             initial={{ opacity: 0 }}
@@ -309,30 +289,6 @@ export default function ChatInput({
                 isDragOver ? "border-[#00f0ff] bg-[#00f0ff]/10 shadow-[0_0_30px_rgba(0,240,255,0.2)]" : isFocused ? "border-[#00f0ff]/40 shadow-[0_0_20px_rgba(0,240,255,0.05)]" : "border-white/10"
               }`}
             >
-              {/* Upload Progress Bar */}
-              <AnimatePresence>
-                {isUploading && uploadProgress > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="w-full flex flex-col gap-1.5 px-1 pb-2 border-b border-white/5"
-                  >
-                    <div className="flex justify-between items-center text-[10px] font-mono text-[#00f0ff]">
-                      <span>Uploading Voice Recording...</span>
-                      <span>{uploadProgress}%</span>
-                    </div>
-                    <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                      <motion.div
-                        className="h-full bg-[#00f0ff]"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${uploadProgress}%` }}
-                        transition={{ ease: "linear", duration: 0.2 }}
-                      />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
               {isDragOver && (
                 <div className="absolute inset-0 rounded-2xl bg-[#00f0ff]/10 border-2 border-dashed border-[#00f0ff] flex items-center justify-center pointer-events-none z-50 backdrop-blur-sm">
                   <div className="flex items-center gap-2 font-mono text-xs text-[#00f0ff] uppercase tracking-wider font-semibold">
@@ -421,10 +377,15 @@ export default function ChatInput({
                     <span>Research</span>
                   </button>
 
-                  <VoiceRecorder 
-                    variant="toolbar"
-                    onRecordComplete={handleRecordComplete} 
-                  />
+                  {/* Mic button in toolbar — opens unified voice overlay (same as hero button) */}
+                  <button
+                    type="button"
+                    onClick={openVoice}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/5 hover:border-[#00f0ff]/30 text-on-surface-variant hover:text-[#00f0ff] bg-[#1c1b1b]/50 hover:bg-[#00f0ff]/5 transition-all duration-200 cursor-pointer text-xs font-light"
+                  >
+                    <Mic size={14} />
+                    <span className="hidden sm:inline">Voice</span>
+                  </button>
 
                   {/* Quick Actions popover */}
                   <AnimatePresence>
