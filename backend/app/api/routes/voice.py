@@ -188,8 +188,6 @@ async def debug_voice(
     Returns FFprobe, FFmpeg, and Whisper results.
     """
     _require_voice()
-
-    import time
     
     response = {
         "uploaded_size": 0,
