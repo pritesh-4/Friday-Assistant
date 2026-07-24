@@ -51,7 +51,7 @@ class WhisperEngine:
                 None,
                 lambda: model.transcribe(audio_path, beam_size=5),
             )
-        except Exception as exc:
+        except Exception:
             _log.error("[VOICE] Failed during audio decoding or model initialization", exc_info=True)
             raise
             
@@ -76,7 +76,7 @@ class WhisperEngine:
 
         try:
             segments, transcript = await loop.run_in_executor(None, collect_segments)
-        except Exception as exc:
+        except Exception:
             _log.error("[VOICE] Failed during inference or segment extraction", exc_info=True)
             raise
             
