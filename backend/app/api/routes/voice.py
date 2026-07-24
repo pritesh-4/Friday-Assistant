@@ -85,35 +85,50 @@ async def get_voice_status() -> dict[str, Any]:
         "browser_fallback": not (is_whisper_available() and is_tts_available()),
     }
 
-@router.get("/health", summary="Detailed Voice Health Diagnostics")
-async def get_voice_health() -> dict[str, Any]:
+@router.get("/diagnostics", summary="Detailed Voice Diagnostics")
+async def get_voice_diagnostics() -> dict[str, Any]:
     """
     Returns detailed system readiness for the voice subsystem.
+    Matches the schema specifically requested for full observability.
     """
     import shutil
+    ffmpeg_installed = shutil.which("ffmpeg") is not None
     
-    ffmpeg_path = shutil.which("ffmpeg")
-    ffmpeg_installed = ffmpeg_path is not None
-    
-    from app.ai.tts.loader import is_tts_available
-    from app.ai.whisper.loader import _model_instance, is_whisper_available
-
+    from app.ai.whisper.loader import is_whisper_available, _model_instance, _whisper_import_error, _whisper_init_error
     whisper_installed = is_whisper_available()
-    whisper_loaded = _model_instance is not None
     
-    return {
+    ctranslate2_installed = False
+    try:
+        import ctranslate2  # noqa: F401
+        ctranslate2_installed = True
+    except ImportError:
+        pass
+        
+    model_loaded = _model_instance is not None
+    ready = settings.voice_enabled and whisper_installed and ffmpeg_installed
+    
+    response = {
         "voice_enabled": settings.voice_enabled,
-        "whisper_installed": whisper_installed,
-        "whisper_loaded": whisper_loaded,
-        "tts_installed": is_tts_available(),
         "dependencies": {
-            "ffmpeg": {
-                "installed": ffmpeg_installed,
-                "path": ffmpeg_path
-            }
+            "faster_whisper": whisper_installed,
+            "ctranslate2": ctranslate2_installed,
+            "ffmpeg": ffmpeg_installed
         },
-        "status": "healthy" if (settings.voice_enabled and whisper_installed) else "degraded"
+        "model": {
+            "loaded": model_loaded,
+            "name": "small",
+            "cache": "data/models/whisper",
+            "device": "cpu"
+        },
+        "ready": ready
     }
+    
+    if _whisper_import_error:
+        response["import_error"] = _whisper_import_error
+    if _whisper_init_error:
+        response["init_error"] = _whisper_init_error
+        
+    return response
 
 
 @router.post("/upload", summary="Upload a voice recording")
