@@ -3,7 +3,25 @@ import uuid
 from fastapi import UploadFile, HTTPException, status
 from app.core.config import settings
 
-ALLOWED_MIME_TYPES = {"audio/webm", "audio/wav", "audio/ogg", "audio/mp4"}
+ALLOWED_MIME_TYPES = {
+    "audio/webm",
+    "audio/ogg",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/mp4",
+    "audio/mpeg",
+}
+
+ALLOWED_EXTENSIONS = {
+    ".webm",
+    ".ogg",
+    ".wav",
+    ".mp4",
+    ".m4a",
+    ".mp3",
+    ".mpeg",
+}
+
 MAX_FILE_SIZE = settings.max_upload_size_bytes
 
 
@@ -28,10 +46,25 @@ class VoiceService:
         if not file.filename:
             raise HTTPException(status_code=400, detail="Empty filename")
 
-        if file.content_type not in ALLOWED_MIME_TYPES:
+        # 1. MIME Normalization
+        # Browsers often send codecs like 'audio/webm;codecs=opus'
+        normalized_mime = file.content_type.split(";")[0].strip().lower() if file.content_type else ""
+
+        if normalized_mime not in ALLOWED_MIME_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail=f"Unsupported media type: {file.content_type}. Allowed: {', '.join(ALLOWED_MIME_TYPES)}",
+                detail=f"Received MIME:\n{file.content_type}\n\nNormalized MIME:\n{normalized_mime}\n\nAllowed:\n{', '.join(sorted(ALLOWED_MIME_TYPES))}",
+            )
+
+        # 2. Dual-Layer Validation (Extension Check)
+        ext = os.path.splitext(file.filename)[1].lower()
+        if not ext:
+            ext = ".webm"  # fallback if no extension provided
+
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail=f"Unsupported file extension: {ext}. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
             )
 
         # Check for empty file before saving

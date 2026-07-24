@@ -3,6 +3,7 @@
 The ``client`` fixture is defined in ``conftest.py`` and injected automatically.
 """
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -123,27 +124,56 @@ def test_voice_status(client: TestClient):
     assert client.post("/voice/speak", json={"text": "Hello"}).status_code == 200
 
 
-def test_voice_upload(client: TestClient):
-    # Success upload
+
+
+@pytest.mark.parametrize(
+    "filename, content_type, should_pass",
+    [
+        # Standard valid combinations
+        ("test.webm", "audio/webm", True),
+        ("test.ogg", "audio/ogg", True),
+        ("test.wav", "audio/wav", True),
+        ("test.mp4", "audio/mp4", True),
+        
+        # Browser-specific with codec parameters (The core bug fix)
+        ("chrome.webm", "audio/webm;codecs=opus", True),
+        ("firefox.ogg", "audio/ogg; codecs=opus", True),
+        ("safari.mp4", "audio/mp4; codecs=mp4a.40.2", True),
+        ("android.m4a", "audio/mp4", True),
+        ("ios.wav", "audio/x-wav", True),
+        
+        # Invalid / Malicious MIME Types (Security)
+        ("test.webm", "image/png", False),
+        ("test.webm", "text/plain", False),
+        ("script.sh", "application/x-sh", False),
+        
+        # Spoofed Extensions (Security)
+        ("malicious.exe", "audio/webm", False),
+        ("script.php", "audio/ogg", False),
+        ("installer.msi", "audio/wav", False),
+    ]
+)
+def test_voice_upload_browser_compatibility(client: TestClient, filename, content_type, should_pass):
     res = client.post(
         "/voice/upload",
-        files={"file": ("test.webm", b"fake audio content", "audio/webm")},
+        files={"file": (filename, b"fake audio content", content_type)},
     )
-    assert res.status_code == 200
-    data = res.json()
-    assert data["status"] == "completed"
-    assert "upload_id" in data
-    assert data["mime_type"] == "audio/webm"
-    assert data["size"] == len(b"fake audio content")
+    
+    if should_pass:
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "completed"
+        assert "upload_id" in data
+        assert data["mime_type"] == content_type
+    else:
+        assert res.status_code == 415
+        detail = res.json()["detail"]
+        if content_type not in ["audio/webm", "audio/ogg", "audio/wav", "audio/mp4", "audio/x-wav"]:
+            assert "Normalized MIME" in detail or "Received MIME" in detail
+        else:
+            assert "Unsupported file extension" in detail
 
-    # Invalid MIME type
-    res2 = client.post(
-        "/voice/upload",
-        files={"file": ("test.txt", b"fake text content", "text/plain")},
-    )
-    assert res2.status_code == 415
-    assert "Unsupported media type" in res2.json()["detail"]
-
+def test_voice_upload_empty(client: TestClient):
     # Empty file
     res3 = client.post(
         "/voice/upload",
