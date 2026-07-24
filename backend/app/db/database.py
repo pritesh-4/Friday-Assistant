@@ -26,6 +26,9 @@ class Database:
         raw_path = database_url.removeprefix("sqlite://")
         if raw_path.startswith("//"):
             raw_path = "/" + raw_path.lstrip("/")
+        elif raw_path.startswith("/."):
+            # Fix for Windows where sqlite:///./friday.db becomes /./friday.db -> C:\friday.db
+            raw_path = raw_path[1:]
         self.path = Path(raw_path).expanduser().resolve()
 
         # Ensure the parent directory exists immediately on configure so that

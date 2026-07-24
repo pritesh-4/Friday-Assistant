@@ -8,7 +8,6 @@ F.R.I.D.A.Y. is an ambitious explore-and-build project aiming to create a person
 
 This repository contains both the **React Frontend** and a **FastAPI Python Backend** representing a prototype system.
 
-Cureently no memory context for the AI but it will soon be there.
 
 ---
 
@@ -112,11 +111,12 @@ Friday/
     - `processing`: High-speed orbital rotation.
     - `speaking`: Fluid expanding waves indicating voice output.
 2.  **Cyberspace Background (`ShaderBackground.jsx`)**: Utilizes custom WebGL fragment shaders on an HTML5 canvas to render a glowing grid background that reacts to window resizing and user interactions.
-3.  **Modular AI Dashboard**: Fully equipped with:
-    - **Chat threads panel** for starting new or reviewing past scenarios.
-    - **Settings configuration** to toggle features (e.g., Theme, Voice response, Long-term Memory).
-    - **Notes organizer** to log thought scraps, and a **Task list tracker** for workflow goals.
-4.  **Speech Synthesis & Web Speech APIs**: Placeholders and service bindings in `voiceService.js` for voice command input and output.
+3.  **Unified Conversational Voice System**: Full-screen Voice Overlay UI backed by a robust `VoiceStateMachine`. Includes robust cross-browser MIME validation for microphone uploads.
+    - **Speech-to-Text (STT)**: Powered by `faster-whisper` (`distil-large-v3`).
+    - **Text-to-Speech (TTS)**: Powered by `kokoro-onnx`.
+4.  **Multi-LLM Routing**: Supports dynamic provider switching between Groq, Gemini, OpenRouter, and Nvidia via a unified LangChain/litellm backend.
+5.  **Modular AI Dashboard & Persistence**: Fully equipped with Chat threads, Settings, Notes, and Tasks. All data is actively persisted to a local **SQLite** database.
+6.  **Production-Ready Deployment**: Configured for Render via `render.yaml`. Heavy AI models are downloaded during the build phase and lazily loaded into memory in a thread-safe manner to ensure lightning-fast startup times without timeouts.
 
 ---
 
@@ -161,8 +161,12 @@ venv\Scripts\Activate.ps1
 # On macOS/Linux:
 source venv/bin/activate
 
-# Install dependencies
+# Install base dependencies
 pip install -r requirements.txt
+
+# (Optional) Install Voice dependencies (STT/TTS models)
+pip install -r requirements-voice.txt
+# Set VOICE_ENABLED=true in your .env file to activate the models locally
 
 # Start the uvicorn web server (runs on http://127.0.0.1:8000)
 uvicorn app.main:app --reload

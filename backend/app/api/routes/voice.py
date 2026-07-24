@@ -99,6 +99,10 @@ async def transcribe_voice(
     """
     _require_voice()
 
+    import time
+    start_time = time.time()
+    _log.info("[VOICE] START POST /voice/transcribe")
+
     upload_result = await voice_service.upload_audio(file)
     file_path = voice_service.upload_dir / upload_result["filename"]
 
@@ -110,6 +114,8 @@ async def transcribe_voice(
         except Exception as exc:
             _log.warning("Failed to delete temporary audio file %s: %s", file_path, exc)
 
+    elapsed = time.time() - start_time
+    _log.info(f"[VOICE] SUCCESS POST /voice/transcribe in {elapsed:.2f}s")
     return TranscriptionResult(**result)
 
 
@@ -137,16 +143,26 @@ async def speak_voice(
     Returns binary audio/wav. Maximum input is 3,000 characters.
     """
     _require_voice()
+    
+    import time
+    start_time = time.time()
+    _log.info("[VOICE] START POST /voice/speak")
+    
     try:
         audio_bytes = await speech_service.synthesize(request.text)
+        elapsed = time.time() - start_time
+        _log.info(f"[VOICE] SUCCESS POST /voice/speak in {elapsed:.2f}s")
         return Response(content=audio_bytes, media_type="audio/wav")
     except ValueError as exc:
+        _log.error(f"[VOICE] FAILURE POST /voice/speak - ValueError: {exc}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except RuntimeError as exc:
+        _log.error(f"[VOICE] FAILURE POST /voice/speak - RuntimeError: {exc}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         )
     except Exception as exc:
+        _log.error(f"[VOICE] FAILURE POST /voice/speak - Exception: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"TTS synthesis failed: {str(exc)}",

@@ -41,11 +41,14 @@ export const speechQueue = {
     const item = this.queue.shift();
 
     try {
+      console.time("[VOICE_TIME] Backend TTS Fetch");
       const response = await fetch(`${API_BASE_URL}/voice/speak`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: item.text })
       });
+
+      console.timeEnd("[VOICE_TIME] Backend TTS Fetch");
 
       if (!response.ok) {
         throw new Error(`TTS synthesis failed with status: ${response.status}`);

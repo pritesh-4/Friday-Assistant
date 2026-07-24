@@ -38,10 +38,13 @@ export class VoiceSessionManager {
 
     this._recorder = null;
     this._silenceTimer = null;
+    this._watchdogTimer = null; // Prevent infinite hanging
     this._isDestroyed = false;
 
     // Configurable silence timeout (ms) before auto-stopping recording.
     this.silenceTimeoutMs = 2500;
+    // Watchdog timeout (ms) before forcefully aborting the pipeline.
+    this.watchdogTimeoutMs = 30000;
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -69,11 +72,10 @@ export class VoiceSessionManager {
     await this._startRecording();
   }
 
-  /**
-   * Close the voice session entirely. Releases all resources.
-   */
   close() {
+    console.log("[VOICE] Session closed");
     this._clearSilenceTimer();
+    this._clearWatchdogTimer();
     speechQueue.stop();
 
     if (this._recorder) {
@@ -127,14 +129,23 @@ export class VoiceSessionManager {
 
     if (!cleanText) {
       // Empty response — skip TTS and resume listening
+      console.log("[VOICE] Empty AI text response, skipping TTS.");
+      this._clearWatchdogTimer();
       this._resumeListening();
       return;
     }
 
+    console.log("[VOICE] TTS generation started");
+    console.time("[VOICE_TIME] TTS Generation & Playback");
     speechQueue.add(
       cleanText,
-      null, // onStart
       () => {
+        console.timeLog("[VOICE_TIME] TTS Generation & Playback", "- playback started");
+      }, // onStart
+      () => {
+        console.timeEnd("[VOICE_TIME] TTS Generation & Playback");
+        console.log("[VOICE] TTS playback finished");
+        this._clearWatchdogTimer();
         // TTS finished — resume listening if session is still active
         if (this._stateMachine.isActive && this._stateMachine.state === "speaking") {
           this._resumeListening();
@@ -167,40 +178,55 @@ export class VoiceSessionManager {
   }
 
   async _processRecording() {
+    console.log("[VOICE] Upload received");
+    console.time("[VOICE_TIME] Upload & STT");
     const ok = this._stateMachine.transition("processing");
     if (!ok) return;
+    
+    this._startWatchdogTimer(); // Start 30s watchdog when processing begins
 
     let result;
     try {
       result = await this._recorder.stop();
     } catch (err) {
+      console.timeEnd("[VOICE_TIME] Upload & STT");
       this._handleError(err.message || "Recording failed.");
       return;
     }
 
     // Transcribe via backend
     try {
+      console.log("[VOICE] STT started");
       const transcriptionResult = await voiceUploadService.transcribeVoice(
         result.blob,
         result.mimeType || "audio/webm",
         null, // No progress callback for now
         3     // retries
       );
+      
+      console.timeEnd("[VOICE_TIME] Upload & STT");
+      console.log("[VOICE] STT finished");
 
       const transcript = transcriptionResult?.transcript?.trim();
       if (!transcript) {
         // Silence / no speech detected — resume listening
-        console.info("[VoiceSession] Empty transcription, resuming listening.");
+        console.info("[VOICE] Empty transcription, resuming listening.");
+        this._clearWatchdogTimer();
         this._resumeListening();
         return;
       }
+      
+      console.log(`[VOICE] Transcript: "${transcript}"`);
 
       // Transition to thinking — the AI pipeline will process this
       const thinkOk = this._stateMachine.transition("thinking");
       if (thinkOk) {
+        console.log("[VOICE] Sent transcript to Conversation Manager");
+        console.time("[VOICE_TIME] LLM Provider Turnaround");
         this._onTranscript(transcript);
       }
     } catch (err) {
+      console.timeEnd("[VOICE_TIME] Upload & STT");
       this._handleError(err.message || "Transcription failed.");
     }
   }
@@ -218,6 +244,7 @@ export class VoiceSessionManager {
     this._clearSilenceTimer();
     this._silenceTimer = setTimeout(() => {
       if (this._stateMachine.state === "listening") {
+        console.log("[VOICE] Silence detected, processing recording.");
         this._processRecording();
       }
     }, this.silenceTimeoutMs);
@@ -229,9 +256,26 @@ export class VoiceSessionManager {
       this._silenceTimer = null;
     }
   }
+  
+  _startWatchdogTimer() {
+    this._clearWatchdogTimer();
+    this._watchdogTimer = setTimeout(() => {
+      if (this._stateMachine.state === "processing" || this._stateMachine.state === "thinking") {
+        this._handleError("Pipeline timed out. F.R.I.D.A.Y. took too long to respond.");
+      }
+    }, this.watchdogTimeoutMs);
+  }
+  
+  _clearWatchdogTimer() {
+    if (this._watchdogTimer) {
+      clearTimeout(this._watchdogTimer);
+      this._watchdogTimer = null;
+    }
+  }
 
   _handleError(message) {
-    console.error("[VoiceSession] Error:", message);
+    console.error("[VOICE] Error:", message);
+    this._clearWatchdogTimer();
     this._stateMachine.transition("error");
     this._onError(message);
   }

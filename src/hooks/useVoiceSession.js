@@ -101,11 +101,17 @@ export function useVoiceSession() {
     prevMessagesLenRef.current = messages.length;
 
     // Detect: AI just finished responding (isTyping went true → false)
-    // and there's a new message
+    // Check if the AI just finished replying
     if (wasTyping && !isTyping && messages.length > prevLen) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.sender === "friday" && lastMsg.text) {
+        console.timeEnd("[VOICE_TIME] LLM Provider Turnaround");
+        console.log("[VOICE] AI Response generated");
         manager.speakResponse(lastMsg.text);
+      } else if (lastMsg && lastMsg.sender === "error") {
+        // If chat pipeline failed, resume listening without speaking
+        console.log("[useVoiceSession] Error received from chat, aborting TTS");
+        manager.retry();
       }
     }
   }, [messages, isTyping]);

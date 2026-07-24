@@ -21,6 +21,7 @@ function _xhrUpload(url, blob, mimeType, onProgress, retries) {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", url, true);
       xhr.setRequestHeader("Accept", "application/json");
+      xhr.timeout = 25000; // 25s timeout
 
       if (onProgress) {
         xhr.upload.onprogress = (event) => {

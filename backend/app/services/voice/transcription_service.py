@@ -31,7 +31,7 @@ class TranscriptionService:
                 detail="Audio file not found for transcription."
             )
             
-        _log.info(f"Starting transcription for {audio_path}")
+        _log.info(f"[VOICE] STT Engine Started processing audio: {audio_path}")
         start_time = time.time()
         
         try:
@@ -44,7 +44,7 @@ class TranscriptionService:
             )
             
         processing_time = time.time() - start_time
-        _log.info(f"Transcription completed in {processing_time:.2f}s")
+        _log.info(f"[VOICE] STT Engine Completed transcription in {processing_time:.2f}s")
         
         # Check if any speech was detected (segments empty)
         if not result["segments"] or not result["transcript"].strip():

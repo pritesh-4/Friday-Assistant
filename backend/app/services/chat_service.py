@@ -41,6 +41,12 @@ class ChatService:
         return [Message.model_validate(row) for row in rows]
 
     async def send_message(self, request: ChatRequest) -> ChatResponse:
+        import time
+        import logging
+        _log = logging.getLogger(__name__)
+        start_time = time.time()
+        _log.info("[VOICE] START POST /chat (Conversation Manager entered)")
+
         from pathlib import Path
         import base64
         import json
@@ -101,15 +107,22 @@ class ChatService:
             memory_manager.append_message(session_id, "user", structured_content if has_files else request.message.strip())
 
         # 2. Retrieve Long-Term Memories
+        _log.info("[VOICE] Memory retrieval started")
+        mem_start = time.time()
         memories = await self.memory_service.retrieve_memories(request.message, limit=5)
+        _log.info(f"[VOICE] Memory retrieved {len(memories)} items in {time.time()-mem_start:.2f}s")
 
         # 3. Build Context Prompt
         messages = self.context_builder.build_messages(ctx.messages, memories)
 
         # 4. Route and Execute Provider
+        _log.info("[VOICE] Router selected provider / Provider request sent")
+        llm_start = time.time()
         try:
             llm_result = await self.router_agent.route_and_execute(messages)
+            _log.info(f"[VOICE] Provider response received in {time.time()-llm_start:.2f}s (Provider: {llm_result.provider})")
         except LLMProviderError as exc:
+            _log.error(f"[VOICE] Provider request failed in {time.time()-llm_start:.2f}s: {exc}")
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
             ) from exc
@@ -126,6 +139,8 @@ class ChatService:
             await self.memory_service.store_memory(mem)
 
         conversation = await self._get_conversation(conversation.id)
+        elapsed = time.time() - start_time
+        _log.info(f"[VOICE] SUCCESS POST /chat in {elapsed:.2f}s")
         return ChatResponse(
             conversation=conversation,
             user_message=user_message,

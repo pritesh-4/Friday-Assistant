@@ -38,18 +38,19 @@ F.R.I.D.A.Y. is a prototype voice-first personal AI operating companion.
 
 ## Current Implementation State
 
-> [!IMPORTANT]
-> The application is currently a **fully functional UI mock-up** with a **scaffolded backend API**. No real integrations or persistence systems are connected yet.
+> [!NOTE]
+> The application is a **fully functional integrated system** with frontend and backend connected.
 
 ### 1. Frontend State
-* **State**: The frontend is a complete UI mock-up. Responsive routing, animated components, custom theme context, custom cursor, and dashboard views are all functional.
-* **Services**: Frontend services in `src/services/*.js` simulate API delays with `setTimeout` and read local mock data from `src/data/*.js`.
-* **API connection**: The frontend does **not** make real HTTP requests to the backend yet, so there are no Axios or Fetch calls to the Uvicorn server.
+* **State**: Complete React SPA with responsive routing, animated components (Framer Motion), custom WebGL shaders, and a unified `VoiceOverlay` for full-screen voice interaction.
+* **Services**: Frontend services (`src/services/*.js`) now make real HTTP requests to the backend (`API_BASE_URL`) via `fetch`.
+* **Voice**: Fully integrated with a deterministic `VoiceStateMachine` managing microphone recording, transcription, LLM processing, and TTS playback in a unified, race-condition-free pipeline.
 
 ### 2. Backend State
-* **State**: The backend has a scaffolded API structure with agents, services, and database placeholders.
-* **Endpoints**: FastAPI is configured with standard routes that match the app specs (chat, files, health, memory, settings, and voice), but most still return stub responses or mock data.
-* **Database**: No database such as SQLite or PostgreSQL is connected yet.
+* **Persistence**: SQLite database is fully implemented and connected for storing conversations, messages, memories, notes, and tasks.
+* **LLM / AI**: Dynamic provider routing supports Groq, Gemini, OpenRouter, and Nvidia. Includes fallback chains and system prompt injection.
+* **Voice Services**: Integrated with Faster-Whisper (STT) and Kokoro-ONNX (TTS). Models are lazily loaded into memory in a thread-safe manner to support production deployments (e.g., Render) without startup timeouts. Models are downloaded during the build phase via `scripts/download_models.py`.
+* **Deployment**: Configured for Render via `render.yaml` with production-grade MIME validation and environment variables.
 
 ---
 
@@ -57,19 +58,17 @@ F.R.I.D.A.Y. is a prototype voice-first personal AI operating companion.
 
 When continuing development on F.R.I.D.A.Y., focus on the following milestones:
 
-1. **Frontend-Backend Integration**:
-    * Replace mock service delay calls in `src/services/` with real HTTP calls, for example with `fetch` or `axios`, targeting `http://localhost:8000`.
-2. **Backend Persistence**:
-    * Initialize a local SQLite database or add an ORM such as SQLAlchemy or Tortoise ORM inside `backend/`.
-    * Implement database CRUD models inside routers such as `chat.py` and `notes.py` to replace placeholders.
-3. **LLM / AI Model Integration**:
-    * Implement real LLM providers such as the OpenAI SDK or Google Generative AI SDK in the backend so responses can stream to the frontend.
-4. **Voice Feature Implementation**:
-    * Wire Web Speech APIs, including Speech Recognition and Speech Synthesis, into the frontend `voiceService.js` to drive the `listening` and `speaking` states of `Orb.jsx`.
+1. **Real-time Streaming**:
+    * Upgrade the HTTP `/voice/transcribe` and LLM endpoints to use WebSockets for real-time streaming of speech-to-text and text-to-speech to reduce latency.
+2. **Authentication & Multi-User**:
+    * Implement JWT-based authentication so multiple users can have their own isolated workspaces, conversations, and memories.
+3. **Advanced RAG / Vector Memory**:
+    * Upgrade the current relational memory system to a true Vector Store (e.g., Qdrant or Pinecone) for semantic similarity search across past conversations.
+4. **Voice Activity Detection (VAD)**:
+    * Replace the current hardcoded silence timeout with Web Audio API energy detection (or a lightweight WebAssembly VAD) for more natural conversation interruption and end-of-speech detection.
 
 ## Extra Notes
 
 * Keep this document short and factual so it stays useful as a handoff note.
 * Update the architecture map whenever a new major feature, route, service, or backend module is added.
-* If the frontend starts using real API calls, document the base URL and the request flow here.
-* If persistence is added, note the database choice and where the initialization logic lives.
+* Deployment configuration is managed centrally in `render.yaml`.
