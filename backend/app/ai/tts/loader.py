@@ -22,6 +22,7 @@ To use /tmp for downloaded models, set:
 """
 
 import os
+import threading
 from pathlib import Path
 
 from app.core.logging import get_logger
@@ -43,19 +44,38 @@ except ImportError:
 
 # Global singleton
 _tts_engine = None
+_tts_lock = threading.Lock()
 
 
 def is_tts_available() -> bool:
-    """Return True if kokoro-onnx is installed and the engine is initialized."""
-    return _tts_engine is not None
+    """Return True if kokoro-onnx is installed."""
+    return _KOKORO_AVAILABLE
 
 
 def get_tts_engine():
     """
-    Return the initialized Kokoro TTS engine singleton, or None if unavailable.
+    Return the initialized Kokoro TTS engine singleton.
+    Initializes the engine lazily in a thread-safe manner if it hasn't been loaded yet.
 
-    Callers must check the return value before use — this never raises.
+    Raises:
+        RuntimeError: If TTS is not available or initialization fails.
     """
+    global _tts_engine
+
+    if not _KOKORO_AVAILABLE:
+        raise RuntimeError(
+            "TTS is not available. "
+            "Ensure VOICE_ENABLED=true and kokoro-onnx is installed via requirements-voice.txt."
+        )
+
+    if _tts_engine is None:
+        with _tts_lock:
+            if _tts_engine is None:
+                _log.info("Lazily initializing Kokoro TTS engine on first request...")
+                success = initialize_tts_model()
+                if not success or _tts_engine is None:
+                    raise RuntimeError("Failed to initialize Kokoro TTS engine.")
+                    
     return _tts_engine
 
 

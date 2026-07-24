@@ -9,6 +9,7 @@ will function normally.
 To enable: install requirements-voice.txt and set VOICE_ENABLED=true.
 """
 
+import threading
 from app.core.logging import get_logger
 
 _log = get_logger("whisper.loader")
@@ -30,26 +31,39 @@ except ImportError:
 
 # The global singleton instance — None until successfully initialized.
 _model_instance = None
+_model_lock = threading.Lock()
 
 
 def is_whisper_available() -> bool:
-    """Return True if faster-whisper is installed and the model is loaded."""
-    return _model_instance is not None
+    """Return True if faster-whisper is installed."""
+    return _FASTER_WHISPER_AVAILABLE
 
 
 def get_whisper_model():
     """
     Return the loaded WhisperModel singleton instance.
+    Initializes the model lazily in a thread-safe manner if it hasn't been loaded yet.
 
     Raises:
-        RuntimeError: If the model has not been initialized (either because
-            faster-whisper is not installed or initialization was not called).
+        RuntimeError: If faster-whisper is not installed or initialization fails.
     """
-    if _model_instance is None:
+    global _model_instance
+
+    if not _FASTER_WHISPER_AVAILABLE:
         raise RuntimeError(
             "Whisper model is not available. "
             "Ensure VOICE_ENABLED=true and faster-whisper is installed via requirements-voice.txt."
         )
+
+    if _model_instance is None:
+        with _model_lock:
+            # Double-checked locking
+            if _model_instance is None:
+                _log.info("Lazily initializing Faster-Whisper model on first request...")
+                success = initialize_whisper_model()
+                if not success or _model_instance is None:
+                    raise RuntimeError("Failed to initialize Faster-Whisper model.")
+                    
     return _model_instance
 
 
@@ -61,12 +75,8 @@ def initialize_whisper_model(
     """
     Load the Faster-Whisper model.
 
-    This should be called during the application lifespan startup — but only
-    when VOICE_ENABLED=true and faster-whisper is installed.
-
     Returns:
         True if the model was loaded successfully, False otherwise.
-        Never raises — callers can check is_whisper_available() after calling this.
     """
     global _model_instance
 

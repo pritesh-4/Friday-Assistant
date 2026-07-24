@@ -62,30 +62,8 @@ async def lifespan(app: FastAPI):
 
     # ── Stage 2: Voice models (optional) ──────────────────────────────────────
     if settings.voice_enabled:
-        _log.info("[2/3] Initializing voice models (VOICE_ENABLED=true)...")
-
-        # Import loaders here to keep them off the module-level import path.
-        # If faster-whisper or kokoro-onnx aren't installed, these modules
-        # still import safely — they just won't do anything useful.
-        try:
-            from app.ai.whisper.loader import initialize_whisper_model
-            whisper_ok = initialize_whisper_model(
-                model_name="distil-large-v3", device="auto", compute_type="default"
-            )
-            if not whisper_ok:
-                _log.warning("Whisper model unavailable — STT features will be disabled.")
-        except Exception as exc:
-            _log.error("Whisper initialization error: %s", exc, exc_info=True)
-
-        try:
-            from app.ai.tts.loader import initialize_tts_model
-            tts_ok = initialize_tts_model()
-            if not tts_ok:
-                _log.warning("Kokoro TTS unavailable — speech synthesis will be disabled.")
-        except Exception as exc:
-            _log.error("TTS initialization error: %s", exc, exc_info=True)
-
-        _log.info("✓ Voice initialization complete.")
+        _log.info("[2/3] Voice models enabled (VOICE_ENABLED=true).")
+        _log.info("      Models will be lazily loaded into memory on the first request.")
     else:
         _log.info("[2/3] Voice models skipped (VOICE_ENABLED=false).")
 

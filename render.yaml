@@ -3,7 +3,7 @@ services:
     name: friday-backend
     runtime: python
     rootDir: backend
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "pip install -r requirements.txt -r requirements-voice.txt && python scripts/download_models.py"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     # /health is the liveness probe — responds instantly, never queries DB.
     # DO NOT use /health/ready here — it queries SQLite and can fail during startup,
@@ -19,8 +19,11 @@ services:
       # switch to a managed database (e.g., Render PostgreSQL).
       - key: DATABASE_URL
         value: sqlite:///tmp/friday/friday.db
-      # Voice features require native C libraries (ctranslate2, onnxruntime).
-      # Keep VOICE_ENABLED=false on Render free tier unless requirements-voice.txt
-      # is installed and the plan has sufficient build memory.
       - key: VOICE_ENABLED
-        value: false
+        value: true
+      - key: KOKORO_MODEL_PATH
+        value: /opt/render/project/src/backend/data/models/kokoro/kokoro-v0_19.onnx
+      - key: KOKORO_VOICES_PATH
+        value: /opt/render/project/src/backend/data/models/kokoro/voices.json
+      - key: MODELS_DIR
+        value: /opt/render/project/src/backend/data/models
