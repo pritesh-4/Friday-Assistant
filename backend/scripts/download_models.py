@@ -53,23 +53,24 @@ def download_whisper(models_dir: Path):
     """Download Faster-Whisper model via huggingface_hub."""
     try:
         from huggingface_hub import snapshot_download
-    except ImportError:
-        print("huggingface_hub not installed, falling back to faster_whisper...")
+    except ImportError as e:
+        print(f"huggingface_hub not installed: {e}")
+        print("Falling back to faster_whisper download_model...")
         try:
             from faster_whisper.utils import download_model
-            download_model("distil-large-v3", cache_dir=str(models_dir / "whisper"))
+            print("Downloading Whisper small...")
+            download_model("small", cache_dir=str(models_dir / "whisper"))
             print("Whisper model downloaded successfully.")
             return
-        except ImportError:
-            print("neither huggingface_hub nor faster_whisper installed.")
-            sys.exit(1)
+        except ImportError as e2:
+            raise RuntimeError(f"Failed to download Whisper model. Neither huggingface_hub nor faster_whisper is available. Error: {e2}")
 
     whisper_dir = models_dir / "whisper"
     whisper_dir.mkdir(parents=True, exist_ok=True)
     
-    print(f"Downloading Whisper distil-large-v3 to {whisper_dir}...")
+    print(f"Downloading Whisper small to {whisper_dir}...")
     snapshot_download(
-        repo_id="Systran/faster-whisper-distil-large-v3",
+        repo_id="Systran/faster-whisper-small",
         cache_dir=str(whisper_dir),
         local_files_only=False
     )

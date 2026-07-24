@@ -40,17 +40,14 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     
     # Mock whisper and TTS initialization to prevent downloading large models during tests
     from unittest.mock import patch, MagicMock
-    mock_audio_info = MagicMock()
-    mock_audio_info.frames = 16000
-    mock_audio_info.samplerate = 16000
-    mock_audio_info.channels = 1
-    mock_audio_info.duration = 1.0
+    mock_subprocess_result = MagicMock()
+    mock_subprocess_result.stdout = "1.5"
 
     with patch("app.ai.whisper.loader.initialize_whisper_model", return_value=True), \
          patch("app.ai.tts.loader.initialize_tts_model", return_value=True), \
          patch("app.ai.whisper.loader.is_whisper_available", return_value=True), \
          patch("app.ai.tts.loader.is_tts_available", return_value=True), \
          patch("app.services.voice.speech_service.SpeechService.synthesize", return_value=b"fake_audio"), \
-         patch("app.services.voice_service.sf.info", return_value=mock_audio_info):
+         patch("app.services.voice_service.subprocess.run", return_value=mock_subprocess_result):
         with TestClient(app) as test_client:
             yield test_client

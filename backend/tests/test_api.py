@@ -173,7 +173,7 @@ def test_voice_upload_browser_compatibility(client: TestClient, monkeypatch, fil
         data = res.json()
         assert data["status"] == "completed"
         assert "upload_id" in data
-        assert data["mime_type"] == content_type
+        assert data["mime_type"] == "audio/wav"
     else:
         assert res.status_code == 415
         detail = res.json()["detail"]

@@ -177,6 +177,61 @@ async def transcribe_voice(
     return TranscriptionResult(**result)
 
 
+@router.post("/debug", summary="Debug complete audio pipeline")
+async def debug_voice(
+    file: UploadFile = File(...),
+    voice_service: VoiceService = Depends(get_voice_service),
+    transcription_service: TranscriptionService = Depends(get_transcription_service),
+) -> dict[str, Any]:
+    """
+    Debug the audio pipeline from upload to transcription.
+    Returns FFprobe, FFmpeg, and Whisper results.
+    """
+    _require_voice()
+
+    import time
+    
+    response = {
+        "uploaded_size": 0,
+        "detected_mime": file.content_type,
+        "detected_container": file.filename.split('.')[-1] if file.filename else "unknown",
+        "codec": "unknown",
+        "ffprobe_output": "",
+        "ffmpeg_output": "",
+        "transcription_result": None
+    }
+    
+    try:
+        # Step 1: Upload (this runs ffprobe and ffmpeg internally)
+        upload_result = await voice_service.upload_audio(file)
+        
+        response["uploaded_size"] = upload_result["size"]
+        response["ffprobe_output"] = upload_result.get("ffprobe_output", "")
+        response["ffmpeg_output"] = upload_result.get("ffmpeg_output", "")
+        
+        # Parse codec from ffprobe if we can
+        # (For this debug endpoint, we're keeping it simple, the raw output is provided)
+        
+        file_path = voice_service.upload_dir / upload_result["filename"]
+        
+        # Step 2: Transcribe
+        try:
+            result = await transcription_service.transcribe(str(file_path))
+            response["transcription_result"] = result
+        finally:
+            try:
+                file_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+                
+    except HTTPException as e:
+        response["error"] = e.detail
+    except Exception as e:
+        response["error"] = str(e)
+        
+    return response
+
+
 class SpeakRequest(BaseModel):
     text: str
 
