@@ -1,8 +1,9 @@
-import json
 import csv
+import json
 from pathlib import Path
-import pypdf
+
 import docx
+import pypdf
 
 from app.core.logging import get_logger
 
@@ -35,7 +36,7 @@ class DocumentParser:
                 return ""
         except Exception as e:
             logger.error(f"Error parsing document {file_path.name}: {e}", exc_info=True)
-            return f"[Error parsing document: {str(e)}]"
+            return f"[Error parsing document: {e!s}]"
 
     @staticmethod
     def _parse_pdf(file_path: Path) -> str:

@@ -10,6 +10,7 @@ To enable: install requirements-voice.txt and set VOICE_ENABLED=true.
 """
 
 import threading
+
 from app.core.logging import get_logger
 
 _log = get_logger("whisper.loader")
@@ -68,9 +69,9 @@ def get_whisper_model():
 
 
 def initialize_whisper_model(
-    model_name: str = "base",
-    device: str = "auto",
-    compute_type: str = "default",
+    model_name: str = "small",
+    device: str = "cpu",
+    compute_type: str = "int8",
 ) -> bool:
     """
     Load the Faster-Whisper model.

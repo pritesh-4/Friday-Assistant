@@ -1,5 +1,6 @@
-from typing import Any
 import json
+from typing import Any
+
 from app.core.logging import get_logger
 from app.tools.base import BaseTool
 
@@ -47,4 +48,4 @@ class ToolManager:
             return str(result)
         except Exception as e:
             logger.error(f"Error executing tool '{name}': {e}", exc_info=True)
-            return f"Error executing tool '{name}': {str(e)}"
+            return f"Error executing tool '{name}': {e!s}"

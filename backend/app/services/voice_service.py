@@ -1,7 +1,14 @@
+import io
+import logging
 import os
 import uuid
-from fastapi import UploadFile, HTTPException, status
+
+import soundfile as sf
+from fastapi import HTTPException, UploadFile, status
+
 from app.core.config import settings
+
+_log = logging.getLogger("voice_service")
 
 ALLOWED_MIME_TYPES = {
     "audio/webm",
@@ -74,9 +81,21 @@ class VoiceService:
 
         file_size = len(content)
         if file_size > MAX_FILE_SIZE:
+            _log.warning(f"[VOICE] FAILURE: Upload too large ({file_size} bytes)")
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail="File is too large",
+            )
+            
+        try:
+            audio_info = sf.info(io.BytesIO(content))
+            _log.info(f"[VOICE] Audio file validated: {audio_info.frames} frames, {audio_info.samplerate} Hz, {audio_info.channels} channels, {audio_info.duration:.2f}s duration")
+            duration = audio_info.duration
+        except Exception as e:
+            _log.error(f"[VOICE] FAILURE: Invalid or corrupted audio file: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid or corrupted audio file: {e!s}",
             )
 
         upload_id = str(uuid.uuid4())
@@ -94,7 +113,7 @@ class VoiceService:
             "filename": safe_filename,
             "mime_type": file.content_type,
             "size": file_size,
-            "duration": None,
+            "duration": duration,
             "status": "completed",
         }
 

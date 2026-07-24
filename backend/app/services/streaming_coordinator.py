@@ -1,8 +1,8 @@
 """Conversation orchestration for real-time streaming."""
 
+import base64
 import json
 from pathlib import Path
-import base64
 
 from app.agents.context_builder import ContextBuilder
 from app.agents.memory_agent import MemoryAgent
@@ -10,9 +10,10 @@ from app.agents.router_agent import RouterAgent
 from app.db.database import database
 from app.memory.memory_manager import memory_manager
 from app.schemas.chat import ChatRequest
-from app.services.memory_service import MemoryService
 from app.services.document_parser import DocumentParser
+from app.services.memory_service import MemoryService
 from app.utils.helpers import generate_uuid, get_utc_now
+
 
 class StreamingCoordinator:
     """Orchestrates real-time streaming text-chat and memory extraction."""

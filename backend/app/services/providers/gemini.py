@@ -1,7 +1,6 @@
 """Gemini LLM provider implementation."""
 
 from collections.abc import Sequence
-
 from typing import Any
 
 from app.core.config import settings

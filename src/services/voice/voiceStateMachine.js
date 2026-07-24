@@ -1,27 +1,29 @@
 /**
  * voiceStateMachine.js
  *
- * Deterministic finite state machine for the FRIDAY voice system.
+ * Deterministic finite state machine for the FRIDAY Voice V2 system.
  * Prevents invalid state transitions and provides event-driven state change notifications.
  *
  * States:
  *   idle       — No voice session active.
- *   listening  — Mic is active, recording user speech.
- *   processing — Recording stopped, uploading/transcribing audio.
- *   thinking   — Transcript sent to AI, waiting for response.
- *   speaking   — FRIDAY is speaking the response via TTS.
+ *   permission — Requesting microphone access.
+ *   listening  — Mic is active, VAD is monitoring, waiting for user speech.
+ *   recording  — VAD detected speech, currently recording audio.
+ *   processing — Recording stopped via VAD silence, uploading/transcribing audio.
+ *   thinking   — Transcript sent to AI, waiting for streaming response.
+ *   speaking   — FRIDAY is speaking the response via concurrent TTS.
  *   error      — A recoverable error occurred.
- *
- * Every transition is guarded — calling an invalid transition is a no-op with a console warning.
  */
 
 const VALID_TRANSITIONS = {
-  idle:       ["listening"],
-  listening:  ["processing", "idle", "error"],
+  idle:       ["permission", "listening", "error"],
+  permission: ["listening", "error", "idle"],
+  listening:  ["recording", "processing", "idle", "error"],
+  recording:  ["processing", "listening", "idle", "error"],
   processing: ["thinking", "idle", "error"],
-  thinking:   ["speaking", "idle", "error"],
+  thinking:   ["speaking", "listening", "idle", "error"], // listening if interrupted
   speaking:   ["listening", "idle", "error"],
-  error:      ["listening", "idle"],
+  error:      ["permission", "listening", "idle"],
 };
 
 export class VoiceStateMachine {
@@ -45,6 +47,8 @@ export class VoiceStateMachine {
    * @returns {boolean} True if transition succeeded.
    */
   transition(nextState) {
+    if (this._state === nextState) return true; // No-op if same state
+
     const allowed = VALID_TRANSITIONS[this._state];
     if (!allowed || !allowed.includes(nextState)) {
       console.warn(
@@ -91,6 +95,11 @@ export class VoiceStateMachine {
   /** @returns {boolean} */
   get isListening() {
     return this._state === "listening";
+  }
+
+  /** @returns {boolean} */
+  get isRecording() {
+    return this._state === "recording";
   }
 
   /** @returns {boolean} */

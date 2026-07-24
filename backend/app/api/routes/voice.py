@@ -15,15 +15,27 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, field_validator
 
-from app.api.dependencies import get_voice_service, get_transcription_service, get_speech_service
+from app.api.dependencies import (
+    get_speech_service,
+    get_transcription_service,
+    get_voice_service,
+)
 from app.core.config import settings
-from app.services.voice_service import VoiceService
-from app.services.voice.transcription_service import TranscriptionService
-from app.services.voice.speech_service import SpeechService
 from app.schemas.voice import TranscriptionResult
+from app.services.voice.speech_service import SpeechService
+from app.services.voice.transcription_service import TranscriptionService
+from app.services.voice_service import VoiceService
 
 _log = logging.getLogger(__name__)
 router = APIRouter(tags=["voice"])
@@ -62,8 +74,8 @@ async def get_voice_status() -> dict[str, Any]:
             "browser_fallback": True,
         }
 
-    from app.ai.whisper.loader import is_whisper_available
     from app.ai.tts.loader import is_tts_available
+    from app.ai.whisper.loader import is_whisper_available
 
     return {
         "available": True,
@@ -71,6 +83,36 @@ async def get_voice_status() -> dict[str, Any]:
         "tts": "kokoro-onnx" if is_tts_available() else "unavailable",
         "detail": "Server-side STT and TTS status reported above.",
         "browser_fallback": not (is_whisper_available() and is_tts_available()),
+    }
+
+@router.get("/health", summary="Detailed Voice Health Diagnostics")
+async def get_voice_health() -> dict[str, Any]:
+    """
+    Returns detailed system readiness for the voice subsystem.
+    """
+    import shutil
+    
+    ffmpeg_path = shutil.which("ffmpeg")
+    ffmpeg_installed = ffmpeg_path is not None
+    
+    from app.ai.tts.loader import is_tts_available
+    from app.ai.whisper.loader import _model_instance, is_whisper_available
+
+    whisper_installed = is_whisper_available()
+    whisper_loaded = _model_instance is not None
+    
+    return {
+        "voice_enabled": settings.voice_enabled,
+        "whisper_installed": whisper_installed,
+        "whisper_loaded": whisper_loaded,
+        "tts_installed": is_tts_available(),
+        "dependencies": {
+            "ffmpeg": {
+                "installed": ffmpeg_installed,
+                "path": ffmpeg_path
+            }
+        },
+        "status": "healthy" if (settings.voice_enabled and whisper_installed) else "degraded"
     }
 
 
@@ -166,5 +208,5 @@ async def speak_voice(
         _log.error(f"[VOICE] FAILURE POST /voice/speak - Exception: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"TTS synthesis failed: {str(exc)}",
+            detail=f"TTS synthesis failed: {exc!s}",
         )

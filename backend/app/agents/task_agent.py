@@ -18,26 +18,25 @@ from datetime import date, timedelta
 
 from app.schemas.common import TaskCreate
 
-
 # ── Deadline extraction helpers ────────────────────────────────────────────────
 
 _RELATIVE_DATES: dict[re.Pattern[str], int] = {
-    re.compile(r"\btoday\b", re.I): 0,
-    re.compile(r"\btomorrow\b", re.I): 1,
-    re.compile(r"\bthis week\b", re.I): 7,
-    re.compile(r"\bnext week\b", re.I): 14,
-    re.compile(r"\bthis month\b", re.I): 30,
+    re.compile(r"\btoday\b", re.IGNORECASE): 0,
+    re.compile(r"\btomorrow\b", re.IGNORECASE): 1,
+    re.compile(r"\bthis week\b", re.IGNORECASE): 7,
+    re.compile(r"\bnext week\b", re.IGNORECASE): 14,
+    re.compile(r"\bthis month\b", re.IGNORECASE): 30,
 }
 
 _ACTION_VERBS: re.Pattern[str] = re.compile(
     r"\b(?:need to|have to|must|should|remember to|don'?t forget to|"
     r"remind me to|make sure to|schedule|book|call|email|send|write|finish|"
     r"complete|submit|review|update|prepare|plan|organize|fix|deploy|release)\b",
-    re.I,
+    re.IGNORECASE,
 )
 
 _HIGH_PRIORITY_WORDS: re.Pattern[str] = re.compile(
-    r"\b(?:urgent|asap|immediately|critical|important|priority|deadline|due)\b", re.I
+    r"\b(?:urgent|asap|immediately|critical|important|priority|deadline|due)\b", re.IGNORECASE
 )
 
 

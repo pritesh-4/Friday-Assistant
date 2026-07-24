@@ -162,7 +162,7 @@ class Database:
                     for sql in statements:
                         try:
                             connection.execute(sql)
-                        except Exception as exc:  # noqa: BLE001
+                        except Exception as exc:
                             # "duplicate column name" is harmless when a migration
                             # is applied to a DB that already has the column.
                             if "duplicate column name" in str(exc).lower():

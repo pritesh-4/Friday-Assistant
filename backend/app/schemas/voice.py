@@ -1,5 +1,7 @@
+from typing import Any
+
 from pydantic import BaseModel
-from typing import List, Optional, Any, Dict
+
 
 class WhisperSegment(BaseModel):
     id: int
@@ -10,8 +12,8 @@ class WhisperSegment(BaseModel):
 class TranscriptionResult(BaseModel):
     transcript: str
     detected_language: str
-    confidence: Optional[float]
+    confidence: float | None
     duration: float
     processing_time: float
-    segments: List[WhisperSegment]
-    metadata: Optional[Dict[str, Any]] = None
+    segments: list[WhisperSegment]
+    metadata: dict[str, Any] | None = None

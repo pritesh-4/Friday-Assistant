@@ -1,9 +1,11 @@
-import time
 import os
-from typing import Dict, Any
+import time
+from typing import Any
+
 from fastapi import HTTPException, status
-from app.core.logging import get_logger
+
 from app.ai.whisper.engine import WhisperEngine
+from app.core.logging import get_logger
 
 _log = get_logger("transcription_service")
 
@@ -14,7 +16,7 @@ class TranscriptionService:
     def __init__(self):
         self.engine = WhisperEngine()
 
-    async def transcribe(self, audio_path: str) -> Dict[str, Any]:
+    async def transcribe(self, audio_path: str) -> dict[str, Any]:
         """
         Transcribe an audio file and return structured results including metrics.
         
@@ -39,10 +41,19 @@ class TranscriptionService:
         except HTTPException:
             raise
         except Exception as e:
-            _log.error(f"[VOICE] Transcription failed: {e}", exc_info=True)
+            import traceback
+            _log.error(f"[VOICE] FAILURE: Transcription failed: {e}", exc_info=True)
+            tb_str = traceback.format_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to transcribe audio file due to an internal error: {str(e)}"
+                detail={
+                    "message": "Failed to transcribe audio file due to an internal error.",
+                    "exception_type": type(e).__name__,
+                    "failing_module": __name__,
+                    "failing_function": "transcribe",
+                    "stack_trace": tb_str,
+                    "execution_stage": "STT Inference"
+                }
             )
             
         processing_time = time.time() - start_time

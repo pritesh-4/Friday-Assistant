@@ -1,7 +1,10 @@
 import asyncio
 from typing import Any
+
 from duckduckgo_search import DDGS
+
 from app.tools.base import BaseTool
+
 
 class WebSearchTool(BaseTool):
     """Tool for searching the web."""
@@ -52,4 +55,4 @@ class WebSearchTool(BaseTool):
             
             return "\n".join(output)
         except Exception as e:
-            return f"Web search failed: {str(e)}"
+            return f"Web search failed: {e!s}"

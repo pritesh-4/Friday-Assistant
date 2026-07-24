@@ -1,35 +1,23 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useChatContext } from "../context/ChatContext";
 import { VoiceSessionManager } from "../services/voice/sessionManager";
+import { speechQueue } from "../services/voice/speechQueue";
 
-/**
- * useVoiceSession
- *
- * Single unified hook for the entire FRIDAY voice system.
- * Replaces the previous useVoice + useVoiceRecorder hooks.
- *
- * Provides:
- *   - voiceState: current state machine state
- *   - openVoice / closeVoice: session lifecycle
- *   - interrupt: cancel FRIDAY speaking, resume listening
- *   - retry: recover from error state
- *   - error: current error message (if any)
- *   - isVoiceActive: convenience boolean
- *
- * Connects to the chat pipeline via ChatContext.sendMessage().
- */
 export function useVoiceSession() {
   const [voiceState, setVoiceState] = useState("idle");
   const [error, setError] = useState(null);
   const [lastTranscript, setLastTranscript] = useState("");
+  const [volume, setVolume] = useState(0);
 
   const { sendMessage, messages, isTyping } = useChatContext();
 
   const managerRef = useRef(null);
-  const prevMessagesLenRef = useRef(messages.length);
-  const prevIsTypingRef = useRef(isTyping);
+  
+  // Track processed text length for concurrent chunking
+  const processedTextLengthRef = useRef(0);
+  // Track the ID of the message currently being streamed
+  const streamingMessageIdRef = useRef(null);
 
-  // Initialize session manager once
   const getManager = useCallback(() => {
     if (!managerRef.current) {
       managerRef.current = new VoiceSessionManager({
@@ -41,82 +29,102 @@ export function useVoiceSession() {
         },
         onTranscript: (transcript) => {
           setLastTranscript(transcript);
-          // Feed transcript into the existing chat pipeline
+          processedTextLengthRef.current = 0;
+          streamingMessageIdRef.current = null;
           sendMessage(transcript);
         },
         onError: (errMsg) => {
           setError(errMsg);
         },
+        onVolumeChange: (vol) => {
+          setVolume(vol);
+        }
       });
     }
     return managerRef.current;
   }, [sendMessage]);
 
-  /**
-   * Open a voice session — start the conversational loop.
-   */
   const openVoice = useCallback(async () => {
     const manager = getManager();
     await manager.open();
   }, [getManager]);
 
-  /**
-   * Close the voice session — release all resources.
-   */
   const closeVoice = useCallback(() => {
     const manager = getManager();
     manager.close();
     setLastTranscript("");
+    setVolume(0);
   }, [getManager]);
 
-  /**
-   * Interrupt FRIDAY while speaking — cancel TTS and resume listening.
-   */
   const interrupt = useCallback(async () => {
     const manager = getManager();
     await manager.interrupt();
   }, [getManager]);
 
-  /**
-   * Retry from error state.
-   */
   const retry = useCallback(async () => {
     const manager = getManager();
     await manager.retry();
   }, [getManager]);
 
-  /**
-   * Watch for new FRIDAY responses.
-   * When the AI finishes typing (isTyping goes from true → false) and a new
-   * FRIDAY message appears, feed it to TTS if voice session is active.
-   */
   useEffect(() => {
     const manager = managerRef.current;
     if (!manager || !manager.isActive) return;
 
-    const wasTyping = prevIsTypingRef.current;
-    const prevLen = prevMessagesLenRef.current;
+    if (messages.length === 0) return;
+    
+    const lastMsg = messages[messages.length - 1];
 
-    prevIsTypingRef.current = isTyping;
-    prevMessagesLenRef.current = messages.length;
+    if (lastMsg && lastMsg.sender === "error") {
+      console.log("[useVoiceSession] Error received from chat, aborting TTS");
+      manager.retry();
+      return;
+    }
 
-    // Detect: AI just finished responding (isTyping went true → false)
-    // Check if the AI just finished replying
-    if (wasTyping && !isTyping && messages.length > prevLen) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg && lastMsg.sender === "friday" && lastMsg.text) {
-        console.timeEnd("[VOICE_TIME] LLM Provider Turnaround");
-        console.log("[VOICE] AI Response generated");
-        manager.speakResponse(lastMsg.text);
-      } else if (lastMsg && lastMsg.sender === "error") {
-        // If chat pipeline failed, resume listening without speaking
-        console.log("[useVoiceSession] Error received from chat, aborting TTS");
-        manager.retry();
+    if (lastMsg && lastMsg.sender === "friday" && lastMsg.text) {
+      if (lastMsg.id !== streamingMessageIdRef.current) {
+        // New message stream started
+        streamingMessageIdRef.current = lastMsg.id;
+        processedTextLengthRef.current = 0;
+      }
+
+      const text = lastMsg.text;
+      const unprocessedText = text.slice(processedTextLengthRef.current);
+      
+      // Match sentence boundaries (., !, ?) followed by space or newline, or just newline
+      const sentenceRegex = /([^.!?\n]+[.!?\n]+(?=\s|$))/g;
+      
+      let match;
+      let lastIndex = 0;
+      
+      while ((match = sentenceRegex.exec(unprocessedText)) !== null) {
+        const sentence = match[0];
+        lastIndex = match.index + sentence.length;
+        manager.speakResponse(sentence);
+      }
+      
+      if (lastIndex > 0) {
+        processedTextLengthRef.current += lastIndex;
+      }
+      
+      // If AI is fully done generating this message, flush any remaining text
+      if (!isTyping && text.length > processedTextLengthRef.current) {
+        const remaining = text.slice(processedTextLengthRef.current);
+        if (remaining.trim()) {
+          manager.speakResponse(remaining);
+        }
+        processedTextLengthRef.current = text.length;
+        
+        // Polling loop to wait for speech queue to empty, then resume listening
+        const checkQueue = setInterval(() => {
+          if (speechQueue.queue.length === 0 && !speechQueue.isPlaying) {
+            clearInterval(checkQueue);
+            manager.resumeListeningAfterSpeech();
+          }
+        }, 500);
       }
     }
   }, [messages, isTyping]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (managerRef.current) {
@@ -131,6 +139,7 @@ export function useVoiceSession() {
     isVoiceActive: voiceState !== "idle",
     lastTranscript,
     error,
+    volume,
     openVoice,
     closeVoice,
     interrupt,

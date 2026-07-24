@@ -9,11 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.config import settings
-from app.core.constants import API_DESCRIPTION, API_TITLE, API_VERSION
-from app.core.logging import get_logger
-from app.db.database import database
-
 # Import API routes
 from app.api.routes import (
     chat,
@@ -21,10 +16,16 @@ from app.api.routes import (
     health,
     memory,
     notes,
-    settings as settings_route,
     tasks,
     voice,
 )
+from app.api.routes import (
+    settings as settings_route,
+)
+from app.core.config import settings
+from app.core.constants import API_DESCRIPTION, API_TITLE, API_VERSION
+from app.core.logging import get_logger
+from app.db.database import database
 
 _log = get_logger("main")
 

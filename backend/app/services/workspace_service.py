@@ -4,7 +4,14 @@ from fastapi import HTTPException, status
 
 from app.core.logging import get_logger
 from app.db.database import database
-from app.schemas.common import Note, NoteCreate, NoteUpdate, Task, TaskCreate, TaskUpdate
+from app.schemas.common import (
+    Note,
+    NoteCreate,
+    NoteUpdate,
+    Task,
+    TaskCreate,
+    TaskUpdate,
+)
 from app.utils.helpers import generate_uuid, get_utc_now
 
 logger = get_logger(__name__)

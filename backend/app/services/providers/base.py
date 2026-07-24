@@ -2,8 +2,10 @@
 
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
+
 import httpx
 
 from app.core.logging import get_logger
@@ -36,19 +38,16 @@ class LLMProvider(ABC):
     @abstractmethod
     def name(self) -> str:
         """The identifier of the provider (e.g., 'groq', 'gemini')."""
-        pass
 
     @property
     @abstractmethod
     def is_configured(self) -> bool:
         """True if the provider has all necessary configuration (like API keys) to run."""
-        pass
 
     @property
     @abstractmethod
     def supports_vision(self) -> bool:
         """True if the provider model supports multimodal image/vision inputs."""
-        pass
 
     @abstractmethod
     async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
@@ -64,7 +63,6 @@ class LLMProvider(ABC):
         Raises:
             LLMProviderError: If the request fails due to network, auth, or provider errors.
         """
-        pass
 
     def _track_latency(self, start_time: float) -> int:
         """Helper to calculate elapsed time in milliseconds."""
@@ -121,7 +119,6 @@ class LLMProvider(ABC):
         Yields:
             String chunks of the generated response as they arrive.
         """
-        pass
 
     async def _make_openai_compatible_stream_request(
         self,

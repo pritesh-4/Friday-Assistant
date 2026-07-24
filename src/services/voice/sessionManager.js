@@ -3,70 +3,36 @@ import { VoiceRecorderService } from "./recorder";
 import { voiceUploadService } from "./uploadService";
 import { speechQueue } from "./speechQueue";
 
-/**
- * VoiceSessionManager
- *
- * Central orchestrator for the FRIDAY voice conversation loop.
- * Owns the state machine and coordinates the full pipeline:
- *
- *   Mic → Record → Upload/Transcribe → sendMessage() → AI Response → TTS → Speaker → Loop
- *
- * Handles:
- *   - Session lifecycle (open / close)
- *   - Recording with configurable silence timeout
- *   - Transcription via backend STT
- *   - Handing transcript to the chat pipeline (via callback)
- *   - TTS playback via speechQueue
- *   - Interruption (cancel speech mid-sentence, resume listening)
- *   - Error recovery
- *   - Resource cleanup
- */
 export class VoiceSessionManager {
-  /**
-   * @param {object} options
-   * @param {function} options.onStateChange  - (newState, prevState) callback
-   * @param {function} options.onTranscript   - (transcriptText) callback — sends text into chat pipeline
-   * @param {function} options.onError        - (errorMessage) callback
-   */
-  constructor({ onStateChange, onTranscript, onError } = {}) {
+  constructor({ onStateChange, onTranscript, onError, onVolumeChange } = {}) {
     this._stateMachine = new VoiceStateMachine((newState, prevState) => {
       if (onStateChange) onStateChange(newState, prevState);
     });
 
     this._onTranscript = onTranscript || (() => {});
     this._onError = onError || (() => {});
+    this._onVolumeChange = onVolumeChange || (() => {});
 
     this._recorder = null;
-    this._silenceTimer = null;
-    this._watchdogTimer = null; // Prevent infinite hanging
+    this._watchdogTimer = null; 
     this._isDestroyed = false;
 
-    // Configurable silence timeout (ms) before auto-stopping recording.
-    this.silenceTimeoutMs = 2500;
-    // Watchdog timeout (ms) before forcefully aborting the pipeline.
     this.watchdogTimeoutMs = 30000;
   }
 
-  // ── Public API ──────────────────────────────────────────────────────────────
-
-  /** @returns {string} Current voice state. */
   get state() {
     return this._stateMachine.state;
   }
 
-  /** @returns {boolean} Whether a voice session is active. */
   get isActive() {
     return this._stateMachine.isActive;
   }
 
-  /**
-   * Open a voice session and start listening.
-   */
   async open() {
     if (this._isDestroyed) return;
-    if (this._stateMachine.isActive) return; // Already active
+    if (this._stateMachine.isActive) return;
 
-    const ok = this._stateMachine.transition("listening");
+    const ok = this._stateMachine.transition("permission");
     if (!ok) return;
 
     await this._startRecording();
@@ -74,7 +40,6 @@ export class VoiceSessionManager {
 
   close() {
     console.log("[VOICE] Session closed");
-    this._clearSilenceTimer();
     this._clearWatchdogTimer();
     speechQueue.stop();
 
@@ -86,92 +51,104 @@ export class VoiceSessionManager {
     this._stateMachine.reset();
   }
 
-  /**
-   * Interrupt FRIDAY while speaking — cancel TTS and resume listening.
-   */
   async interrupt() {
-    if (this._stateMachine.state !== "speaking") return;
-
-    speechQueue.stop();
-    const ok = this._stateMachine.transition("listening");
-    if (ok) {
-      await this._startRecording();
+    if (this._stateMachine.state === "speaking" || this._stateMachine.state === "thinking") {
+      console.log("[VOICE] User interrupted F.R.I.D.A.Y.");
+      speechQueue.stop();
+      this._clearWatchdogTimer();
+      const ok = this._stateMachine.transition("listening");
+      if (ok) {
+        await this._startRecording();
+      }
     }
   }
 
   /**
-   * Manually stop recording (e.g., user clicks stop).
+   * Called externally when the user clicks stop or via VAD.
    */
   async stopRecording() {
-    if (this._stateMachine.state !== "listening") return;
-    this._clearSilenceTimer();
+    if (this._stateMachine.state !== "listening" && this._stateMachine.state !== "recording") return;
     await this._processRecording();
   }
 
   /**
-   * Called externally when the AI response is complete and ready for TTS.
-   * @param {string} responseText - The AI's response text.
+   * Called externally as sentences arrive from the LLM.
    */
-  speakResponse(responseText) {
+  speakResponse(sentence) {
     if (!this._stateMachine.isActive) return;
 
-    // Only transition to speaking if we're in thinking state
-    if (this._stateMachine.state !== "thinking") return;
+    // We can transition to speaking from thinking or while already speaking.
+    if (this._stateMachine.state === "thinking") {
+      this._stateMachine.transition("speaking");
+    }
 
-    const ok = this._stateMachine.transition("speaking");
-    if (!ok) return;
-
-    // Clean markdown artifacts from text before speaking
-    const cleanText = responseText
+    const cleanText = sentence
       .replace(/[#*`_>\-[\]()]/g, " ")
       .replace(/\n+/g, " ")
       .trim();
 
-    if (!cleanText) {
-      // Empty response — skip TTS and resume listening
-      console.log("[VOICE] Empty AI text response, skipping TTS.");
-      this._clearWatchdogTimer();
-      this._resumeListening();
-      return;
-    }
+    if (!cleanText) return;
 
-    console.log("[VOICE] TTS generation started");
-    console.time("[VOICE_TIME] TTS Generation & Playback");
+    console.log(`[VOICE] Queueing TTS chunk: "${cleanText}"`);
+    
     speechQueue.add(
       cleanText,
       () => {
-        console.timeLog("[VOICE_TIME] TTS Generation & Playback", "- playback started");
-      }, // onStart
-      () => {
-        console.timeEnd("[VOICE_TIME] TTS Generation & Playback");
-        console.log("[VOICE] TTS playback finished");
-        this._clearWatchdogTimer();
-        // TTS finished — resume listening if session is still active
-        if (this._stateMachine.isActive && this._stateMachine.state === "speaking") {
-          this._resumeListening();
+        // onStart
+        if (this._stateMachine.isActive && this._stateMachine.state === "thinking") {
+          this._stateMachine.transition("speaking");
         }
+      },
+      () => {
+        // onEnd
+        this._clearWatchdogTimer();
+        // If queue is empty and we are still speaking (i.e. LLM is fully done and all audio played)
+        // Then we resume listening. But wait, how do we know the LLM is done?
+        // useVoiceSession.js will call markSpeakingComplete() when LLM is done and queue is empty.
       }
     );
   }
 
   /**
-   * Destroy this manager instance. Called on component unmount.
+   * Called by useVoiceSession when the LLM stream finishes AND the speechQueue is empty.
    */
+  resumeListeningAfterSpeech() {
+    if (this._stateMachine.isActive && this._stateMachine.state === "speaking") {
+      console.log("[VOICE] TTS Queue complete and LLM done. Resuming listening.");
+      this._resumeListening();
+    }
+  }
+
   destroy() {
     this._isDestroyed = true;
     this.close();
   }
 
-  // ── Internal Methods ────────────────────────────────────────────────────────
-
   async _startRecording() {
     try {
       if (!this._recorder) {
-        this._recorder = new VoiceRecorderService();
+        this._recorder = new VoiceRecorderService({
+          onVoiceStart: () => {
+            if (this._stateMachine.state === "listening") {
+              this._stateMachine.transition("recording");
+            }
+          },
+          onVoiceStop: () => {
+            if (this._stateMachine.state === "recording") {
+              console.log("[VOICE] VAD detected silence, stopping recording.");
+              this.stopRecording();
+            }
+          },
+          onVolumeChange: (vol) => this._onVolumeChange(vol)
+        });
       }
 
       await this._recorder.start();
-      this._startSilenceTimer();
+      
+      // Successfully got permission and started recording
+      if (this._stateMachine.state === "permission" || this._stateMachine.state === "error") {
+        this._stateMachine.transition("listening");
+      }
     } catch (err) {
       this._handleError(err.message || "Failed to access microphone.");
     }
@@ -183,25 +160,30 @@ export class VoiceSessionManager {
     const ok = this._stateMachine.transition("processing");
     if (!ok) return;
     
-    this._startWatchdogTimer(); // Start 30s watchdog when processing begins
+    this._startWatchdogTimer();
 
     let result;
     try {
       result = await this._recorder.stop();
     } catch (err) {
       console.timeEnd("[VOICE_TIME] Upload & STT");
-      this._handleError(err.message || "Recording failed.");
+      if (err.message.includes("empty")) {
+        console.log("[VOICE] Recording was empty, resuming listening.");
+        this._clearWatchdogTimer();
+        this._resumeListening();
+      } else {
+        this._handleError(err.message || "Recording failed.");
+      }
       return;
     }
 
-    // Transcribe via backend
     try {
       console.log("[VOICE] STT started");
       const transcriptionResult = await voiceUploadService.transcribeVoice(
         result.blob,
         result.mimeType || "audio/webm",
-        null, // No progress callback for now
-        3     // retries
+        null, 
+        3     
       );
       
       console.timeEnd("[VOICE_TIME] Upload & STT");
@@ -209,7 +191,6 @@ export class VoiceSessionManager {
 
       const transcript = transcriptionResult?.transcript?.trim();
       if (!transcript) {
-        // Silence / no speech detected — resume listening
         console.info("[VOICE] Empty transcription, resuming listening.");
         this._clearWatchdogTimer();
         this._resumeListening();
@@ -218,11 +199,9 @@ export class VoiceSessionManager {
       
       console.log(`[VOICE] Transcript: "${transcript}"`);
 
-      // Transition to thinking — the AI pipeline will process this
       const thinkOk = this._stateMachine.transition("thinking");
       if (thinkOk) {
         console.log("[VOICE] Sent transcript to Conversation Manager");
-        console.time("[VOICE_TIME] LLM Provider Turnaround");
         this._onTranscript(transcript);
       }
     } catch (err) {
@@ -240,23 +219,6 @@ export class VoiceSessionManager {
     }
   }
 
-  _startSilenceTimer() {
-    this._clearSilenceTimer();
-    this._silenceTimer = setTimeout(() => {
-      if (this._stateMachine.state === "listening") {
-        console.log("[VOICE] Silence detected, processing recording.");
-        this._processRecording();
-      }
-    }, this.silenceTimeoutMs);
-  }
-
-  _clearSilenceTimer() {
-    if (this._silenceTimer) {
-      clearTimeout(this._silenceTimer);
-      this._silenceTimer = null;
-    }
-  }
-  
   _startWatchdogTimer() {
     this._clearWatchdogTimer();
     this._watchdogTimer = setTimeout(() => {
@@ -280,9 +242,6 @@ export class VoiceSessionManager {
     this._onError(message);
   }
 
-  /**
-   * Retry from error state — resume listening.
-   */
   async retry() {
     if (this._stateMachine.state !== "error") return;
     const ok = this._stateMachine.transition("listening");

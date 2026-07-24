@@ -41,15 +41,16 @@ class ChatService:
         return [Message.model_validate(row) for row in rows]
 
     async def send_message(self, request: ChatRequest) -> ChatResponse:
-        import time
         import logging
+        import time
         _log = logging.getLogger(__name__)
         start_time = time.time()
         _log.info("[VOICE] START POST /chat (Conversation Manager entered)")
 
-        from pathlib import Path
         import base64
         import json
+        from pathlib import Path
+
         from app.services.document_parser import DocumentParser
 
         conversation = await self._get_or_create_conversation(request)

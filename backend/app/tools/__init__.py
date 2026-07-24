@@ -8,4 +8,4 @@ tool_manager = ToolManager()
 # Register core tools
 tool_manager.register(WebSearchTool())
 
-__all__ = ["BaseTool", "ToolManager", "tool_manager", "WebSearchTool"]
+__all__ = ["BaseTool", "ToolManager", "WebSearchTool", "tool_manager"]

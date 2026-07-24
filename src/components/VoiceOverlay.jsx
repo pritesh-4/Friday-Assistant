@@ -8,7 +8,9 @@ import { useSharedVoice } from "../context/VoiceContext";
  */
 const STATE_TO_ORB = {
   idle: "idle",
+  permission: "idle",
   listening: "listening",
+  recording: "listening",
   processing: "thinking",
   thinking: "thinking",
   speaking: "speaking",
@@ -20,7 +22,9 @@ const STATE_TO_ORB = {
  */
 const STATE_LABELS = {
   idle: "",
+  permission: "Requesting Mic...",
   listening: "Listening…",
+  recording: "Recording…",
   processing: "Processing…",
   thinking: "Thinking…",
   speaking: "Speaking…",
@@ -47,6 +51,7 @@ export default function VoiceOverlay() {
     isVoiceActive,
     lastTranscript,
     error,
+    volume,
     closeVoice,
     interrupt,
     retry,
@@ -75,10 +80,10 @@ export default function VoiceOverlay() {
           {/* Radial ambient glow behind the orb */}
           <motion.div
             animate={{
-              scale: voiceState === "speaking" ? [1, 1.2, 1] : voiceState === "listening" ? [1, 1.1, 1] : 1,
+              scale: voiceState === "speaking" ? [1, 1.2, 1] : voiceState === "recording" ? 1 + (volume || 0) : voiceState === "listening" ? [1, 1.1, 1] : 1,
               opacity: voiceState === "error" ? 0.1 : 0.25,
             }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            transition={voiceState === "recording" ? { type: "spring", stiffness: 400, damping: 25 } : { duration: 3, repeat: Infinity, ease: "easeInOut" }}
             className="absolute w-96 h-96 rounded-full bg-gradient-to-tr from-[#00f0ff]/15 via-[#d1bcff]/10 to-transparent blur-3xl pointer-events-none"
           />
 
@@ -100,8 +105,15 @@ export default function VoiceOverlay() {
             {/* Orb */}
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.15, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              animate={{ 
+                scale: voiceState === "recording" ? 1 + (volume || 0) * 0.15 : 1, 
+                opacity: 1 
+              }}
+              transition={
+                voiceState === "recording"
+                  ? { type: "spring", stiffness: 400, damping: 30 }
+                  : { delay: 0.15, duration: 0.5, ease: [0.16, 1, 0.3, 1] }
+              }
             >
               <Orb state={orbState} size="hero" />
             </motion.div>

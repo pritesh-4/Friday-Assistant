@@ -24,12 +24,11 @@ from app.services.chat_service import ChatService
 from app.services.file_service import FileService
 from app.services.memory_service import MemoryService
 from app.services.settings_service import SettingsService
-from app.services.voice_service import VoiceService
-from app.services.voice.transcription_service import TranscriptionService
-from app.services.workspace_service import WorkspaceService
-
-from app.services.voice.speech_service import SpeechService
 from app.services.streaming_coordinator import StreamingCoordinator
+from app.services.voice.speech_service import SpeechService
+from app.services.voice.transcription_service import TranscriptionService
+from app.services.voice_service import VoiceService
+from app.services.workspace_service import WorkspaceService
 
 # ── Singleton instances ────────────────────────────────────────────────────────
 # Created once at module load time and reused across all requests.
