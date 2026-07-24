@@ -36,6 +36,8 @@ class TranscriptionService:
         
         try:
             result = await self.engine.transcribe(audio_path)
+        except HTTPException:
+            raise
         except Exception as e:
             _log.error(f"[VOICE] Transcription failed: {e}", exc_info=True)
             raise HTTPException(
