@@ -63,7 +63,10 @@ async def lifespan(app: FastAPI):
     # ── Stage 2: Voice models (optional) ──────────────────────────────────────
     if settings.voice_enabled:
         _log.info("[2/3] Voice models enabled (VOICE_ENABLED=true).")
-        _log.info("      Models will be lazily loaded into memory on the first request.")
+        _log.info("      Model     : base (default)")
+        _log.info("      Device    : auto")
+        _log.info("      Compute   : default")
+        _log.info("      Models will be lazily loaded into memory on the first STT request.")
     else:
         _log.info("[2/3] Voice models skipped (VOICE_ENABLED=false).")
 
@@ -121,7 +124,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Return a predictable validation error envelope for browser clients."""
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={"detail": "Request validation failed.", "errors": exc.errors()},
     )
 

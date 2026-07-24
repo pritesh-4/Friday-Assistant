@@ -105,6 +105,7 @@ async def transcribe_voice(
 
     upload_result = await voice_service.upload_audio(file)
     file_path = voice_service.upload_dir / upload_result["filename"]
+    _log.info(f"[VOICE] Upload complete: {file_path}")
 
     try:
         result = await transcription_service.transcribe(str(file_path))

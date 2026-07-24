@@ -37,10 +37,10 @@ class TranscriptionService:
         try:
             result = await self.engine.transcribe(audio_path)
         except Exception as e:
-            _log.error(f"Transcription failed: {e}", exc_info=True)
+            _log.error(f"[VOICE] Transcription failed: {e}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to transcribe audio file due to an internal error."
+                detail=f"Failed to transcribe audio file due to an internal error: {str(e)}"
             )
             
         processing_time = time.time() - start_time
@@ -48,10 +48,12 @@ class TranscriptionService:
         
         # Check if any speech was detected (segments empty)
         if not result["segments"] or not result["transcript"].strip():
-            _log.warning(f"No speech detected in audio file: {audio_path}")
+            _log.warning(f"[VOICE] No speech detected in audio file: {audio_path}")
             # Note: We still return success but with empty transcript
             # depending on requirements, it could also raise an error.
             # We return empty for now, the client can handle it.
+            
+        _log.info("[VOICE] Returning transcript")
         
         return {
             "transcript": result["transcript"],

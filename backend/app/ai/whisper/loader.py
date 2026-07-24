@@ -59,7 +59,7 @@ def get_whisper_model():
         with _model_lock:
             # Double-checked locking
             if _model_instance is None:
-                _log.info("Lazily initializing Faster-Whisper model on first request...")
+                _log.info("[VOICE] Lazily initializing Faster-Whisper model on first request...")
                 success = initialize_whisper_model()
                 if not success or _model_instance is None:
                     raise RuntimeError("Failed to initialize Faster-Whisper model.")
@@ -68,7 +68,7 @@ def get_whisper_model():
 
 
 def initialize_whisper_model(
-    model_name: str = "distil-large-v3",
+    model_name: str = "base",
     device: str = "auto",
     compute_type: str = "default",
 ) -> bool:
@@ -82,23 +82,23 @@ def initialize_whisper_model(
 
     if not _FASTER_WHISPER_AVAILABLE:
         _log.warning(
-            "Skipping Whisper initialization — faster-whisper package not available."
+            "[VOICE] Skipping Whisper initialization — faster-whisper package not available."
         )
         return False
 
     if _model_instance is not None:
-        _log.debug("Whisper model is already initialized — skipping.")
+        _log.debug("[VOICE] Whisper model is already initialized — skipping.")
         return True
 
     _log.info(
-        "Initializing Faster-Whisper model '%s' on device '%s' (compute: %s)",
+        "[VOICE] Loading Whisper model '%s' on device '%s' (compute: %s)...",
         model_name,
         device,
         compute_type,
     )
     try:
         _model_instance = _WhisperModel(model_name, device=device, compute_type=compute_type)
-        _log.info("✓ Faster-Whisper model loaded successfully.")
+        _log.info("[VOICE] Model loaded successfully.")
         return True
     except Exception as exc:
         # Log the full traceback for diagnostics, but do NOT re-raise.

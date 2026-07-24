@@ -44,10 +44,19 @@ class WhisperEngine:
 
         # Run CPU/GPU-bound transcription in a thread to avoid blocking the event loop.
         loop = asyncio.get_running_loop()
-        segments_generator, info = await loop.run_in_executor(
-            None,
-            lambda: model.transcribe(audio_path, beam_size=5),
-        )
+        
+        _log.info("[VOICE] Decoding audio...")
+        try:
+            segments_generator, info = await loop.run_in_executor(
+                None,
+                lambda: model.transcribe(audio_path, beam_size=5),
+            )
+        except Exception as exc:
+            _log.error("[VOICE] Failed during audio decoding or model initialization", exc_info=True)
+            raise
+            
+        _log.info("[VOICE] Audio decoded. Detected language '%s' with probability %.2f", info.language, info.language_probability)
+        _log.info("[VOICE] Running inference...")
 
         # Collect the lazy generator — must be done in the same thread context.
         def collect_segments() -> tuple[list[dict[str, Any]], str]:
@@ -65,7 +74,13 @@ class WhisperEngine:
                 full_text += segment.text
             return collected, full_text.strip()
 
-        segments, transcript = await loop.run_in_executor(None, collect_segments)
+        try:
+            segments, transcript = await loop.run_in_executor(None, collect_segments)
+        except Exception as exc:
+            _log.error("[VOICE] Failed during inference or segment extraction", exc_info=True)
+            raise
+            
+        _log.info("[VOICE] Inference complete")
 
         return {
             "transcript": transcript,
