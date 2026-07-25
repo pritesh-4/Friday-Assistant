@@ -1,148 +1,199 @@
-"""Persistence and retrieval service for long-term user memories."""
+"""Persistence and retrieval service for long-term cognitive memories."""
 
 from app.core.logging import get_logger
 from app.db.database import database
-from app.schemas.memory import Memory, MemoryCreate, MemoryUpdate
+from app.db.vector_store import vector_store
+from app.schemas.memory import (
+    CognitiveMemoryPayload,
+    ExtractedMemory,
+    MemoryMetadata,
+    MemoryType,
+)
 from app.utils.helpers import generate_uuid, get_utc_now
 
 logger = get_logger(__name__)
 
 
-class MemoryService:
-    """Persist and retrieve explicit user memories with lightweight text search."""
+class CognitiveMemoryService:
+    """Persist and retrieve cognitive user memories using SQL + Vector search."""
 
-    async def list_memories(
-        self, query: str | None = None, limit: int = 100, category: str | None = None
-    ) -> list[Memory]:
-        """List memories, optionally filtered by full-text query or category."""
-        limit = max(1, min(limit, 100))
-
-        if query and category:
-            pattern = f"%{query.strip().lower()}%"
-            rows = await database.fetch_all(
-                """
-                SELECT * FROM memories
-                WHERE (lower(title) LIKE ? OR lower(value) LIKE ?)
-                  AND lower(category) = ?
-                ORDER BY pinned DESC, created_at DESC LIMIT ?
-                """,
-                (pattern, pattern, category.lower(), limit),
-            )
-        elif query:
-            pattern = f"%{query.strip().lower()}%"
-            rows = await database.fetch_all(
-                """
-                SELECT * FROM memories
-                WHERE lower(title) LIKE ? OR lower(value) LIKE ? OR lower(category) LIKE ?
-                ORDER BY pinned DESC, created_at DESC LIMIT ?
-                """,
-                (pattern, pattern, pattern, limit),
-            )
-        elif category:
-            rows = await database.fetch_all(
-                """
-                SELECT * FROM memories WHERE lower(category) = ?
-                ORDER BY pinned DESC, created_at DESC LIMIT ?
-                """,
-                (category.lower(), limit),
-            )
-        else:
-            rows = await database.fetch_all(
-                "SELECT * FROM memories ORDER BY pinned DESC, created_at DESC LIMIT ?",
-                (limit,),
-            )
-        return [Memory.model_validate(row) for row in rows]
-
-    async def get_memory(self, memory_id: str) -> Memory | None:
-        """Retrieve a single memory by its ID. Returns None if not found."""
-        row = await database.fetch_one("SELECT * FROM memories WHERE id = ?", (memory_id,))
-        return Memory.model_validate(row) if row else None
-
-    async def retrieve_memories(self, query: str, limit: int = 5) -> list[Memory]:
-        """
-        Retrieve the most relevant memories for a given query string.
-
-        Used internally by the chat pipeline to inject context into the LLM prompt.
-        Currently implements lightweight SQL LIKE search; designed to be replaced
-        by vector similarity search (pgvector / ChromaDB) without changing the
-        caller interface.
-        """
-        return await self.list_memories(query=query, limit=limit)
-
-    async def store_memory(self, memory: MemoryCreate) -> Memory:
-        """Persist a new memory and return the saved record, avoiding exact duplicates."""
-        existing = await database.fetch_one(
-            "SELECT * FROM memories WHERE lower(value) = ? AND lower(category) = ?",
-            (memory.value.lower(), memory.category.lower())
-        )
-        if existing:
-            logger.debug("Memory duplicate skipped: %s", memory.value)
-            return Memory.model_validate(existing)
+    async def save_extracted_memory(self, extracted: ExtractedMemory) -> None:
+        """Takes an LLM-extracted memory, deduplicates it, and stores it in SQL + Vector DB."""
+        if not extracted.should_remember or not extracted.memory_type:
+            return
 
         memory_id = generate_uuid()
-        created_at = get_utc_now().isoformat()
+        now = get_utc_now().isoformat()
+        
+        # Deduplication check via Vector DB could be added here
+        # (e.g. search for highly similar facts, if > 0.9 similarity, update instead of insert)
+
+        collection_name = f"{extracted.memory_type.value}_memories"
+        
+        # 1. Save to SQLite specific table
+        if extracted.memory_type == MemoryType.SEMANTIC:
+            if not extracted.content:
+                return
+            await database.execute(
+                "INSERT INTO semantic_memories (id, fact, confidence, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (memory_id, extracted.content, extracted.confidence or 1.0, now, now)
+            )
+            # 2. Save to Vector DB
+            await vector_store.add_memory(
+                collection_name=collection_name,
+                memory_id=memory_id,
+                text=extracted.content,
+                metadata={"type": "semantic"}
+            )
+            
+        elif extracted.memory_type == MemoryType.EPISODIC:
+            if not extracted.event_title or not extracted.content:
+                return
+            await database.execute(
+                "INSERT INTO episodic_memories (id, event_title, timeline_date, details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (memory_id, extracted.event_title, extracted.timeline_date, extracted.content, now, now)
+            )
+            await vector_store.add_memory(
+                collection_name=collection_name,
+                memory_id=memory_id,
+                text=f"{extracted.event_title} on {extracted.timeline_date}: {extracted.content}",
+                metadata={"type": "episodic"}
+            )
+
+        elif extracted.memory_type == MemoryType.PROCEDURAL:
+            if not extracted.workflow_name or not extracted.content:
+                return
+            await database.execute(
+                "INSERT INTO procedural_memories (id, workflow_name, steps, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (memory_id, extracted.workflow_name, extracted.content, now, now)
+            )
+            await vector_store.add_memory(
+                collection_name=collection_name,
+                memory_id=memory_id,
+                text=f"{extracted.workflow_name}: {extracted.content}",
+                metadata={"type": "procedural"}
+            )
+            
+        elif extracted.memory_type == MemoryType.PROJECT:
+            if not extracted.project_name or not extracted.content:
+                return
+            # Check if project exists
+            project = await database.fetch_one("SELECT id FROM projects WHERE lower(name) = ?", (extracted.project_name.lower(),))
+            if not project:
+                project_id = generate_uuid()
+                await database.execute(
+                    "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                    (project_id, extracted.project_name, now, now)
+                )
+            else:
+                project_id = project["id"]
+                
+            await database.execute(
+                "INSERT INTO project_memories (id, project_id, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (memory_id, project_id, extracted.content, now, now)
+            )
+            await vector_store.add_memory(
+                collection_name=collection_name,
+                memory_id=memory_id,
+                text=f"Project {extracted.project_name}: {extracted.content}",
+                metadata={"type": "project", "project_id": project_id}
+            )
+
+        # 3. Save Metadata
         await database.execute(
             """
-            INSERT INTO memories (id, title, value, category, source, pinned, created_at)
+            INSERT INTO memory_metadata (id, memory_type, memory_id, importance_score, reason, retrieval_count, created_at)
             VALUES (?, ?, ?, ?, ?, 0, ?)
             """,
-            (memory_id, memory.title, memory.value, memory.category, memory.source, created_at),
+            (generate_uuid(), extracted.memory_type.value, memory_id, extracted.importance_score or 5, extracted.reason or "", now)
         )
-        logger.info("Memory stored: id=%s category=%s source=%s", memory_id, memory.category, memory.source)
-        return Memory(
-            id=memory_id,
-            title=memory.title,
-            value=memory.value,
-            category=memory.category,
-            source=memory.source,
-            pinned=False,
-            created_at=created_at,
-        )
+        logger.info(f"Saved {extracted.memory_type.value} memory: {memory_id}")
 
-    async def update_memory(self, memory_id: str, update: MemoryUpdate) -> Memory | None:
-        """
-        Partially update an existing memory.
 
-        Returns the updated memory, or None if the ID was not found.
-        """
-        values = update.model_dump(exclude_unset=True)
-        if not values:
-            return await self.get_memory(memory_id)
+    async def retrieve_relevant_memories(self, query: str, limit_per_type: int = 3) -> dict[str, list[dict]]:
+        """Retrieve most relevant memories across types using Semantic Search."""
+        results = {
+            "semantic": [],
+            "episodic": [],
+            "procedural": [],
+            "project": []
+        }
+        
+        # Search all collections
+        for mem_type in results.keys():
+            collection = f"{mem_type}_memories"
+            docs = await vector_store.search(collection, query, n_results=limit_per_type)
+            results[mem_type] = docs
+            
+            # Update observability: increment retrieval_count
+            for doc in docs:
+                await database.execute(
+                    "UPDATE memory_metadata SET retrieval_count = retrieval_count + 1 WHERE memory_id = ?",
+                    (doc["id"],)
+                )
+                
+        return results
 
-        now = get_utc_now().isoformat()
-        values["updated_at"] = now
+    async def get_all_memories(self) -> list[CognitiveMemoryPayload]:
+        """Fetch all memories for the UI Manager."""
+        payloads = []
+        
+        metadata_rows = await database.fetch_all("SELECT * FROM memory_metadata ORDER BY created_at DESC")
+        for row in metadata_rows:
+            mem_type = row["memory_type"]
+            mem_id = row["memory_id"]
+            
+            content = ""
+            updated_at = None
+            
+            if mem_type == "semantic":
+                mem = await database.fetch_one("SELECT fact, updated_at FROM semantic_memories WHERE id = ?", (mem_id,))
+                if mem:
+                    content = mem["fact"]
+                    updated_at = mem["updated_at"]
+            elif mem_type == "episodic":
+                mem = await database.fetch_one("SELECT event_title, timeline_date, details, updated_at FROM episodic_memories WHERE id = ?", (mem_id,))
+                if mem:
+                    content = f"{mem['event_title']} ({mem['timeline_date']}): {mem['details']}"
+                    updated_at = mem["updated_at"]
+            elif mem_type == "procedural":
+                mem = await database.fetch_one("SELECT workflow_name, steps, updated_at FROM procedural_memories WHERE id = ?", (mem_id,))
+                if mem:
+                    content = f"{mem['workflow_name']}: {mem['steps']}"
+                    updated_at = mem["updated_at"]
+            elif mem_type == "project":
+                mem = await database.fetch_one("SELECT project_id, content, updated_at FROM project_memories WHERE id = ?", (mem_id,))
+                if mem:
+                    project = await database.fetch_one("SELECT name FROM projects WHERE id = ?", (mem["project_id"],))
+                    pname = project["name"] if project else "Unknown"
+                    content = f"[{pname}] {mem['content']}"
+                    updated_at = mem["updated_at"]
+                    
+            if content:
+                payloads.append(CognitiveMemoryPayload(
+                    id=mem_id,
+                    memory_type=MemoryType(mem_type),
+                    content=content,
+                    metadata=MemoryMetadata(**dict(row)),
+                    created_at=row["created_at"],
+                    updated_at=updated_at
+                ))
+                
+        return payloads
 
-        assignments = ", ".join(f"{col} = ?" for col in values)
-        updated = await database.execute(
-            f"UPDATE memories SET {assignments} WHERE id = ?",  # nosec B608
-            (*values.values(), memory_id),
-        )
-        if not updated:
-            return None
-        return await self.get_memory(memory_id)
-
-    async def set_pinned(self, memory_id: str, *, pinned: bool) -> Memory | None:
-        """
-        Pin or unpin a memory.
-
-        Pinned memories appear at the top of all listing results and are
-        prioritised for LLM context injection. Returns None if not found.
-        """
-        updated = await database.execute(
-            "UPDATE memories SET pinned = ? WHERE id = ?",
-            (1 if pinned else 0, memory_id),
-        )
-        if not updated:
-            return None
-        return await self.get_memory(memory_id)
-
-    async def list_categories(self) -> list[str]:
-        """Return a sorted list of distinct memory categories in use."""
-        rows = await database.fetch_all(
-            "SELECT DISTINCT lower(category) AS category FROM memories ORDER BY category"
-        )
-        return [row["category"] for row in rows]
-
-    async def delete_memory(self, memory_id: str) -> bool:
-        """Delete a memory by ID. Returns True if a row was removed."""
-        return bool(await database.execute("DELETE FROM memories WHERE id = ?", (memory_id,)))
+    async def delete_memory(self, memory_id: str, memory_type: MemoryType) -> bool:
+        """Delete a memory completely from SQL and Vector DB."""
+        collection_name = f"{memory_type.value}_memories"
+        table_name = collection_name
+        
+        # 1. Delete SQL Metadata
+        await database.execute("DELETE FROM memory_metadata WHERE memory_id = ?", (memory_id,))
+        
+        # 2. Delete SQL Record
+        deleted = await database.execute(f"DELETE FROM {table_name} WHERE id = ?", (memory_id,))
+        
+        # 3. Delete Vector DB Record
+        if deleted:
+            await vector_store.delete_memory(collection_name, memory_id)
+            return True
+        return False

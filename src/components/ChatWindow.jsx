@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Layout,
@@ -17,7 +17,7 @@ import { useTasks } from "../hooks/useTasks";
 import { sfx } from "../utils/sfx";
 import { fileService } from "../services/fileService";
 
-export default function ChatWindow({
+export default React.memo(function ChatWindow({
   messages = [],
   onSendMessage,
   onClearHistory,
@@ -34,10 +34,7 @@ export default function ChatWindow({
   // Connect to persistent tasks hook
   const { tasks, createTask, updateTask } = useTasks();
 
-  const [activeFiles, setActiveFiles] = useState([
-    { name: "design-spec.pdf", size: "1.2 MB", type: "PDF" },
-    { name: "Sidebar.jsx", size: "12 KB", type: "React" }
-  ]);
+  const [activeFiles, setActiveFiles] = useState([]);
 
   // Determine transition state
   const isConversationStarted = messages.length > 0;
@@ -363,4 +360,4 @@ export default function ChatWindow({
 
     </div>
   );
-}
+});

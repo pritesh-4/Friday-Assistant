@@ -4,34 +4,62 @@ import { VoiceSessionManager } from "../services/voice/sessionManager";
 import { speechQueue } from "../services/voice/speechQueue";
 
 export function useVoiceSession() {
-  const [voiceState, setVoiceState] = useState("idle");
+  const [voiceState, setVoiceState] = useState("IDLE");
   const [error, setError] = useState(null);
   const [lastTranscript, setLastTranscript] = useState("");
   const [volume, setVolume] = useState(0);
 
-  const { sendMessage, messages, isTyping } = useChatContext();
+  const { setMessages, activeConversationId, setActiveConversationId } = useChatContext();
 
   const managerRef = useRef(null);
-  
-  // Track processed text length for concurrent chunking
-  const processedTextLengthRef = useRef(0);
-  // Track the ID of the message currently being streamed
-  const streamingMessageIdRef = useRef(null);
 
   const getManager = useCallback(() => {
     if (!managerRef.current) {
       managerRef.current = new VoiceSessionManager({
         onStateChange: (newState) => {
           setVoiceState(newState);
-          if (newState !== "error") {
+          if (newState !== "ERROR") {
             setError(null);
           }
         },
-        onTranscript: (transcript) => {
-          setLastTranscript(transcript);
-          processedTextLengthRef.current = 0;
-          streamingMessageIdRef.current = null;
-          sendMessage(transcript);
+        onStreamEvent: (eventType, payload) => {
+          const now = new Date();
+          const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+          if (eventType === "metadata") {
+            if (payload.conversationId && activeConversationId !== payload.conversationId) {
+              setActiveConversationId(payload.conversationId);
+            }
+          } else if (eventType === "transcript") {
+            setLastTranscript(payload.text);
+            
+            // Create user message and a placeholder for AI's stream
+            const userMsg = { sender: "user", text: payload.text, time: timeStr, id: Date.now().toString() + "_u" };
+            const fridayMsg = { sender: "friday", text: "", time: timeStr, id: "voice_stream", isStreaming: true };
+            
+            setMessages(prev => [...prev, userMsg, fridayMsg]);
+          } else if (eventType === "chunk") {
+            setMessages(prev => {
+              const next = [...prev];
+              const last = next[next.length - 1];
+              if (last && last.id === "voice_stream") {
+                last.text += payload.content;
+              }
+              return next;
+            });
+          } else if (eventType === "sentence") {
+            // Send the completed sentence to the TTS queue
+            managerRef.current.speakResponse(payload.content);
+          } else if (eventType === "done") {
+            setMessages(prev => {
+              const next = [...prev];
+              const last = next[next.length - 1];
+              if (last && last.id === "voice_stream") {
+                last.isStreaming = false;
+              }
+              return next;
+            });
+          }
         },
         onError: (errMsg) => {
           setError(errMsg);
@@ -40,9 +68,18 @@ export function useVoiceSession() {
           setVolume(vol);
         }
       });
+      // Pass initial conversation ID
+      managerRef.current.setConversationId(activeConversationId);
     }
     return managerRef.current;
-  }, [sendMessage]);
+  }, [setMessages, activeConversationId, setActiveConversationId]);
+
+  // Keep orchestrator updated with current conversation id
+  useEffect(() => {
+    if (managerRef.current) {
+      managerRef.current.setConversationId(activeConversationId);
+    }
+  }, [activeConversationId]);
 
   const openVoice = useCallback(async () => {
     const manager = getManager();
@@ -66,64 +103,17 @@ export function useVoiceSession() {
     await manager.retry();
   }, [getManager]);
 
+  // When speechQueue empties, VoiceSessionManager handles resuming listening directly now.
   useEffect(() => {
-    const manager = managerRef.current;
-    if (!manager || !manager.isActive) return;
-
-    if (messages.length === 0) return;
-    
-    const lastMsg = messages[messages.length - 1];
-
-    if (lastMsg && lastMsg.sender === "error") {
-      console.log("[useVoiceSession] Error received from chat, aborting TTS");
-      manager.retry();
-      return;
-    }
-
-    if (lastMsg && lastMsg.sender === "friday" && lastMsg.text) {
-      if (lastMsg.id !== streamingMessageIdRef.current) {
-        // New message stream started
-        streamingMessageIdRef.current = lastMsg.id;
-        processedTextLengthRef.current = 0;
-      }
-
-      const text = lastMsg.text;
-      const unprocessedText = text.slice(processedTextLengthRef.current);
-      
-      // Match sentence boundaries (., !, ?) followed by space or newline, or just newline
-      const sentenceRegex = /([^.!?\n]+[.!?\n]+(?=\s|$))/g;
-      
-      let match;
-      let lastIndex = 0;
-      
-      while ((match = sentenceRegex.exec(unprocessedText)) !== null) {
-        const sentence = match[0];
-        lastIndex = match.index + sentence.length;
-        manager.speakResponse(sentence);
-      }
-      
-      if (lastIndex > 0) {
-        processedTextLengthRef.current += lastIndex;
-      }
-      
-      // If AI is fully done generating this message, flush any remaining text
-      if (!isTyping && text.length > processedTextLengthRef.current) {
-        const remaining = text.slice(processedTextLengthRef.current);
-        if (remaining.trim()) {
-          manager.speakResponse(remaining);
+    const checkQueue = setInterval(() => {
+      if (managerRef.current && (voiceState === "RESPONDING" || voiceState === "COMPLETE")) {
+        if (speechQueue.queue.length === 0 && !speechQueue.isPlaying) {
+          managerRef.current.resumeListeningAfterSpeech();
         }
-        processedTextLengthRef.current = text.length;
-        
-        // Polling loop to wait for speech queue to empty, then resume listening
-        const checkQueue = setInterval(() => {
-          if (speechQueue.queue.length === 0 && !speechQueue.isPlaying) {
-            clearInterval(checkQueue);
-            manager.resumeListeningAfterSpeech();
-          }
-        }, 500);
       }
-    }
-  }, [messages, isTyping]);
+    }, 500);
+    return () => clearInterval(checkQueue);
+  }, [voiceState]);
 
   useEffect(() => {
     return () => {
@@ -136,7 +126,7 @@ export function useVoiceSession() {
 
   return {
     voiceState,
-    isVoiceActive: voiceState !== "idle",
+    isVoiceActive: voiceState !== "IDLE",
     lastTranscript,
     error,
     volume,

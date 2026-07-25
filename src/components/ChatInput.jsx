@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Paperclip,
@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useSharedVoice } from "../context/VoiceContext";
 
-export default function ChatInput({
+export default React.memo(function ChatInput({
   onSendMessage,
   onAttachFile,
   attachedFile = null,
@@ -45,7 +45,13 @@ export default function ChatInput({
       // Ctrl+K toggles the tray
       if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        setIsTrayExpanded((prev) => !prev);
+        setIsTrayExpanded((prev) => {
+          if (!prev) {
+            // Give React a tick to render the expanded view, then focus
+            setTimeout(() => textareaRef.current?.focus(), 50);
+          }
+          return !prev;
+        });
       }
     };
     window.addEventListener("keydown", handleKeyDownGlobal);
@@ -484,4 +490,4 @@ export default function ChatInput({
       </AnimatePresence>
     </motion.div>
   );
-}
+});

@@ -5,13 +5,14 @@ import json
 from pathlib import Path
 
 from app.agents.context_builder import ContextBuilder
-from app.agents.memory_agent import MemoryAgent
+from app.agents.memory_extractor import MemoryExtractor
 from app.agents.router_agent import RouterAgent
 from app.db.database import database
 from app.memory.memory_manager import memory_manager
 from app.schemas.chat import ChatRequest
 from app.services.document_parser import DocumentParser
-from app.services.memory_service import MemoryService
+from app.services.memory_service import CognitiveMemoryService
+from app.tools.executor import PermissionRequiredError
 from app.utils.helpers import generate_uuid, get_utc_now
 
 
@@ -19,10 +20,11 @@ class StreamingCoordinator:
     """Orchestrates real-time streaming text-chat and memory extraction."""
 
     def __init__(self) -> None:
-        self.memory_service = MemoryService()
+        self.memory_service = CognitiveMemoryService()
         self.router_agent = RouterAgent()
         self.context_builder = ContextBuilder()
-        self.memory_agent = MemoryAgent()
+        from app.services.llm_service import LLMService
+        self.memory_extractor = MemoryExtractor(LLMService())
 
     async def stream_chat(self, request: ChatRequest):
         """
@@ -87,25 +89,77 @@ class StreamingCoordinator:
                 memory_manager.append_message(conversation_id, "user", structured_content if has_files else request.message.strip())
 
             # Retrieve long-term memories
-            memories = await self.memory_service.retrieve_memories(request.message, limit=5)
+            memories = await self.memory_service.retrieve_relevant_memories(request.message, limit_per_type=2)
             messages = self.context_builder.build_messages(ctx.messages, memories)
 
             # Stream response
+            import time
+            start_time = time.time()
+            ttft = 0.0
+            total_tokens = 0
+            
             full_response = ""
-            async for chunk in self.router_agent.route_and_stream(messages):
-                full_response += chunk
-                yield f'data: {json.dumps({"type": "chunk", "content": chunk})}\n\n'
+            sentence_buffer = ""
+            
+            punctuation_marks = {'.', '?', '!', '\n'}
+
+            try:
+                async for chunk in self.router_agent.route_and_stream(messages, request.approved_permissions):
+                    if ttft == 0.0:
+                        ttft = time.time() - start_time
+                        
+                    total_tokens += 1
+                    full_response += chunk
+                    sentence_buffer += chunk
+                    
+                    # Emit raw chunk for UI
+                    yield f'data: {json.dumps({"type": "chunk", "content": chunk})}\n\n'
+                    
+                    # Intelligent sentence buffering for TTS readiness
+                    if any(p in chunk for p in punctuation_marks):
+                        # Find the last punctuation mark to split correctly
+                        last_punc_idx = max(sentence_buffer.rfind(p) for p in punctuation_marks)
+                        if last_punc_idx != -1:
+                            complete_sentence = sentence_buffer[:last_punc_idx+1].strip()
+                            if complete_sentence:
+                                yield f'data: {json.dumps({"type": "sentence", "content": complete_sentence})}\n\n'
+                            sentence_buffer = sentence_buffer[last_punc_idx+1:]
+            except PermissionRequiredError as e:
+                # Yield a special permission request event
+                req_data = {
+                    "type": "permission_request",
+                    "tool": e.tool_name,
+                    "scope": e.scope,
+                    "kwargs": e.kwargs,
+                    "justification": f"F.R.I.D.A.Y. needs permission to execute '{e.tool_name}' ({e.scope})."
+                }
+                yield f'data: {json.dumps(req_data)}\n\n'
+                # Terminate the stream here. The frontend is expected to prompt the user
+                # and then automatically re-submit the request with `approved_permissions` populated.
+                return
+
                 
-            # Finish stream
-            yield f'data: {json.dumps({"type": "done"})}\n\n'
+            if sentence_buffer.strip():
+                yield f'data: {json.dumps({"type": "sentence", "content": sentence_buffer.strip()})}\n\n'
+                
+            total_time = time.time() - start_time
+            tps = total_tokens / total_time if total_time > 0 else 0.0
+
+            # Finish stream with metrics
+            metrics = {
+                "ttft_ms": round(ttft * 1000),
+                "tps": round(tps, 1),
+                "total_time_ms": round(total_time * 1000)
+            }
+            yield f'data: {json.dumps({"type": "done", "metrics": metrics})}\n\n'
 
             # Background tasks post-stream
             await self._create_message(conversation_id, "assistant", full_response)
             memory_manager.append_message(conversation_id, "assistant", full_response)
             
-            extracted = self.memory_agent.extract_memories(request.message)
-            for mem in extracted:
-                await self.memory_service.store_memory(mem)
+            extracted = await self.memory_extractor.extract_memory(request.message)
+            if extracted:
+                await self.memory_service.save_extracted_memory(extracted)
 
         except Exception as e:
             import traceback

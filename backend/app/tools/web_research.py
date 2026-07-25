@@ -3,6 +3,7 @@ from typing import Any
 
 from duckduckgo_search import DDGS
 
+from app.schemas.execution import PermissionLevel, RetryConfig
 from app.tools.base import BaseTool
 
 
@@ -21,6 +22,14 @@ class WebSearchTool(BaseTool):
             "recent developments, or facts that require internet access. "
             "Returns a summary of the top search results."
         )
+
+    @property
+    def permission_level(self) -> PermissionLevel:
+        return PermissionLevel.SAFE
+
+    @property
+    def retry_policy(self) -> RetryConfig:
+        return RetryConfig(max_retries=2, backoff_factor=1.5, max_backoff=5.0)
 
     @property
     def parameters(self) -> dict[str, Any]:

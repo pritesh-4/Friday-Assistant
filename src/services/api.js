@@ -2,11 +2,12 @@ const configuredBaseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000
 export const API_BASE_URL = configuredBaseUrl.replace(/\/$/, "");
 
 export class ApiError extends Error {
-  constructor(message, status, details = null) {
+  constructor(message, status, details = null, requestId = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.details = details;
+    this.requestId = requestId;
   }
 }
 
@@ -37,10 +38,12 @@ export async function apiRequest(path, options = {}) {
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
+    const errorData = payload?.error || {};
     throw new ApiError(
-      payload?.detail || "The FRIDAY backend could not complete this request.",
+      errorData.message || payload?.detail || "The FRIDAY backend could not complete this request.",
       response.status,
-      payload?.errors || null
+      errorData.details || payload?.errors || null,
+      errorData.request_id || null
     );
   }
   return payload;

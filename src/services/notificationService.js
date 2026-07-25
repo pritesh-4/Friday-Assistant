@@ -1,8 +1,5 @@
-import { mockNotifications } from "../data/notifications";
-import { simulateApiDelay } from "./api";
-
 /**
- * Service to simulate workspace alerts.
+ * Service to manage workspace alerts and notifications.
  */
 export const notificationService = {
   /**
@@ -10,8 +7,7 @@ export const notificationService = {
    * @returns {Promise<Array>} List of notifications.
    */
   async getNotifications() {
-    await simulateApiDelay(350);
-    return [...mockNotifications];
+    return [];
   },
 
   /**
@@ -19,9 +15,8 @@ export const notificationService = {
    * @param {string} id - Target alert ID.
    * @returns {Promise<boolean>} Completion indicator.
    */
+  // eslint-disable-next-line no-unused-vars
   async markAsRead(id) {
-    await simulateApiDelay(200);
-    console.log(`TODO: Connect notifications API to check: ${id}`);
     return true;
   }
 };

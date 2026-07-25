@@ -2,6 +2,7 @@
 
 Endpoints:
   GET  /voice          — Capability status probe.
+  GET  /voice/health   — Detailed STT/TTS diagnostic health check.
   POST /voice/upload   — Upload raw audio blob to temporary storage.
   POST /voice/transcribe — Transcribe audio using Faster-Whisper STT.
   POST /voice/speak    — Synthesize text to WAV audio using Kokoro TTS.
@@ -12,7 +13,6 @@ when faster-whisper / kokoro-onnx are not installed.
 """
 
 import logging
-from pathlib import Path
 from typing import Any
 
 from fastapi import (
@@ -20,22 +20,28 @@ from fastapi import (
     Depends,
     File,
     HTTPException,
+    Request,
     Response,
     UploadFile,
     status,
 )
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
 from app.api.dependencies import (
     get_speech_service,
     get_transcription_service,
     get_voice_service,
+    get_voice_orchestrator,
 )
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.schemas.voice import TranscriptionResult
 from app.services.voice.speech_service import SpeechService
 from app.services.voice.transcription_service import TranscriptionService
+from app.services.voice.orchestrator import VoiceOrchestrator
 from app.services.voice_service import VoiceService
+from app.ai.whisper.engine import WhisperEngine
 
 _log = logging.getLogger(__name__)
 router = APIRouter(tags=["voice"])
@@ -75,18 +81,20 @@ async def get_voice_status() -> dict[str, Any]:
         }
 
     from app.ai.tts.loader import is_tts_available
-    from app.ai.whisper.loader import is_whisper_available
+    
+    whisper_engine = WhisperEngine()
 
     return {
         "available": True,
-        "stt": "faster-whisper" if is_whisper_available() else "unavailable",
+        "stt": "faster-whisper" if whisper_engine.is_loaded else "unavailable",
         "tts": "kokoro-onnx" if is_tts_available() else "unavailable",
         "detail": "Server-side STT and TTS status reported above.",
-        "browser_fallback": not (is_whisper_available() and is_tts_available()),
+        "browser_fallback": not (whisper_engine.is_loaded and is_tts_available()),
     }
 
-@router.get("/diagnostics", summary="Detailed Voice Diagnostics")
-async def get_voice_diagnostics() -> dict[str, Any]:
+
+@router.get("/health", summary="Detailed Voice Diagnostics")
+async def get_voice_health() -> dict[str, Any]:
     """
     Returns detailed system readiness for the voice subsystem.
     Matches the schema specifically requested for full observability.
@@ -94,9 +102,15 @@ async def get_voice_diagnostics() -> dict[str, Any]:
     import shutil
     ffmpeg_installed = shutil.which("ffmpeg") is not None
     
-    from app.ai.whisper.loader import is_whisper_available, _model_instance, _whisper_import_error, _whisper_init_error
-    whisper_installed = is_whisper_available()
+    engine = WhisperEngine()
     
+    faster_whisper_installed = False
+    try:
+        import faster_whisper  # noqa: F401
+        faster_whisper_installed = True
+    except ImportError:
+        pass
+        
     ctranslate2_installed = False
     try:
         import ctranslate2  # noqa: F401
@@ -104,35 +118,43 @@ async def get_voice_diagnostics() -> dict[str, Any]:
     except ImportError:
         pass
         
-    model_loaded = _model_instance is not None
-    ready = settings.voice_enabled and whisper_installed and ffmpeg_installed
+    av_installed = False
+    try:
+        import av  # noqa: F401
+        av_installed = True
+    except ImportError:
+        pass
+        
+    tokenizers_installed = False
+    try:
+        import tokenizers  # noqa: F401
+        tokenizers_installed = True
+    except ImportError:
+        pass
+
+    ready = settings.voice_enabled and faster_whisper_installed and ffmpeg_installed
     
-    response = {
+    return {
         "voice_enabled": settings.voice_enabled,
+        "whisper_loaded": engine.is_loaded,
+        "model": engine.model_name,
+        "device": engine.device,
+        "compute_type": engine.compute_type,
+        "ffmpeg": ffmpeg_installed,
         "dependencies": {
-            "faster_whisper": whisper_installed,
+            "faster_whisper": faster_whisper_installed,
             "ctranslate2": ctranslate2_installed,
-            "ffmpeg": ffmpeg_installed
-        },
-        "model": {
-            "loaded": model_loaded,
-            "name": "small",
-            "cache": "data/models/whisper",
-            "device": "cpu"
+            "av": av_installed,
+            "tokenizers": tokenizers_installed
         },
         "ready": ready
     }
-    
-    if _whisper_import_error:
-        response["import_error"] = _whisper_import_error
-    if _whisper_init_error:
-        response["init_error"] = _whisper_init_error
-        
-    return response
 
 
 @router.post("/upload", summary="Upload a voice recording")
+@limiter.limit("20/minute")
 async def upload_voice(
+    request: Request,
     file: UploadFile = File(...),
     service: VoiceService = Depends(get_voice_service),
 ) -> dict:
@@ -144,15 +166,54 @@ async def upload_voice(
     return await service.upload_audio(file)
 
 
+@router.post("/orchestrate", summary="Process full voice conversation")
+@limiter.limit("20/minute")
+async def orchestrate_voice(
+    request: Request,
+    file: UploadFile = File(...),
+    conversation_id: str | None = None,
+    orchestrator: VoiceOrchestrator = Depends(get_voice_orchestrator),
+) -> dict[str, Any]:
+    """
+    Master endpoint for the complete Voice orchestration lifecycle.
+    Handles upload -> STT -> LLM Chat -> returning text synchronously.
+    """
+    _require_voice()
+    
+    _log.info("[VOICE] START POST /voice/orchestrate")
+    result = await orchestrator.process_conversation(file, conversation_id)
+    _log.info("[VOICE] SUCCESS POST /voice/orchestrate")
+    
+    return result
+
+
+@router.post("/orchestrate/stream", summary="Stream full voice conversation", status_code=status.HTTP_200_OK)
+@limiter.limit("20/minute")
+async def orchestrate_voice_stream(
+    request: Request,
+    file: UploadFile = File(...),
+    conversation_id: str | None = None,
+    orchestrator: VoiceOrchestrator = Depends(get_voice_orchestrator),
+) -> StreamingResponse:
+    """
+    Master endpoint for real-time Voice orchestration lifecycle.
+    Handles upload -> STT -> LLM Chat -> returning SSE stream to frontend.
+    """
+    _require_voice()
+    
+    return StreamingResponse(
+        orchestrator.stream_conversation(file, conversation_id),
+        media_type="text/event-stream"
+    )
+
 @router.post("/transcribe", summary="Transcribe audio to text", response_model=TranscriptionResult)
 async def transcribe_voice(
     file: UploadFile = File(...),
-    voice_service: VoiceService = Depends(get_voice_service),
     transcription_service: TranscriptionService = Depends(get_transcription_service),
 ) -> TranscriptionResult:
     """
     Transcribe an audio file to text using the Faster-Whisper STT provider.
-    The uploaded audio file is deleted from disk after transcription.
+    The uploaded audio file is handled completely within the service and deleted afterwards.
     """
     _require_voice()
 
@@ -160,17 +221,7 @@ async def transcribe_voice(
     start_time = time.time()
     _log.info("[VOICE] START POST /voice/transcribe")
 
-    upload_result = await voice_service.upload_audio(file)
-    file_path = voice_service.upload_dir / upload_result["filename"]
-    _log.info(f"[VOICE] Upload complete: {file_path}")
-
-    try:
-        result = await transcription_service.transcribe(str(file_path))
-    finally:
-        try:
-            Path(file_path).unlink(missing_ok=True)
-        except Exception as exc:
-            _log.warning("Failed to delete temporary audio file %s: %s", file_path, exc)
+    result = await transcription_service.transcribe(file)
 
     elapsed = time.time() - start_time
     _log.info(f"[VOICE] SUCCESS POST /voice/transcribe in {elapsed:.2f}s")
@@ -200,21 +251,18 @@ async def debug_voice(
     }
     
     try:
-        # Step 1: Upload (this runs ffprobe and ffmpeg internally)
+        # Step 1: Upload (this runs ffprobe and ffmpeg internally via VoiceService)
         upload_result = await voice_service.upload_audio(file)
         
         response["uploaded_size"] = upload_result["size"]
         response["ffprobe_output"] = upload_result.get("ffprobe_output", "")
         response["ffmpeg_output"] = upload_result.get("ffmpeg_output", "")
         
-        # Parse codec from ffprobe if we can
-        # (For this debug endpoint, we're keeping it simple, the raw output is provided)
-        
         file_path = voice_service.upload_dir / upload_result["filename"]
         
-        # Step 2: Transcribe
+        # Step 2: Transcribe via Engine directly, since file is already processed
         try:
-            result = await transcription_service.transcribe(str(file_path))
+            result = await transcription_service.engine.transcribe(str(file_path))
             response["transcription_result"] = result
         finally:
             try:

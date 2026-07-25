@@ -7,7 +7,6 @@ without downloading gigabytes of data on the first request.
 """
 
 import os
-import sys
 from pathlib import Path
 
 # Add backend dir to pythonpath if needed, but we don't need app modules here.

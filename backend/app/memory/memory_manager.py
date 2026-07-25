@@ -31,7 +31,6 @@ from typing import Any
 
 from app.core.constants import SESSION_CONTEXT_TTL_SECONDS
 from app.core.logging import get_logger
-from app.schemas.memory import Memory
 
 logger = get_logger(__name__)
 
@@ -146,28 +145,7 @@ class MemoryManager:
         lines = [f"{m['role'].capitalize()}: {m['content'][:80]}" for m in ctx.messages[-5:]]
         return "\n".join(lines)
 
-    def build_context_for_llm(
-        self, session_id: str, memories: list[Memory]
-    ) -> dict[str, Any]:
-        """
-        Build a context dictionary suitable for passing to the LLM pipeline.
 
-        Args:
-            session_id: The active session identifier.
-            memories: Long-term memories retrieved by the memory service.
-
-        Returns:
-            A dict containing the session message buffer and serialised memories.
-        """
-        ctx = self.get_context(session_id)
-        return {
-            "session_messages": ctx.messages,
-            "long_term_memories": [
-                {"title": m.title, "value": m.value, "category": m.category}
-                for m in memories
-            ],
-            "conversation_id": ctx.conversation_id,
-        }
 
     # ── Session lifecycle ──────────────────────────────────────────────────────
 

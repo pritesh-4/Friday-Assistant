@@ -7,28 +7,36 @@ import { useSharedVoice } from "../context/VoiceContext";
  * Map voice state machine states to Orb animation states.
  */
 const STATE_TO_ORB = {
-  idle: "idle",
-  permission: "idle",
-  listening: "listening",
-  recording: "listening",
-  processing: "thinking",
-  thinking: "thinking",
-  speaking: "speaking",
-  error: "error",
+  IDLE: "idle",
+  REQUEST_PERMISSION: "idle",
+  READY: "idle",
+  LISTENING: "listening",
+  RECORDING: "listening",
+  UPLOADING: "thinking",
+  TRANSCRIBING: "thinking",
+  THINKING: "thinking",
+  STREAMING_RESPONSE: "thinking",
+  RESPONDING: "speaking",
+  COMPLETE: "idle",
+  ERROR: "error",
 };
 
 /**
  * Human-readable status labels.
  */
 const STATE_LABELS = {
-  idle: "",
-  permission: "Requesting Mic...",
-  listening: "Listening…",
-  recording: "Recording…",
-  processing: "Processing…",
-  thinking: "Thinking…",
-  speaking: "Speaking…",
-  error: "Something went wrong",
+  IDLE: "",
+  REQUEST_PERMISSION: "Requesting Mic...",
+  READY: "Ready",
+  LISTENING: "Listening…",
+  RECORDING: "Recording…",
+  UPLOADING: "Uploading…",
+  TRANSCRIBING: "Transcribing…",
+  THINKING: "Thinking…",
+  STREAMING_RESPONSE: "Generating…",
+  RESPONDING: "Speaking…",
+  COMPLETE: "",
+  ERROR: "Something went wrong",
 };
 
 /**
@@ -80,10 +88,10 @@ export default function VoiceOverlay() {
           {/* Radial ambient glow behind the orb */}
           <motion.div
             animate={{
-              scale: voiceState === "speaking" ? [1, 1.2, 1] : voiceState === "recording" ? 1 + (volume || 0) : voiceState === "listening" ? [1, 1.1, 1] : 1,
-              opacity: voiceState === "error" ? 0.1 : 0.25,
+              scale: voiceState === "RESPONDING" ? [1, 1.2, 1] : voiceState === "RECORDING" ? 1 + (volume || 0) : voiceState === "LISTENING" ? [1, 1.1, 1] : 1,
+              opacity: voiceState === "ERROR" ? 0.1 : 0.25,
             }}
-            transition={voiceState === "recording" ? { type: "spring", stiffness: 400, damping: 25 } : { duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            transition={voiceState === "RECORDING" ? { type: "spring", stiffness: 400, damping: 25 } : { duration: 3, repeat: Infinity, ease: "easeInOut" }}
             className="absolute w-96 h-96 rounded-full bg-gradient-to-tr from-[#00f0ff]/15 via-[#d1bcff]/10 to-transparent blur-3xl pointer-events-none"
           />
 
@@ -106,11 +114,11 @@ export default function VoiceOverlay() {
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ 
-                scale: voiceState === "recording" ? 1 + (volume || 0) * 0.15 : 1, 
+                scale: voiceState === "RECORDING" ? 1 + (volume || 0) * 0.15 : 1, 
                 opacity: 1 
               }}
               transition={
-                voiceState === "recording"
+                voiceState === "RECORDING"
                   ? { type: "spring", stiffness: 400, damping: 30 }
                   : { delay: 0.15, duration: 0.5, ease: [0.16, 1, 0.3, 1] }
               }
@@ -125,7 +133,7 @@ export default function VoiceOverlay() {
               transition={{ delay: 0.3 }}
               className="flex flex-col items-center gap-3"
             >
-              {voiceState === "error" ? (
+              {voiceState === "ERROR" ? (
                 <div className="flex flex-col items-center gap-3">
                   <div className="flex items-center gap-2 text-[#ffb4ab] font-mono text-sm">
                     <AlertCircle size={16} />
@@ -147,7 +155,7 @@ export default function VoiceOverlay() {
 
                   {/* Live transcript subtitle */}
                   <AnimatePresence mode="wait">
-                    {lastTranscript && (voiceState === "thinking" || voiceState === "speaking" || voiceState === "processing") && (
+                    {lastTranscript && (voiceState === "THINKING" || voiceState === "STREAMING_RESPONSE" || voiceState === "RESPONDING" || voiceState === "UPLOADING" || voiceState === "TRANSCRIBING") && (
                       <motion.p
                         key={lastTranscript}
                         initial={{ opacity: 0, y: 5 }}
@@ -171,7 +179,7 @@ export default function VoiceOverlay() {
               className="flex items-center gap-4"
             >
               {/* Stop recording manually (visible while listening) */}
-              {voiceState === "listening" && (
+              {voiceState === "LISTENING" && (
                 <motion.button
                   initial={{ scale: 0.9 }}
                   animate={{ scale: 1 }}
@@ -185,7 +193,7 @@ export default function VoiceOverlay() {
               )}
 
               {/* Interrupt button (visible while FRIDAY is speaking) */}
-              {voiceState === "speaking" && (
+              {voiceState === "RESPONDING" && (
                 <motion.button
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
@@ -208,8 +216,8 @@ export default function VoiceOverlay() {
             className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-6 text-[8px] font-mono text-on-surface-variant/40 tracking-widest uppercase select-none"
           >
             <span className="flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${voiceState === "error" ? "bg-[#ffb4ab]" : "bg-[#00f0ff] animate-pulse"}`} />
-              VOICE SESSION: {voiceState.toUpperCase()}
+              <span className={`w-1.5 h-1.5 rounded-full ${voiceState === "ERROR" ? "bg-[#ffb4ab]" : "bg-[#00f0ff] animate-pulse"}`} />
+              VOICE SESSION: {voiceState}
             </span>
             <span>F.R.I.D.A.Y. OS</span>
           </motion.div>

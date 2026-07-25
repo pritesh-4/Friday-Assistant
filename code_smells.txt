@@ -1,0 +1,122 @@
+.\context.md:27:* `data/`: Mock data storage that matches the expected API schemas.
+.\backend\README.md:36:Copy the template to initialize your local configuration:
+.\backend\app\agents\base_agent.py:88:yield f"[{self.name}] Attempted to use unauthorized tool: {tool_name}"
+.\backend\app\agents\memory_extractor.py:57:result = await provider.generate(messages, temperature=0.0)
+.\backend\app\ai\tts\loader.py:32:# Attempt to import kokoro-onnx. Degrade gracefully if not installed.
+.\backend\app\api\routes\voice.py:6:POST /voice/upload   — Upload raw audio blob to temporary storage.
+.\backend\app\api\routes\voice.py:162:Upload a voice recording to the temporary storage directory.
+.\backend\app\schemas\execution.py:13:max_retries: int = Field(default=0, description="Maximum number of retry attempts")
+.\backend\app\services\planning_service.py:25:# We need to map client-provided task dependencies (which might use temporary IDs or titles)
+.\backend\app\services\planning_service.py:30:task_id_map = {} # client temporary id or title -> real uuid
+.\backend\app\services\worker.py:78:# Placeholder for direct tasks (e.g., kb_index)
+.\backend\app\services\voice\transcription_service.py:41:running WhisperEngine, and cleaning up temporary files.
+.\backend\app\services\voice\transcription_service.py:136:Ensures strict cleanup of temporary resources.
+.\backend\tests\conftest.py:8:- Each test gets its own temporary SQLite database.
+.\backend\tests\conftest.py:28:- Uses a fresh SQLite database in a temporary directory.
+.\backend\tests\conftest.py:41:# Mock whisper and TTS initialization to prevent downloading large models during tests
+.\backend\tests\conftest.py:42:from unittest.mock import patch, MagicMock, AsyncMock, PropertyMock
+.\backend\tests\conftest.py:46:mock_module = MagicMock()
+.\backend\tests\conftest.py:47:sys.modules['faster_whisper'] = mock_module
+.\backend\tests\conftest.py:48:sys.modules['ctranslate2'] = mock_module
+.\backend\tests\conftest.py:49:sys.modules['av'] = mock_module
+.\backend\tests\conftest.py:50:sys.modules['tokenizers'] = mock_module
+.\backend\tests\conftest.py:52:mock_subprocess_result = MagicMock()
+.\backend\tests\conftest.py:53:mock_subprocess_result.stdout = "1.5"
+.\backend\tests\conftest.py:54:mock_subprocess_result.stderr = ""
+.\backend\tests\conftest.py:56:mock_transcribe_result = {
+.\backend\tests\conftest.py:65:with patch("app.ai.whisper.engine.WhisperEngine.is_loaded", new_callable=PropertyMock, return_value=True), \
+.\backend\tests\conftest.py:67:patch("app.ai.whisper.engine.WhisperEngine.transcribe", new_callable=AsyncMock, return_value=mock_transcribe_result), \
+.\backend\tests\conftest.py:70:patch("app.services.voice.speech_service.SpeechService.synthesize", new_callable=AsyncMock, return_value=b"fake_audio"), \
+.\backend\tests\conftest.py:71:patch("app.services.voice.transcription_service.subprocess.run", return_value=mock_subprocess_result), \
+.\backend\tests\conftest.py:72:patch("app.services.voice_service.subprocess.run", return_value=mock_subprocess_result), \
+.\backend\tests\test_executor.py:9:class DummyTool(BaseTool):
+.\backend\tests\test_executor.py:23:return "Dummy tool"
+.\backend\tests\test_executor.py:62:tool = DummyTool("test_safe", PermissionLevel.SAFE, RetryConfig())
+.\backend\tests\test_executor.py:76:tool = DummyTool("test_safe", PermissionLevel.SAFE, RetryConfig())
+.\backend\tests\test_executor.py:90:tool = DummyTool("test_destructive", PermissionLevel.DESTRUCTIVE, RetryConfig())
+.\backend\tests\test_executor.py:104:tool = DummyTool("test_destructive", PermissionLevel.DESTRUCTIVE, RetryConfig())
+.\backend\tests\test_executor.py:119:tool = DummyTool("test_retry", PermissionLevel.SAFE, retry_policy, should_fail=True)
+.\backend\tests\test_executor.py:135:tool = DummyTool("test_fail", PermissionLevel.SAFE, retry_policy, should_fail=True)
+.\backend\tests\test_voice.py:1:from unittest.mock import patch
+.\backend\tests\test_voice.py:8:def mock_transcribe():
+.\backend\tests\test_voice.py:9:with patch("app.services.voice.transcription_service.TranscriptionService.transcribe") as mock:
+.\backend\tests\test_voice.py:10:mock.return_value = {
+.\backend\tests\test_voice.py:19:yield mock
+.\backend\tests\test_voice.py:22:def mock_orchestrator():
+.\backend\tests\test_voice.py:23:with patch("app.services.voice.orchestrator.VoiceOrchestrator.process_conversation") as mock:
+.\backend\tests\test_voice.py:24:mock.return_value = {
+.\backend\tests\test_voice.py:34:yield mock
+.\backend\tests\test_voice.py:37:def mock_orchestrator_stream():
+.\backend\tests\test_voice.py:38:async def mock_stream(*args, **kwargs):
+.\backend\tests\test_voice.py:43:with patch("app.services.voice.orchestrator.VoiceOrchestrator.stream_conversation") as mock:
+.\backend\tests\test_voice.py:44:mock.side_effect = mock_stream
+.\backend\tests\test_voice.py:45:yield mock
+.\backend\tests\test_voice.py:53:def test_transcribe_voice_success(client, mock_transcribe):
+.\backend\tests\test_voice.py:65:mock_transcribe.assert_called_once()
+.\backend\tests\test_voice.py:77:with patch("app.services.voice.transcription_service.TranscriptionService.transcribe") as mock:
+.\backend\tests\test_voice.py:78:mock.side_effect = HTTPException(status_code=500, detail="Failed to transcribe audio file due to an internal error.")
+.\backend\tests\test_voice.py:87:def test_orchestrate_voice_success(client, mock_orchestrator):
+.\backend\tests\test_voice.py:100:mock_orchestrator.assert_called_once()
+.\backend\tests\test_voice.py:102:def test_orchestrate_voice_stream_success(client, mock_orchestrator_stream):
+.\backend\tests\test_voice.py:118:mock_orchestrator_stream.assert_called_once()
+.\docs\ENVIRONMENT.md:12:> Never commit actual values or `.env` files to version control. Use `.env.example` as a template.
+.\docs\TESTING.md:33:- **Focus**: Test API routing, data validation schemas (Pydantic), and isolated service logic (mocking external API calls).
+.\src\components\ChatInput.jsx:316:placeholder="Ask anything… or paste screenshots / drop files."
+.\src\components\ChatInput.jsx:317:className="w-full bg-transparent resize-none text-sm text-on-surface placeholder:text-on-surface-variant/45 focus:outline-none py-1 font-light leading-relaxed max-h-[160px] scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent"
+.\src\components\ChatMessage.jsx:259:/* Custom Sentient Thinking Placeholder Layouts */
+.\src\components\ChatWindow.jsx:7:ListTodo,
+.\src\components\ChatWindow.jsx:219:isChatEmpty={!isConversationStarted}
+.\src\components\ChatWindow.jsx:295:<ListTodo size={12} /> Workspace Tasks
+.\src\components\ChatWindow.jsx:346:placeholder="Add task to Friday matrix..."
+.\src\components\Footer.jsx:106:This project is an attempt to explore how close modern technology can bring us to our own intelligent digital companion.
+.\src\components\Sidebar.jsx:91:// Map prop conversations to UI format, fallback to default mock if empty
+.\src\components\Sidebar.jsx:109:// Trigger placeholder modal for items under development
+.\src\components\Sidebar.jsx:194:placeholder="New matrix checklist..."
+.\src\components\Sidebar.jsx:266:placeholder="Note title..."
+.\src\components\Sidebar.jsx:272:placeholder="Note contents..."
+.\src\components\Sidebar.jsx:320:placeholder="Search recollections..."
+.\src\components\Sidebar.jsx:345:placeholder="Memory topic..."
+.\src\components\Sidebar.jsx:362:placeholder="What should Friday recall?"
+.\src\components\Sidebar.jsx:696:alert("Signout stream initialized placeholder.");
+.\src\constants\sidebar.js:5:{ id: "tasks", label: "Tasks", icon: "ListTodo" },
+.\src\data\chats.js:1:export const mockChats = [
+.\src\data\files.js:1:export const mockFiles = [
+.\src\data\memories.js:1:export const mockMemories = [
+.\src\data\messages.js:1:export const mockMessages = {
+.\src\data\notes.js:1:export const mockNotes = [
+.\src\data\notifications.js:1:export const mockNotifications = [
+.\src\data\settings.js:1:export const mockSettings = {
+.\src\data\suggestions.js:1:export const mockSuggestions = [
+.\src\data\tasks.js:1:export const mockTasks = [
+.\src\data\user.js:1:export const mockUser = {
+.\src\hooks\useChat.js:72:// Add empty friday message placeholder
+.\src\hooks\useChat.js:73:const fridayMsgId = Date.now().toString(); // temporary ID for the stream
+.\src\hooks\useVoiceSession.js:36:// Create user message and a placeholder for AI's stream
+.\src\pages\About.jsx:156:FRIDAY is an attempt to explore what a personal AI companion could become when modern artificial intelligence, memory, and human-centered design come together.
+.\src\pages\Vision.jsx:189:Perhaps this is my small attempt at turning one of those childhood dreams into reality."
+.\src\services\api.js:53:* Retained temporarily for UI-only notification effects that have no backend yet.
+.\src\services\fileService.js:8:* Retrieves mock active files.
+.\src\services\fileService.js:16:* Mock uploads session configuration file.
+.\src\services\notificationService.js:1:import { mockNotifications } from "../data/notifications";
+.\src\services\notificationService.js:14:return [...mockNotifications];
+.\src\services\notificationService.js:24:console.log(`TODO: Connect notifications API to check: ${id}`);
+.\src\services\settingsService.js:9:* @returns {Promise<Object>} Preferences settings template.
+.\src\services\voice\sessionManager.js:48:console.log("[VOICE] Session closed");
+.\src\services\voice\sessionManager.js:62:console.log("[VOICE] User interrupted F.R.I.D.A.Y.");
+.\src\services\voice\sessionManager.js:98:console.log(`[VOICE] Queueing TTS chunk: "${cleanText}"`);
+.\src\services\voice\sessionManager.js:117:console.log("[VOICE] TTS Queue complete. Resuming listening.");
+.\src\services\voice\sessionManager.js:138:console.log("[VOICE] VAD detected silence, stopping recording.");
+.\src\services\voice\sessionManager.js:158:console.log("[VOICE] Streaming to Orchestrator");
+.\src\services\voice\sessionManager.js:169:console.log("[VOICE] Recording was empty, resuming listening.");
+.\src\services\voice\sessionManager.js:197:console.log(`[VOICE] Transcript: "${transcript}"`);
+.\src\services\voice\sessionManager.js:210:console.log(`[VOICE] Stream complete. Metrics: ${JSON.stringify(payload.metrics)}`);
+.\src\services\voice\speechQueue.js:81:// Attempt play
+.\src\services\voice\uploadService.js:15:* @param {number} retries - Retry attempts remaining.
+.\src\services\voice\uploadService.js:20:const attemptUpload = (attemptsLeft) => {
+.\src\services\voice\uploadService.js:35:if (attemptsLeft > 0) {
+.\src\services\voice\uploadService.js:36:const backoff = (4 - attemptsLeft) * 1000;
+.\src\services\voice\uploadService.js:37:console.warn(`Upload failed, retrying in ${backoff}ms... (${attemptsLeft} left)`);
+.\src\services\voice\uploadService.js:38:setTimeout(() => attemptUpload(attemptsLeft - 1), backoff);
+.\src\services\voice\uploadService.js:70:attemptUpload(retries);
+.\src\services\voice\uploadService.js:89:* @param {number} retries - Number of retry attempts.
+.\src\services\voice\voiceStateMachine.js:53:* Attempt a state transition.

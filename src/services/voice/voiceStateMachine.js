@@ -1,29 +1,37 @@
 /**
  * voiceStateMachine.js
  *
- * Deterministic finite state machine for the FRIDAY Voice V2 system.
+ * Deterministic finite state machine for the FRIDAY Voice Orchestrator.
  * Prevents invalid state transitions and provides event-driven state change notifications.
  *
  * States:
- *   idle       — No voice session active.
- *   permission — Requesting microphone access.
- *   listening  — Mic is active, VAD is monitoring, waiting for user speech.
- *   recording  — VAD detected speech, currently recording audio.
- *   processing — Recording stopped via VAD silence, uploading/transcribing audio.
- *   thinking   — Transcript sent to AI, waiting for streaming response.
- *   speaking   — FRIDAY is speaking the response via concurrent TTS.
- *   error      — A recoverable error occurred.
+ *   IDLE               — No voice session active.
+ *   REQUEST_PERMISSION — Requesting microphone access.
+ *   READY              — Microphone acquired, ready to listen.
+ *   LISTENING          — Mic is active, VAD is monitoring, waiting for user speech.
+ *   RECORDING          — VAD detected speech, currently recording audio.
+ *   UPLOADING          — Sending audio to the Voice Orchestrator API.
+ *   TRANSCRIBING       — Waiting for STT completion on the backend.
+ *   THINKING           — Waiting for Chat Provider response on the backend.
+ *   STREAMING_RESPONSE — Streaming the generated response tokens to the UI.
+ *   RESPONDING         — FRIDAY is speaking the response via TTS.
+ *   COMPLETE           — Conversation turn finished.
+ *   ERROR              — A recoverable error occurred.
  */
 
 const VALID_TRANSITIONS = {
-  idle:       ["permission", "listening", "error"],
-  permission: ["listening", "error", "idle"],
-  listening:  ["recording", "processing", "idle", "error"],
-  recording:  ["processing", "listening", "idle", "error"],
-  processing: ["thinking", "idle", "error"],
-  thinking:   ["speaking", "listening", "idle", "error"], // listening if interrupted
-  speaking:   ["listening", "idle", "error"],
-  error:      ["permission", "listening", "idle"],
+  IDLE:               ["REQUEST_PERMISSION", "LISTENING", "ERROR"],
+  REQUEST_PERMISSION: ["READY", "ERROR", "IDLE"],
+  READY:              ["LISTENING", "ERROR", "IDLE"],
+  LISTENING:          ["RECORDING", "UPLOADING", "IDLE", "ERROR"],
+  RECORDING:          ["UPLOADING", "LISTENING", "IDLE", "ERROR"],
+  UPLOADING:          ["TRANSCRIBING", "THINKING", "IDLE", "ERROR"],
+  TRANSCRIBING:       ["THINKING", "IDLE", "ERROR"],
+  THINKING:           ["STREAMING_RESPONSE", "RESPONDING", "LISTENING", "IDLE", "ERROR"], 
+  STREAMING_RESPONSE: ["COMPLETE", "RESPONDING", "LISTENING", "IDLE", "ERROR"],
+  RESPONDING:         ["COMPLETE", "LISTENING", "IDLE", "ERROR"],
+  COMPLETE:           ["LISTENING", "IDLE", "ERROR"],
+  ERROR:              ["REQUEST_PERMISSION", "LISTENING", "IDLE"],
 };
 
 export class VoiceStateMachine {
@@ -31,7 +39,7 @@ export class VoiceStateMachine {
    * @param {function} onChange - Callback invoked with (newState, prevState) on every transition.
    */
   constructor(onChange) {
-    this._state = "idle";
+    this._state = "IDLE";
     this._onChange = onChange || (() => {});
     this._listeners = new Set();
   }
@@ -70,10 +78,10 @@ export class VoiceStateMachine {
    */
   reset() {
     const prev = this._state;
-    this._state = "idle";
-    if (prev !== "idle") {
-      this._onChange("idle", prev);
-      this._listeners.forEach((fn) => fn("idle", prev));
+    this._state = "IDLE";
+    if (prev !== "IDLE") {
+      this._onChange("IDLE", prev);
+      this._listeners.forEach((fn) => fn("IDLE", prev));
     }
   }
 
@@ -89,26 +97,26 @@ export class VoiceStateMachine {
 
   /** @returns {boolean} */
   get isActive() {
-    return this._state !== "idle";
+    return this._state !== "IDLE";
   }
 
   /** @returns {boolean} */
   get isListening() {
-    return this._state === "listening";
+    return this._state === "LISTENING";
   }
 
   /** @returns {boolean} */
   get isRecording() {
-    return this._state === "recording";
+    return this._state === "RECORDING";
   }
 
   /** @returns {boolean} */
   get isSpeaking() {
-    return this._state === "speaking";
+    return this._state === "RESPONDING";
   }
 
   /** @returns {boolean} */
   get isProcessing() {
-    return this._state === "processing" || this._state === "thinking";
+    return this._state === "UPLOADING" || this._state === "TRANSCRIBING" || this._state === "THINKING" || this._state === "STREAMING_RESPONSE";
   }
 }

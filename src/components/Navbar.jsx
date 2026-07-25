@@ -76,9 +76,11 @@ export default function Navbar() {
     }
   };
 
-  const navLinks = [
+    const navLinks = [
     { name: "Features", target: "features", isPage: false },
     { name: "Vision", path: "/vision", isPage: true },
+    { name: "Planning", path: "/planning", isPage: true },
+    { name: "Background", path: "/background", isPage: true },
     { name: "About", path: "/about", isPage: true }
   ];
 

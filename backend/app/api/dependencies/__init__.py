@@ -22,11 +22,12 @@ Usage in a route:
 from app.memory.memory_manager import MemoryManager, memory_manager
 from app.services.chat_service import ChatService
 from app.services.file_service import FileService
-from app.services.memory_service import MemoryService
+from app.services.memory_service import CognitiveMemoryService
 from app.services.settings_service import SettingsService
 from app.services.streaming_coordinator import StreamingCoordinator
 from app.services.voice.speech_service import SpeechService
 from app.services.voice.transcription_service import TranscriptionService
+from app.services.voice.orchestrator import VoiceOrchestrator
 from app.services.voice_service import VoiceService
 from app.services.workspace_service import WorkspaceService
 
@@ -36,7 +37,7 @@ from app.services.workspace_service import WorkspaceService
 # injectable and replaceable in tests via dependency_overrides.
 
 _chat_service = ChatService()
-_memory_service = MemoryService()
+_memory_service = CognitiveMemoryService()
 _workspace_service = WorkspaceService()
 _settings_service = SettingsService()
 _file_service = FileService()
@@ -45,6 +46,7 @@ _streaming_coordinator = StreamingCoordinator()
 _voice_service: VoiceService | None = None
 _transcription_service: TranscriptionService | None = None
 _speech_service: SpeechService | None = None
+_voice_orchestrator: VoiceOrchestrator | None = None
 
 
 # ── Provider functions ─────────────────────────────────────────────────────────
@@ -54,8 +56,8 @@ def get_chat_service() -> ChatService:
     return _chat_service
 
 
-def get_memory_service() -> MemoryService:
-    """Provide the shared MemoryService instance."""
+def get_memory_service() -> CognitiveMemoryService:
+    """Provide the shared CognitiveMemoryService instance."""
     return _memory_service
 
 
@@ -96,6 +98,14 @@ def get_speech_service() -> SpeechService:
     if _speech_service is None:
         _speech_service = SpeechService()
     return _speech_service
+
+
+def get_voice_orchestrator() -> VoiceOrchestrator:
+    """Provide the shared VoiceOrchestrator instance."""
+    global _voice_orchestrator
+    if _voice_orchestrator is None:
+        _voice_orchestrator = VoiceOrchestrator()
+    return _voice_orchestrator
 
 
 def get_streaming_coordinator() -> StreamingCoordinator:

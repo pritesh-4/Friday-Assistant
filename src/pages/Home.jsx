@@ -9,7 +9,9 @@ import {
   Bot,
 } from "lucide-react";
 import ShaderBackground from "../components/ShaderBackground";
-import Vision from "./Vision";
+import React, { Suspense } from 'react';
+
+const Vision = React.lazy(() => import('./Vision'));
 
 export default function Home() {
   const capabilities = [
@@ -257,7 +259,9 @@ export default function Home() {
       </section>
 
       {/* 3. Vision Section */}
-      <Vision />
+      <Suspense fallback={<div className="py-24 text-center">Loading Vision...</div>}>
+        <Vision />
+      </Suspense>
 
     </main>
   );

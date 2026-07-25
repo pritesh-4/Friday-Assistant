@@ -5,7 +5,7 @@ import { apiRequest } from "./api";
  */
 export const fileService = {
   /**
-   * Retrieves mock active files.
+   * Retrieves active files.
    * @returns {Promise<Array>} List of session files.
    */
   async getFiles() {
@@ -13,7 +13,7 @@ export const fileService = {
   },
 
   /**
-   * Mock uploads session configuration file.
+   * Uploads session configuration file.
    * @param {Object} file - File payload parameter.
    * @returns {Promise<Object>} Formatted file output details.
    */

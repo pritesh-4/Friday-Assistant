@@ -146,7 +146,7 @@ npm run preview
 
 ### 🐍 Backend Setup
 
-To run the FastAPI server:
+To run the FastAPI server locally:
 
 ```bash
 # Navigate to the backend directory
@@ -173,6 +173,23 @@ uvicorn app.main:app --reload
 ```
 
 Interactive API docs are available at `http://127.0.0.1:8000/docs`.
+
+### 🐳 Docker Deployment (Recommended)
+
+You can easily run the entire F.R.I.D.A.Y. stack (Frontend and Backend) using Docker Compose:
+
+```bash
+# Start all services
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f
+
+# Stop all services
+docker-compose down
+```
+
+The frontend will be available on `http://localhost:80` and the backend on `http://localhost:8000`.
 
 ## Author
 

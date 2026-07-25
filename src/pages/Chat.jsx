@@ -61,10 +61,10 @@ export default function Chat() {
   // Sync ambient Orb visual posture with chat typing telemetry and voice state
   const getOrbState = () => {
     // Voice states take priority when voice is active
-    if (voiceState === "listening") return "listening";
-    if (voiceState === "processing" || voiceState === "thinking") return "thinking";
-    if (voiceState === "speaking") return "speaking";
-    if (voiceState === "error") return "error";
+    if (voiceState === "LISTENING") return "listening";
+    if (voiceState === "UPLOADING" || voiceState === "TRANSCRIBING" || voiceState === "THINKING" || voiceState === "STREAMING_RESPONSE") return "thinking";
+    if (voiceState === "RESPONDING") return "speaking";
+    if (voiceState === "ERROR") return "error";
 
     // Fall back to chat-based states
     if (isFridayTyping) return "thinking";

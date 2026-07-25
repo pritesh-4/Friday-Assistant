@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
+from app.schemas.execution import PermissionLevel, RetryConfig
 
 
 class BaseTool(ABC):
@@ -30,6 +31,36 @@ class BaseTool(ABC):
         }
         """
 
+    @property
+    def requires_permission(self) -> bool:
+        """Returns True if the tool requires explicit user permission."""
+        return self.permission_level == PermissionLevel.DESTRUCTIVE
+
+    @property
+    def permission_level(self) -> PermissionLevel:
+        """The permission level required to execute this tool."""
+        return PermissionLevel.SAFE
+
+    @property
+    def permission_scope(self) -> str:
+        """A string representing the permission scope (e.g., 'fs:read', 'shell:execute')."""
+        return f"{self.name}:execute"
+
+    @property
+    def timeout_seconds(self) -> int:
+        """Maximum time in seconds allowed for the tool to execute."""
+        return 60
+
+    @property
+    def retry_policy(self) -> RetryConfig:
+        """Retry configuration for transient failures."""
+        return RetryConfig()
+
+    @property
+    def version(self) -> str:
+        """The version of this tool."""
+        return "1.0.0"
+
     @abstractmethod
-    async def execute(self, **kwargs) -> str:
-        """Execute the tool and return the result as a string."""
+    async def execute(self, **kwargs) -> Any:
+        """Execute the tool and return the result as a dict, string, or Any."""

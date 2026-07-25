@@ -153,6 +153,167 @@ class Database:
                     "CREATE INDEX IF NOT EXISTS idx_memories_pinned ON memories(pinned)",
                 ],
             ),
+            (
+                3,
+                [
+                    """
+                    CREATE TABLE IF NOT EXISTS working_memories (
+                        id TEXT PRIMARY KEY,
+                        conversation_id TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        expires_at TEXT,
+                        created_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS semantic_memories (
+                        id TEXT PRIMARY KEY,
+                        fact TEXT NOT NULL,
+                        confidence REAL NOT NULL DEFAULT 1.0,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS episodic_memories (
+                        id TEXT PRIMARY KEY,
+                        event_title TEXT NOT NULL,
+                        timeline_date TEXT,
+                        details TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS procedural_memories (
+                        id TEXT PRIMARY KEY,
+                        workflow_name TEXT NOT NULL,
+                        steps TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS projects (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        architecture TEXT,
+                        progress TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS project_memories (
+                        id TEXT PRIMARY KEY,
+                        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                        content TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS memory_metadata (
+                        id TEXT PRIMARY KEY,
+                        memory_type TEXT NOT NULL,
+                        memory_id TEXT NOT NULL,
+                        importance_score INTEGER NOT NULL DEFAULT 5,
+                        reason TEXT NOT NULL,
+                        retrieval_count INTEGER NOT NULL DEFAULT 0,
+                        created_at TEXT NOT NULL
+                    )
+                    """,
+                ],
+            ),
+            (
+                4,
+                [
+                    """
+                    CREATE TABLE IF NOT EXISTS goals (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        category TEXT NOT NULL DEFAULT 'general',
+                        status TEXT NOT NULL DEFAULT 'active',
+                        progress_percent INTEGER NOT NULL DEFAULT 0,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS milestones (
+                        id TEXT PRIMARY KEY,
+                        goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+                        title TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'pending',
+                        order_index INTEGER NOT NULL DEFAULT 0,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS planning_tasks (
+                        id TEXT PRIMARY KEY,
+                        milestone_id TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        status TEXT NOT NULL DEFAULT 'pending',
+                        priority TEXT NOT NULL DEFAULT 'medium',
+                        estimated_duration TEXT,
+                        requires_approval INTEGER NOT NULL DEFAULT 1,
+                        assigned_agent TEXT,
+                        expected_output TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS task_dependencies (
+                        task_id TEXT NOT NULL REFERENCES planning_tasks(id) ON DELETE CASCADE,
+                        depends_on_task_id TEXT NOT NULL REFERENCES planning_tasks(id) ON DELETE CASCADE,
+                        PRIMARY KEY (task_id, depends_on_task_id)
+                    )
+                    """,
+                    "CREATE INDEX IF NOT EXISTS idx_milestones_goal ON milestones(goal_id)",
+                    "CREATE INDEX IF NOT EXISTS idx_planning_tasks_milestone ON planning_tasks(milestone_id)",
+                ],
+            ),
+            (
+                5,
+                [
+                    """
+                    CREATE TABLE IF NOT EXISTS background_jobs (
+                        id TEXT PRIMARY KEY,
+                        task_type TEXT NOT NULL,
+                        payload TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'queued',
+                        scheduled_at TEXT NOT NULL,
+                        started_at TEXT,
+                        completed_at TEXT,
+                        retries INTEGER NOT NULL DEFAULT 0,
+                        max_retries INTEGER NOT NULL DEFAULT 3,
+                        error_message TEXT,
+                        agent_name TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    "CREATE INDEX IF NOT EXISTS idx_bg_jobs_status ON background_jobs(status)",
+                    "CREATE INDEX IF NOT EXISTS idx_bg_jobs_scheduled_at ON background_jobs(scheduled_at)",
+                    """
+                    CREATE TABLE IF NOT EXISTS notifications (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        type TEXT NOT NULL DEFAULT 'info',
+                        action_url TEXT,
+                        status TEXT NOT NULL DEFAULT 'unread',
+                        created_at TEXT NOT NULL
+                    )
+                    """,
+                    "CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status)",
+                ],
+            ),
         ]
 
         with self._connect() as connection:

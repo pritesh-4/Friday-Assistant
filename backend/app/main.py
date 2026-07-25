@@ -18,6 +18,8 @@ from app.api.routes import (
     notes,
     tasks,
     voice,
+    planning,
+    background,
 )
 from app.api.routes import (
     settings as settings_route,
@@ -25,13 +27,23 @@ from app.api.routes import (
 from app.core.config import settings
 from app.core.constants import API_DESCRIPTION, API_TITLE, API_VERSION
 from app.core.logging import get_logger
+from app.core.middleware import RequestContextMiddleware
+from app.core.rate_limit import configure_rate_limiting
 from app.db.database import database
+from app.schemas.errors import ErrorResponse, ErrorDetail
+from app.services.worker import BackgroundWorker
+from app.agents.agent_manager import AgentManager
+from app.services.llm_service import LLMService
+from app.tools.manager import ToolManager
 
 _log = get_logger("main")
 
 # Module-level startup timestamp for uptime reporting in /health.
 # Set during the lifespan startup event so it reflects actual service readiness.
 _startup_time: float | None = None
+
+# Global background worker instance
+_bg_worker: BackgroundWorker | None = None
 
 
 @asynccontextmanager
@@ -64,14 +76,49 @@ async def lifespan(app: FastAPI):
     # ── Stage 2: Voice models (optional) ──────────────────────────────────────
     if settings.voice_enabled:
         _log.info("[2/3] Voice models enabled (VOICE_ENABLED=true).")
-        _log.info("      Model     : base (default)")
-        _log.info("      Device    : auto")
-        _log.info("      Compute   : default")
-        _log.info("      Models will be lazily loaded into memory on the first STT request.")
+        _log.info("      Validating dependencies and initializing WhisperEngine...")
+        
+        try:
+            # Import to verify dependencies
+            import faster_whisper  # noqa: F401
+            import ctranslate2  # noqa: F401
+            import av  # noqa: F401
+            import tokenizers  # noqa: F401
+            import shutil
+            
+            if not shutil.which("ffmpeg"):
+                raise RuntimeError("ffmpeg executable not found in system PATH.")
+                
+            from app.ai.whisper.engine import WhisperEngine
+            
+            engine = WhisperEngine()
+            _log.info(f"      Model     : {engine.model_name} (default)")
+            _log.info(f"      Device    : {engine.device}")
+            _log.info(f"      Compute   : {engine.compute_type}")
+            _log.info("      Dependencies validated. Model will be lazily loaded into memory on the first STT request.")
+        except ImportError as exc:
+            _log.critical(
+                "FATAL: Voice features are enabled but required dependencies are missing.\n"
+                "Please run: pip install -r requirements-voice.txt\n"
+                f"Error: {exc}"
+            )
+            raise RuntimeError(f"Missing voice dependency: {exc}") from exc
+        except RuntimeError as exc:
+            _log.critical(f"FATAL: Voice initialization failed: {exc}")
+            raise
     else:
         _log.info("[2/3] Voice models skipped (VOICE_ENABLED=false).")
 
     # ── Stage 3: Ready ────────────────────────────────────────────────────────
+    
+    # Start Background Worker
+    llm_svc = LLMService()
+    tool_mgr = ToolManager()
+    agent_mgr = AgentManager(llm_svc, tool_mgr)
+    global _bg_worker
+    _bg_worker = BackgroundWorker(agent_mgr)
+    await _bg_worker.start()
+    
     _startup_time = time.monotonic()
     _log.info("[3/3] All routes registered. API is ready.")
     _log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -79,6 +126,8 @@ async def lifespan(app: FastAPI):
     yield
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
+    if _bg_worker:
+        _bg_worker.stop()
     _log.info("Shutting down F.R.I.D.A.Y. API.")
 
 
@@ -90,6 +139,9 @@ app = FastAPI(
     version=API_VERSION,
     lifespan=lifespan,
 )
+
+# ── Rate Limiting ─────────────────────────────────────────────────────────────
+configure_rate_limiting(app)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 
@@ -105,6 +157,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestContextMiddleware)
 
 # ── Exception handlers ────────────────────────────────────────────────────────
 
@@ -113,20 +166,33 @@ app.add_middleware(
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """Return clean, consistent HTTP error responses."""
     _log.warning("HTTP %s — %s %s", exc.status_code, request.method, request.url.path)
-    if exc.status_code == status.HTTP_404_NOT_FOUND:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": "The requested resource was not found."},
+    
+    msg = "The requested resource was not found." if exc.status_code == status.HTTP_404_NOT_FOUND else exc.detail
+    
+    err = ErrorResponse(
+        error=ErrorDetail(
+            code=f"HTTP_{exc.status_code}",
+            message=msg,
+            request_id=getattr(request.state, "request_id", None)
         )
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    )
+    return JSONResponse(status_code=exc.status_code, content=err.model_dump())
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Return a predictable validation error envelope for browser clients."""
+    err = ErrorResponse(
+        error=ErrorDetail(
+            code="VALIDATION_ERROR",
+            message="Request validation failed.",
+            details=exc.errors(),
+            request_id=getattr(request.state, "request_id", None)
+        )
+    )
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": "Request validation failed.", "errors": exc.errors()},
+        content=err.model_dump(),
     )
 
 
@@ -136,9 +202,16 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     _log.error(
         "Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True
     )
+    err = ErrorResponse(
+        error=ErrorDetail(
+            code="INTERNAL_SERVER_ERROR",
+            message="An internal server error occurred.",
+            request_id=getattr(request.state, "request_id", None)
+        )
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "An internal server error occurred."},
+        content=err.model_dump(),
     )
 
 
@@ -152,6 +225,8 @@ app.include_router(files.router, prefix="/files")
 app.include_router(settings_route.router, prefix="/settings")
 app.include_router(notes.router, prefix="/notes")
 app.include_router(tasks.router, prefix="/tasks")
+app.include_router(planning.router)
+app.include_router(background.router)
 
 
 # ── Root endpoint ─────────────────────────────────────────────────────────────

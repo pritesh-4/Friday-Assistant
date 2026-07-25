@@ -3,13 +3,14 @@
 from fastapi import HTTPException, status
 
 from app.agents.context_builder import ContextBuilder
-from app.agents.memory_agent import MemoryAgent
+from app.agents.memory_extractor import MemoryExtractor
 from app.agents.router_agent import RouterAgent
 from app.db.database import database
 from app.memory.memory_manager import memory_manager
 from app.schemas.chat import ChatRequest, ChatResponse, Conversation, Message
-from app.services.memory_service import MemoryService
+from app.services.memory_service import CognitiveMemoryService
 from app.services.providers.base import LLMProviderError
+from app.tools.executor import PermissionRequiredError
 from app.utils.helpers import generate_uuid, get_utc_now
 
 
@@ -17,10 +18,11 @@ class ChatService:
     """Implement the smallest reliable text-chat vertical slice."""
 
     def __init__(self) -> None:
-        self.memory_service = MemoryService()
+        self.memory_service = CognitiveMemoryService()
         self.router_agent = RouterAgent()
         self.context_builder = ContextBuilder()
-        self.memory_agent = MemoryAgent()
+        from app.services.llm_service import LLMService
+        self.memory_extractor = MemoryExtractor(LLMService())
 
     async def list_conversations(self) -> list[Conversation]:
         rows = await database.fetch_all("SELECT * FROM conversations ORDER BY updated_at DESC")
@@ -110,8 +112,8 @@ class ChatService:
         # 2. Retrieve Long-Term Memories
         _log.info("[VOICE] Memory retrieval started")
         mem_start = time.time()
-        memories = await self.memory_service.retrieve_memories(request.message, limit=5)
-        _log.info(f"[VOICE] Memory retrieved {len(memories)} items in {time.time()-mem_start:.2f}s")
+        memories = await self.memory_service.retrieve_relevant_memories(request.message, limit_per_type=2)
+        _log.info(f"[VOICE] Memory retrieved in {time.time()-mem_start:.2f}s")
 
         # 3. Build Context Prompt
         messages = self.context_builder.build_messages(ctx.messages, memories)
@@ -120,8 +122,19 @@ class ChatService:
         _log.info("[VOICE] Router selected provider / Provider request sent")
         llm_start = time.time()
         try:
-            llm_result = await self.router_agent.route_and_execute(messages)
+            llm_result = await self.router_agent.route_and_execute(messages, request.approved_permissions)
             _log.info(f"[VOICE] Provider response received in {time.time()-llm_start:.2f}s (Provider: {llm_result.provider})")
+        except PermissionRequiredError as exc:
+            # For non-streaming, we return a 403 Forbidden with details so the client can prompt
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail={
+                    "type": "permission_request",
+                    "tool": exc.tool_name,
+                    "scope": exc.scope,
+                    "kwargs": exc.kwargs
+                }
+            ) from exc
         except LLMProviderError as exc:
             _log.error(f"[VOICE] Provider request failed in {time.time()-llm_start:.2f}s: {exc}")
             raise HTTPException(
@@ -135,9 +148,9 @@ class ChatService:
         memory_manager.append_message(session_id, "assistant", llm_result.content)
         
         # 6. Extract and Store new Memories
-        extracted = self.memory_agent.extract_memories(request.message)
-        for mem in extracted:
-            await self.memory_service.store_memory(mem)
+        extracted = await self.memory_extractor.extract_memory(request.message)
+        if extracted:
+            await self.memory_service.save_extracted_memory(extracted)
 
         conversation = await self._get_conversation(conversation.id)
         elapsed = time.time() - start_time
@@ -150,7 +163,7 @@ class ChatService:
             model=llm_result.model,
             latency_ms=llm_result.latency_ms,
             finish_reason=llm_result.finish_reason,
-            memories_used=len(memories),
+            memories_used=sum(len(m) for m in memories.values()),
         )
 
     async def delete_conversation(self, conversation_id: str) -> bool:

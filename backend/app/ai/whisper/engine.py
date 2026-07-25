@@ -1,14 +1,18 @@
 """
 Whisper inference engine wrapper.
 
-Provides non-blocking async speech-to-text transcription. Requires
-faster-whisper — which is an optional dependency in requirements-voice.txt.
+Provides non-blocking async speech-to-text transcription.
+Implemented as a thread-safe Singleton to ensure the model
+is loaded exactly once across the application lifecycle.
 """
 
 import asyncio
+import threading
+import traceback
+import sys
 from typing import Any
 
-from app.ai.whisper.loader import get_whisper_model, is_whisper_available
+from app.core.config import settings
 from app.core.logging import get_logger
 
 _log = get_logger("whisper.engine")
@@ -17,8 +21,82 @@ _log = get_logger("whisper.engine")
 class WhisperEngine:
     """
     Wrapper around Faster-Whisper for Speech-to-Text inference.
-    The model singleton is managed by the loader module.
+    Implemented as a thread-safe Singleton.
     """
+    
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            with cls._lock:
+                if not cls._instance:
+                    cls._instance = super(WhisperEngine, cls).__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self, model_name: str = "small", device: str = "auto", compute_type: str = "default"):
+        if self._initialized:
+            return
+            
+        self.model_name = model_name
+        self.device = device
+        self.compute_type = compute_type
+        self.model = None
+        self._model_lock = threading.Lock()
+        self._initialized = True
+
+    @property
+    def is_loaded(self) -> bool:
+        return self.model is not None
+
+    def load_model(self) -> None:
+        """
+        Lazily initialize the Faster-Whisper model in a thread-safe manner.
+        """
+        if self.model is not None:
+            return
+
+        with self._model_lock:
+            # Double-checked locking
+            if self.model is not None:
+                return
+                
+            _log.info("[VOICE] Lazily initializing Faster-Whisper model on first request...")
+            _log.info("Loading Whisper...")
+            _log.info(
+                "Loading Model... (model='%s', device='%s', compute='%s')",
+                self.model_name,
+                self.device,
+                self.compute_type,
+            )
+            
+            try:
+                from faster_whisper import WhisperModel
+                
+                _log.info("Downloading...")
+                _log.info("Initializing...")
+                self.model = WhisperModel(
+                    self.model_name, 
+                    device=self.device, 
+                    compute_type=self.compute_type
+                )
+                _log.info("SUCCESS")
+            except Exception as exc:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                tb = traceback.extract_tb(exc_traceback)
+                last_call = tb[-1] if tb else None
+                
+                _log.error(
+                    "[VOICE] FAILED\n"
+                    f"Exception type: {exc_type.__name__ if exc_type else 'Unknown'}\n"
+                    f"Message: {exc}\n"
+                    f"Stack trace: {traceback.format_exc()}\n"
+                    f"Failing package: {last_call.filename if last_call else 'Unknown'}\n"
+                    f"Failing file: {last_call.filename if last_call else 'Unknown'}\n"
+                    f"Failing line: {last_call.lineno if last_call else 'Unknown'}"
+                )
+                raise RuntimeError(f"Failed to initialize Faster-Whisper model: {exc}") from exc
 
     async def transcribe(self, audio_path: str) -> dict[str, Any]:
         """
@@ -30,17 +108,12 @@ class WhisperEngine:
         Returns:
             A dictionary containing transcript, detected_language, confidence,
             duration, segments, and metadata.
-
-        Raises:
-            RuntimeError: If faster-whisper is not installed or model not loaded.
         """
-        if not is_whisper_available():
-            raise RuntimeError(
-                "Whisper model is not available. "
-                "Ensure VOICE_ENABLED=true and requirements-voice.txt is installed."
-            )
+        if not settings.voice_enabled:
+            raise RuntimeError("Voice is disabled but transcription was requested.")
 
-        model = get_whisper_model()
+        # Ensure the model is loaded before inferencing
+        self.load_model()
 
         # Run CPU/GPU-bound transcription in a thread to avoid blocking the event loop.
         loop = asyncio.get_running_loop()
@@ -49,11 +122,11 @@ class WhisperEngine:
         try:
             segments_generator, info = await loop.run_in_executor(
                 None,
-                lambda: model.transcribe(audio_path, beam_size=5),
+                lambda: self.model.transcribe(audio_path, beam_size=5),
             )
-        except Exception:
-            _log.error("[VOICE] Failed during audio decoding or model initialization", exc_info=True)
-            raise
+        except Exception as exc:
+            _log.error("[VOICE] Failed during audio decoding or model inference", exc_info=True)
+            raise RuntimeError(f"Audio decoding failed: {exc}") from exc
             
         _log.info("[VOICE] Audio decoded. Detected language '%s' with probability %.2f", info.language, info.language_probability)
         _log.info("[VOICE] Running inference...")
@@ -76,9 +149,9 @@ class WhisperEngine:
 
         try:
             segments, transcript = await loop.run_in_executor(None, collect_segments)
-        except Exception:
+        except Exception as exc:
             _log.error("[VOICE] Failed during inference or segment extraction", exc_info=True)
-            raise
+            raise RuntimeError(f"Segment extraction failed: {exc}") from exc
             
         _log.info("[VOICE] Inference complete")
 

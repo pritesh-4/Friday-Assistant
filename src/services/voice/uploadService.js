@@ -15,13 +15,13 @@ import { API_BASE_URL } from "../api";
  * @param {number} retries - Retry attempts remaining.
  * @returns {Promise<Object>} Parsed JSON response.
  */
-function _xhrUpload(url, blob, mimeType, onProgress, retries) {
+function _xhrUpload(url, blob, mimeType, onProgress, retries, extraFields = {}) {
   return new Promise((resolve, reject) => {
     const attemptUpload = (attemptsLeft) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", url, true);
       xhr.setRequestHeader("Accept", "application/json");
-      xhr.timeout = 25000; // 25s timeout
+      xhr.timeout = 180000; // 180s timeout (STT + LLM can take time)
 
       if (onProgress) {
         xhr.upload.onprogress = (event) => {
@@ -59,6 +59,11 @@ function _xhrUpload(url, blob, mimeType, onProgress, retries) {
       const ext = mimeType.split("/")[1]?.split(";")[0] || "webm";
       const formData = new FormData();
       formData.append("file", new File([blob], `voice_recording.${ext}`, { type: mimeType }));
+      
+      for (const [key, value] of Object.entries(extraFields)) {
+        formData.append(key, value);
+      }
+      
       xhr.send(formData);
     };
 
@@ -67,28 +72,94 @@ function _xhrUpload(url, blob, mimeType, onProgress, retries) {
 }
 
 export const voiceUploadService = {
-  /**
-   * Uploads an audio blob to the backend (storage only, no transcription).
-   * @param {Blob} blob - The recorded audio blob.
-   * @param {string} mimeType - The mime type of the audio.
-   * @param {Function} onProgress - Callback for upload progress (0–100).
-   * @param {number} retries - Number of retry attempts.
-   * @returns {Promise<Object>} The uploaded file metadata.
-   */
   uploadVoice(blob, mimeType, onProgress, retries = 3) {
     return _xhrUpload(`${API_BASE_URL}/voice/upload`, blob, mimeType, onProgress, retries);
   },
 
-  /**
-   * Uploads an audio blob to the backend for transcription (STT).
-   * @param {Blob} blob - The recorded audio blob.
-   * @param {string} mimeType - The mime type of the audio.
-   * @param {Function} onProgress - Callback for upload progress (0–100).
-   * @param {number} retries - Number of retry attempts.
-   * @returns {Promise<Object>} The transcription result containing transcript and metadata.
-   */
   transcribeVoice(blob, mimeType, onProgress, retries = 3) {
     return _xhrUpload(`${API_BASE_URL}/voice/transcribe`, blob, mimeType, onProgress, retries);
   },
+  
+  /**
+   * Uploads an audio blob to the backend Orchestrator which performs STT and calls the LLM.
+   * @param {Blob} blob - The recorded audio blob.
+   * @param {string} mimeType - The mime type of the audio.
+   * @param {string|null} conversationId - The active conversation ID, if any.
+   * @param {Function} onProgress - Callback for upload progress (0–100).
+   * @param {number} retries - Number of retry attempts.
+   * @returns {Promise<Object>} The orchestration result containing transcript, response, and latencies.
+   */
+  orchestrateConversation(blob, mimeType, conversationId, onProgress, retries = 3) {
+    const extraFields = conversationId ? { conversation_id: conversationId } : {};
+    return _xhrUpload(`${API_BASE_URL}/voice/orchestrate`, blob, mimeType, onProgress, retries, extraFields);
+  },
+
+  /**
+   * Uploads an audio blob and streams the orchestrator response using SSE.
+   * @param {Blob} blob - The recorded audio blob.
+   * @param {string} mimeType - The mime type of the audio.
+   * @param {string|null} conversationId - The active conversation ID.
+   * @param {Function} onEvent - Callback for SSE events: (eventType, payload)
+   * @returns {Promise<void>} Resolves when the stream is fully consumed.
+   */
+  async orchestrateConversationStream(blob, mimeType, conversationId, onEvent) {
+    const ext = mimeType.split("/")[1]?.split(";")[0] || "webm";
+    const formData = new FormData();
+    formData.append("file", new File([blob], `voice_recording.${ext}`, { type: mimeType }));
+    
+    if (conversationId) {
+      formData.append("conversation_id", conversationId);
+    }
+
+    const response = await fetch(`${API_BASE_URL}/voice/orchestrate/stream`, {
+      method: "POST",
+      headers: {
+        "Accept": "text/event-stream"
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errPayload = await response.json().catch(() => null);
+      throw new Error(errPayload?.detail || "Streaming request failed");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop(); // Keep incomplete chunk in buffer
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6).trim();
+            if (dataStr === "[DONE]") {
+              onEvent("done", { metrics: {} });
+              return;
+            }
+            try {
+              const data = JSON.parse(dataStr);
+              onEvent(data.type, data);
+              if (data.type === "done" || data.type === "error") {
+                return;
+              }
+            } catch (e) {
+              console.warn("Failed to parse SSE JSON:", e);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
 };
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   Copy,
@@ -160,7 +160,7 @@ function parseBoldText(text) {
   });
 }
 
-export default function ChatMessage({
+export default React.memo(function ChatMessage({
   sender = "friday", // friday or user
   text = "",
   timestamp = "20:18",
@@ -385,4 +385,4 @@ export default function ChatMessage({
       </AnimatePresence>
     </motion.div>
   );
-}
+});

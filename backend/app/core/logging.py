@@ -10,18 +10,30 @@ Usage:
 
 import logging
 import sys
+import contextvars
 
 from app.core.config import settings
+
+request_id_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
+conversation_id_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar("conversation_id", default=None)
+
+class ContextFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        req_id = request_id_ctx.get()
+        conv_id = conversation_id_ctx.get()
+        record.request_id = req_id if req_id else "-"
+        record.conversation_id = conv_id if conv_id else "-"
+        return True
 
 
 def _build_formatter() -> logging.Formatter:
     """Return a human-readable formatter for development and a compact one for production."""
     if settings.is_development:
-        fmt = "%(asctime)s [%(levelname)-8s] %(name)s: %(message)s"
+        fmt = "%(asctime)s [%(levelname)-8s] %(name)s [req:%(request_id)s]: %(message)s"
         datefmt = "%H:%M:%S"
     else:
         # Compact single-line format suitable for log aggregators.
-        fmt = "%(asctime)s %(levelname)s %(name)s %(message)s"
+        fmt = "%(asctime)s %(levelname)s %(name)s req_id=%(request_id)s conv_id=%(conversation_id)s %(message)s"
         datefmt = "%Y-%m-%dT%H:%M:%SZ"
     return logging.Formatter(fmt=fmt, datefmt=datefmt)
 
@@ -41,6 +53,7 @@ def configure_logging() -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(_build_formatter())
     handler.setLevel(settings.log_level)
+    handler.addFilter(ContextFilter())
 
     root = logging.getLogger()
     root.handlers.clear()

@@ -88,7 +88,7 @@ export default function Sidebar({
     { id: "settings", label: "Settings", icon: <Settings size={16} /> },
   ];
 
-  // Map prop conversations to UI format, fallback to default mock if empty
+  // Map prop conversations to UI format
   const resolvedMemories = (conversations && conversations.length > 0)
     ? conversations.map((c) => ({
         id: c.id,
@@ -96,11 +96,7 @@ export default function Sidebar({
         title: c.title,
         time: formatDate(c.updatedAt)
       }))
-    : [
-        { id: "chat-1", icon: "🚀", title: "Building FRIDAY", time: "Just now" },
-        { id: "chat-2", icon: "🧠", title: "Startup Ideas", time: "3h ago" },
-        { id: "chat-3", icon: "📚", title: "Learning AI", time: "Yesterday" }
-      ];
+    : [];
 
   const handleNavClick = (itemId) => {
     if (itemId === "conversations") {
@@ -693,7 +689,7 @@ export default function Sidebar({
               <button
                 onClick={() => {
                   setIsUserMenuOpen(false);
-                  alert("Signout stream initialized placeholder.");
+                  window.location.reload(); // Simple state reset
                 }}
                 className="w-full flex items-center gap-2.5 rounded-xl p-2 text-xs font-light text-[#ffb4ab] hover:text-[#ffdad6] hover:bg-[#690005]/20 transition-all duration-200 cursor-pointer bg-transparent border-0 text-left"
               >
