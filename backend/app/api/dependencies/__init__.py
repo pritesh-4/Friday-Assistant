@@ -30,6 +30,10 @@ from app.services.voice.transcription_service import TranscriptionService
 from app.services.voice.orchestrator import VoiceOrchestrator
 from app.services.voice_service import VoiceService
 from app.services.workspace_service import WorkspaceService
+from app.services.llm_service import LLMService
+from app.tools.manager import ToolManager
+from app.agents.agent_manager import AgentManager
+from app.agents.scheduler import ExecutionScheduler
 
 # ── Singleton instances ────────────────────────────────────────────────────────
 # Created once at module load time and reused across all requests.
@@ -47,6 +51,11 @@ _voice_service: VoiceService | None = None
 _transcription_service: TranscriptionService | None = None
 _speech_service: SpeechService | None = None
 _voice_orchestrator: VoiceOrchestrator | None = None
+
+_llm_service = LLMService()
+_tool_manager = ToolManager()
+_agent_manager = AgentManager(_llm_service, _tool_manager)
+_scheduler = ExecutionScheduler(_agent_manager)
 
 
 # ── Provider functions ─────────────────────────────────────────────────────────
@@ -121,3 +130,23 @@ def get_memory_manager() -> MemoryManager:
     between short-term session state and the long-term memory service.
     """
     return memory_manager
+
+
+def get_llm_service() -> LLMService:
+    """Provide the shared LLMService instance."""
+    return _llm_service
+
+
+def get_tool_manager() -> ToolManager:
+    """Provide the shared ToolManager instance."""
+    return _tool_manager
+
+
+def get_agent_manager() -> AgentManager:
+    """Provide the shared AgentManager instance."""
+    return _agent_manager
+
+
+def get_scheduler() -> ExecutionScheduler:
+    """Provide the shared ExecutionScheduler instance."""
+    return _scheduler

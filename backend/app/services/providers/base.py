@@ -79,14 +79,30 @@ class LLMProvider(ABC):
         """Helper to make a request to any OpenAI-compatible API and parse the response."""
         start_time = time.monotonic()
         timeout = httpx.Timeout(timeout_seconds)
-
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-        except httpx.HTTPError as exc:
-            logger.error("%s provider HTTP error: %s", self.name, exc)
-            raise LLMProviderError(f"{self.name} API error: {exc}") from exc
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.post(url, headers=headers, json=payload)
+                    response.raise_for_status()
+                    break # Success
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
+                    logger.warning("%s provider HTTP %s, retrying...", self.name, exc.response.status_code)
+                    import asyncio
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                logger.error("%s provider HTTP error: %s", self.name, exc)
+                raise LLMProviderError(f"{self.name} API error: {exc}") from exc
+            except httpx.RequestError as exc:
+                if attempt < max_retries - 1:
+                    logger.warning("%s provider connection error, retrying...", self.name)
+                    import asyncio
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                logger.error("%s provider Request error: %s", self.name, exc)
+                raise LLMProviderError(f"{self.name} connection error: {exc}") from exc
 
         data = response.json()
         try:
@@ -130,34 +146,49 @@ class LLMProvider(ABC):
     ) -> Any: # Returns AsyncGenerator[str, None]
         """Helper to make a streaming request to any OpenAI-compatible API and yield chunks."""
         import json
+        import asyncio
         
         payload["stream"] = True
         timeout = httpx.Timeout(timeout_seconds)
+        max_retries = 3
 
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                async with client.stream("POST", url, headers=headers, json=payload) as response:
-                    response.raise_for_status()
-                    async for line in response.aiter_lines():
-                        line = line.strip()
-                        if not line or not line.startswith("data: "):
-                            continue
-                            
-                        data_str = line[len("data: "):].strip()
-                        if data_str == "[DONE]":
-                            break
-                            
-                        try:
-                            data = json.loads(data_str)
-                            if "choices" in data and len(data["choices"]) > 0:
-                                delta = data["choices"][0].get("delta", {})
-                                chunk = delta.get("content", "")
-                                if chunk:
-                                    yield chunk
-                        except (json.JSONDecodeError, KeyError, IndexError) as exc:
-                            logger.debug("%s streaming parsing skipped for chunk: %s", self.name, exc)
-                            continue
-        except httpx.HTTPError as exc:
-            logger.error("%s provider HTTP stream error: %s", self.name, exc)
-            raise LLMProviderError(f"{self.name} API streaming error: {exc}") from exc
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    async with client.stream("POST", url, headers=headers, json=payload) as response:
+                        response.raise_for_status()
+                        async for line in response.aiter_lines():
+                            line = line.strip()
+                            if not line or not line.startswith("data: "):
+                                continue
+                                
+                            data_str = line[len("data: "):].strip()
+                            if data_str == "[DONE]":
+                                break
+                                
+                            try:
+                                data = json.loads(data_str)
+                                if "choices" in data and len(data["choices"]) > 0:
+                                    delta = data["choices"][0].get("delta", {})
+                                    chunk = delta.get("content", "")
+                                    if chunk:
+                                        yield chunk
+                            except (json.JSONDecodeError, KeyError, IndexError) as exc:
+                                logger.debug("%s streaming parsing skipped for chunk: %s", self.name, exc)
+                                continue
+                return # Exit successfully after streaming
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
+                    logger.warning("%s provider HTTP %s in stream, retrying...", self.name, exc.response.status_code)
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                logger.error("%s provider HTTP stream error: %s", self.name, exc)
+                raise LLMProviderError(f"{self.name} API streaming error: {exc}") from exc
+            except httpx.RequestError as exc:
+                if attempt < max_retries - 1:
+                    logger.warning("%s provider connection stream error, retrying...", self.name)
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                logger.error("%s provider Request stream error: %s", self.name, exc)
+                raise LLMProviderError(f"{self.name} API streaming connection error: {exc}") from exc
 

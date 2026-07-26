@@ -25,5 +25,5 @@ python-dotenv==1.0.1
 anyio==4.7.0
 certifi==2024.12.14
 idna==3.10
-chromadb
-slowapi
+chromadb==1.5.9
+slowapi==0.1.10

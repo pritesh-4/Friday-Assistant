@@ -1,29 +1,12 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from typing import Any
 
 from app.schemas.planning import Goal, GoalBase, Status
 from app.services.planning_service import planning_service
 from app.agents.scheduler import ExecutionScheduler
-from app.agents.agent_manager import AgentManager
-from app.services.llm_service import LLMService
-from app.tools.manager import ToolManager
+from app.api.dependencies import get_scheduler
 
 router = APIRouter(prefix="/planning", tags=["planning"])
-
-# We initialize a singleton scheduler here for the routes to trigger.
-# In a real production app, this would be managed by a lifespan event or dependency injection.
-llm_svc = LLMService()
-tool_mgr = ToolManager()
-agent_mgr = AgentManager(llm_svc, tool_mgr)
-scheduler = ExecutionScheduler(agent_mgr)
-
-@router.on_event("startup")
-async def startup_event():
-    await scheduler.start()
-
-@router.on_event("shutdown")
-def shutdown_event():
-    scheduler.stop()
 
 @router.get("/goals", response_model=list[Goal])
 async def list_goals():
@@ -39,14 +22,14 @@ async def get_goal(goal_id: str):
     return goal
 
 @router.post("/goals", response_model=Goal, status_code=status.HTTP_201_CREATED)
-async def create_goal(goal_data: GoalBase):
+async def create_goal(goal_data: GoalBase, scheduler: ExecutionScheduler = Depends(get_scheduler)):
     """Manually create a new goal (usually the GoalAnalyzer does this)."""
     goal = await planning_service.create_goal(goal_data)
     await scheduler.trigger_evaluation(goal.id)
     return goal
 
 @router.patch("/tasks/{task_id}/status")
-async def update_task_status(task_id: str, payload: dict[str, Any]):
+async def update_task_status(task_id: str, payload: dict[str, Any], scheduler: ExecutionScheduler = Depends(get_scheduler)):
     """Update a task's status, triggering DAG recalculation."""
     new_status_str = payload.get("status")
     if not new_status_str:

@@ -75,9 +75,7 @@ class BackgroundWorker:
             if job.task_type == "agent_execution":
                 await self._execute_agent_task(job)
             else:
-                # Placeholder for direct tasks (e.g., kb_index)
-                await asyncio.sleep(2) # Simulating work
-                logger.info(f"Completed built-in task {job.task_type}")
+                raise ValueError(f"Unsupported task type: {job.task_type}")
                 
             await job_service.update_status(job_id, JobStatus.COMPLETED)
             

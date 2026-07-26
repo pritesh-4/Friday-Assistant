@@ -25,9 +25,13 @@ class CognitiveMemoryService:
         memory_id = generate_uuid()
         now = get_utc_now().isoformat()
         
-        # Deduplication check via Vector DB could be added here
-        # (e.g. search for highly similar facts, if > 0.9 similarity, update instead of insert)
-
+        # Deduplication check via Vector DB
+        existing = await self.retrieve_relevant_memories(extracted.content, limit_per_type=1)
+        for docs in existing.values():
+            if docs and docs[0].get("distance", 1.0) < 0.15:
+                # Highly similar memory already exists. Don't add a duplicate.
+                logger.info(f"Duplicate memory skipped for {extracted.memory_type.value}: {extracted.content}")
+                return
         collection_name = f"{extracted.memory_type.value}_memories"
         
         # 1. Save to SQLite specific table

@@ -32,9 +32,7 @@ from app.core.rate_limit import configure_rate_limiting
 from app.db.database import database
 from app.schemas.errors import ErrorResponse, ErrorDetail
 from app.services.worker import BackgroundWorker
-from app.agents.agent_manager import AgentManager
-from app.services.llm_service import LLMService
-from app.tools.manager import ToolManager
+from app.api.dependencies import get_agent_manager, get_scheduler
 
 _log = get_logger("main")
 
@@ -111,13 +109,14 @@ async def lifespan(app: FastAPI):
 
     # ── Stage 3: Ready ────────────────────────────────────────────────────────
     
-    # Start Background Worker
-    llm_svc = LLMService()
-    tool_mgr = ToolManager()
-    agent_mgr = AgentManager(llm_svc, tool_mgr)
+    # Start Background Worker & Scheduler
+    agent_mgr = get_agent_manager()
     global _bg_worker
     _bg_worker = BackgroundWorker(agent_mgr)
     await _bg_worker.start()
+    
+    scheduler = get_scheduler()
+    await scheduler.start()
     
     _startup_time = time.monotonic()
     _log.info("[3/3] All routes registered. API is ready.")
@@ -128,6 +127,11 @@ async def lifespan(app: FastAPI):
     # ── Shutdown ──────────────────────────────────────────────────────────────
     if _bg_worker:
         _bg_worker.stop()
+    
+    scheduler = get_scheduler()
+    if scheduler:
+        scheduler.stop()
+        
     _log.info("Shutting down F.R.I.D.A.Y. API.")
 
 
