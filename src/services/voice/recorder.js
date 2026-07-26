@@ -180,10 +180,16 @@ export class VoiceRecorderService {
   }
 
   stop() {
+    const stageStartStr = `======== STAGE START ========\nStage Name: MediaRecorder Stop\nTimestamp: ${new Date().toISOString()}\nInput Summary: Stopping recorder`;
+    console.log(stageStartStr);
+    const t0 = performance.now();
+
     return new Promise((resolve, reject) => {
       if (!this.mediaRecorder || this.mediaRecorder.state === "inactive") {
         this.cleanup();
-        reject(new Error("No active recording to stop."));
+        const err = new Error("No active recording to stop.");
+        console.error(`======== STAGE END =========\nResult: Error\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: ${err.message}`);
+        reject(err);
         return;
       }
 
@@ -196,10 +202,13 @@ export class VoiceRecorderService {
         this.cleanup();
 
         if (blob.size === 0) {
-          reject(new Error("Recorded audio is empty."));
+          const err = new Error("Recorded audio is empty.");
+          console.error(`======== STAGE END =========\nResult: Error\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: ${err.message}`);
+          reject(err);
           return;
         }
 
+        console.log(`======== STAGE END =========\nResult: Success\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: Blob size ${blob.size}, type ${mimeType}`);
         resolve({
           blob,
           duration: Math.round(duration),
@@ -209,14 +218,18 @@ export class VoiceRecorderService {
 
       this.mediaRecorder.onerror = (event) => {
         this.cleanup();
-        reject(new Error(`Recording failed: ${event.error?.name || "Unknown recorder error"}`));
+        const err = new Error(`Recording failed: ${event.error?.name || "Unknown recorder error"}`);
+        console.error(`======== STAGE END =========\nResult: Error\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: ${err.message}`);
+        reject(err);
       };
 
       try {
         this.mediaRecorder.stop();
       } catch (err) {
         this.cleanup();
-        reject(new Error(`Failed to stop recorder: ${err.message}`));
+        const error = new Error(`Failed to stop recorder: ${err.message}`);
+        console.error(`======== STAGE END =========\nResult: Error\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: ${error.message}`);
+        reject(error);
       }
     });
   }

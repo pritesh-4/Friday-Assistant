@@ -103,6 +103,9 @@ export const voiceUploadService = {
    * @returns {Promise<void>} Resolves when the stream is fully consumed.
    */
   async orchestrateConversationStream(blob, mimeType, conversationId, onEvent) {
+    console.log(`======== STAGE START ========\nStage Name: Upload & Orchestrate\nTimestamp: ${new Date().toISOString()}\nConversation ID: ${conversationId}\nInput Summary: blob size ${blob.size}`);
+    const t0 = performance.now();
+
     const ext = mimeType.split("/")[1]?.split(";")[0] || "webm";
     const formData = new FormData();
     formData.append("file", new File([blob], `voice_recording.${ext}`, { type: mimeType }));
@@ -111,17 +114,26 @@ export const voiceUploadService = {
       formData.append("conversation_id", conversationId);
     }
 
-    const response = await fetch(`${API_BASE_URL}/voice/orchestrate/stream`, {
-      method: "POST",
-      headers: {
-        "Accept": "text/event-stream"
-      },
-      body: formData
-    });
+    let response;
+    try {
+      console.log(`[UploadService] Fetching ${API_BASE_URL}/voice/orchestrate/stream ...`);
+      response = await fetch(`${API_BASE_URL}/voice/orchestrate/stream`, {
+        method: "POST",
+        headers: {
+          "Accept": "text/event-stream"
+        },
+        body: formData
+      });
+    } catch (err) {
+      console.error(`======== STAGE END =========\nResult: Error\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: Network fetch failed - ${err.message}`);
+      throw err;
+    }
 
     if (!response.ok) {
       const errPayload = await response.json().catch(() => null);
-      throw new Error(errPayload?.detail || "Streaming request failed");
+      const errStr = errPayload?.detail || "Streaming request failed";
+      console.error(`======== STAGE END =========\nResult: Error\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: HTTP ${response.status} - ${errStr}`);
+      throw new Error(errStr);
     }
 
     const reader = response.body.getReader();
@@ -141,14 +153,17 @@ export const voiceUploadService = {
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const dataStr = line.slice(6).trim();
+            console.log(`[UploadService] Received SSE event: ${dataStr.substring(0, 100)}...`);
             if (dataStr === "[DONE]") {
               onEvent("done", { metrics: {} });
+              console.log(`======== STAGE END =========\nResult: Success\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: Received [DONE]`);
               return;
             }
             try {
               const data = JSON.parse(dataStr);
               onEvent(data.type, data);
               if (data.type === "done" || data.type === "error") {
+                console.log(`======== STAGE END =========\nResult: ${data.type === "done" ? "Success" : "Error"}\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: Received terminal type ${data.type}`);
                 return;
               }
             } catch (e) {
@@ -157,6 +172,10 @@ export const voiceUploadService = {
           }
         }
       }
+      console.log(`======== STAGE END =========\nResult: Success\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: Stream ended normally`);
+    } catch (err) {
+      console.error(`======== STAGE END =========\nResult: Error\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: Stream reading error - ${err.message}`);
+      throw err;
     } finally {
       reader.releaseLock();
     }

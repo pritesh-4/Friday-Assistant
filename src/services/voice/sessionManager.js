@@ -149,8 +149,14 @@ export class VoiceSessionManager {
   }
 
   async _processRecording() {
+    console.log(`======== STAGE START ========\nStage Name: Process Recording\nTimestamp: ${new Date().toISOString()}\nInput Summary: Processing recording via state machine`);
+    const t0 = performance.now();
+
     const ok = this._stateMachine.transition("UPLOADING");
-    if (!ok) return;
+    if (!ok) {
+      console.log(`======== STAGE END =========\nResult: Skipped\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: Transition UPLOADING not allowed`);
+      return;
+    }
     
     this._startWatchdogTimer();
 
@@ -161,8 +167,10 @@ export class VoiceSessionManager {
       if (err.message.includes("empty")) {
         this._clearWatchdogTimer();
         this._resumeListening();
+        console.warn(`======== STAGE END =========\nResult: Empty\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: Resumed listening after empty recording`);
       } else {
         this._handleError(err.message || "Recording failed.");
+        console.error(`======== STAGE END =========\nResult: Error\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: ${err.message}`);
       }
       return;
     }

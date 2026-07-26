@@ -13,12 +13,14 @@ when faster-whisper / kokoro-onnx are not installed.
 """
 
 import logging
+import time
 from typing import Any
 
 from fastapi import (
     APIRouter,
     Depends,
     File,
+    Form,
     HTTPException,
     Request,
     Response,
@@ -192,7 +194,7 @@ async def orchestrate_voice(
 async def orchestrate_voice_stream(
     request: Request,
     file: UploadFile = File(...),
-    conversation_id: str | None = None,
+    conversation_id: str | None = Form(None),
     orchestrator: VoiceOrchestrator = Depends(get_voice_orchestrator),
 ) -> StreamingResponse:
     """
@@ -201,8 +203,21 @@ async def orchestrate_voice_stream(
     """
     _require_voice()
     
+    _log.info(f"======== STAGE START ========\nStage Name: Backend POST /orchestrate/stream\nTimestamp: {time.time()}\nConversation ID: {conversation_id}\nInput Summary: Received file {file.filename}")
+    
+    # MINIMAL FIX: FastAPI closes `file` automatically as soon as this function returns the StreamingResponse.
+    # To prevent I/O operations on a closed file inside the generator, we load it into memory.
+    content = await file.read()
+    from io import BytesIO
+    safe_file = UploadFile(
+        file=BytesIO(content),
+        filename=file.filename,
+        headers=file.headers
+    )
+    
+    # Return response. The generator will run after this returns.
     return StreamingResponse(
-        orchestrator.stream_conversation(file, conversation_id),
+        orchestrator.stream_conversation(safe_file, conversation_id),
         media_type="text/event-stream"
     )
 

@@ -30,39 +30,47 @@ class VoiceOrchestrator:
         then streams the conversation back using Server-Sent Events.
         """
         import json
+        import traceback
         request_id = str(uuid.uuid4())
         session_log_prefix = f"[VOICE-STREAM][Req:{request_id[:8]}]"
         
         start_time = time.time()
-        _log.info(f"{session_log_prefix} Upload Complete. Starting stream pipeline.")
+        _log.info(f"======== STAGE START ========\nStage Name: Orchestrator stream_conversation\nTimestamp: {start_time}\nConversation ID: {conversation_id}\nInput Summary: Starting stream pipeline for UploadFile")
         
-        # ── 1. Transcription ──────────────────────────────────────────
-        _log.info(f"{session_log_prefix} Transcription Started")
-        stt_start = time.time()
-        
-        stt_result = await self.transcription_service.transcribe(file)
-        transcript = stt_result["transcript"]
-        
-        stt_latency = time.time() - stt_start
-        _log.info(f"{session_log_prefix} Transcription Complete (Latency: {stt_latency:.2f}s)")
-        
-        if not transcript.strip():
-            _log.info(f"{session_log_prefix} Empty transcript. Aborting conversation pipeline.")
-            yield f'data: {json.dumps({"type": "done", "metrics": {"ttft_ms": 0, "tps": 0.0, "total_time_ms": int((time.time() - start_time)*1000)}})}\n\n'
-            return
+        try:
+            # ── 1. Transcription ──────────────────────────────────────────
+            _log.info(f"{session_log_prefix} Transcription Started")
+            stt_start = time.time()
             
-        # Yield the transcript immediately so the UI can transition state
-        yield f'data: {json.dumps({"type": "transcript", "text": transcript, "stt_latency_ms": int(stt_latency * 1000)})}\n\n'
+            stt_result = await self.transcription_service.transcribe(file)
+            transcript = stt_result["transcript"]
+            
+            stt_latency = time.time() - stt_start
+            _log.info(f"{session_log_prefix} Transcription Complete (Latency: {stt_latency:.2f}s)")
+            
+            if not transcript.strip():
+                _log.info(f"{session_log_prefix} Empty transcript. Aborting conversation pipeline.")
+                yield f'data: {json.dumps({"type": "done", "metrics": {"ttft_ms": 0, "tps": 0.0, "total_time_ms": int((time.time() - start_time)*1000)}})}\n\n'
+                _log.info(f"======== STAGE END =========\nResult: Success\nElapsed Time: {time.time() - start_time}s\nOutput Summary: Empty transcript")
+                return
+                
+            # Yield the transcript immediately so the UI can transition state
+            yield f'data: {json.dumps({"type": "transcript", "text": transcript, "stt_latency_ms": int(stt_latency * 1000)})}\n\n'
 
-        # ── 2. Conversation Streaming ─────────────────────────────
-        _log.info(f"{session_log_prefix} Streaming Coordinator Started")
-        
-        chat_request = ChatRequest(message=transcript, conversation_id=conversation_id)
-        
-        async for event in self.streaming_coordinator.stream_chat(chat_request):
-            yield event
+            # ── 2. Conversation Streaming ─────────────────────────────
+            _log.info(f"{session_log_prefix} Streaming Coordinator Started")
             
-        _log.info(f"{session_log_prefix} Stream Complete (Total Latency: {time.time() - start_time:.2f}s)")
+            chat_request = ChatRequest(message=transcript, conversation_id=conversation_id)
+            
+            async for event in self.streaming_coordinator.stream_chat(chat_request):
+                yield event
+                
+            _log.info(f"======== STAGE END =========\nResult: Success\nElapsed Time: {time.time() - start_time}s\nOutput Summary: Stream completed normally")
+        except Exception as e:
+            err_msg = f"{type(e).__name__} - {str(e)}"
+            _log.error(f"======== STAGE END =========\nResult: Error\nElapsed Time: {time.time() - start_time}s\nOutput Summary: Exception caught: {err_msg}")
+            _log.error(traceback.format_exc())
+            yield f'data: {json.dumps({"type": "error", "content": err_msg})}\n\n'
 
     async def process_conversation(self, file: UploadFile, conversation_id: str | None = None) -> dict[str, Any]:
         """
