@@ -17,7 +17,7 @@ class ExecutionScheduler:
     def __init__(self, agent_manager: AgentManager):
         self.agent_manager = agent_manager
         self._running = False
-        self._task_queue = asyncio.Queue()
+        self._task_queue: asyncio.Queue[str] = asyncio.Queue()
 
     async def start(self):
         """Starts the background scheduler loop."""

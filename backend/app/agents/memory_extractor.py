@@ -54,10 +54,10 @@ class MemoryExtractor:
         ]
 
         try:
-            result = await provider.generate(messages, temperature=0.0)
+            result = await provider.generate_response(messages)
             
             # Very basic JSON cleanup if the model wraps it in markdown blocks
-            raw_text = result.text.strip()
+            raw_text = result.content.strip()
             if raw_text.startswith("```json"):
                 raw_text = raw_text[7:]
             if raw_text.startswith("```"):

@@ -4,6 +4,8 @@ import base64
 import json
 from pathlib import Path
 
+from typing import Any
+
 from app.agents.context_builder import ContextBuilder
 from app.agents.memory_extractor import MemoryExtractor
 from app.agents.router_agent import RouterAgent
@@ -14,6 +16,7 @@ from app.services.document_parser import DocumentParser
 from app.services.memory_service import CognitiveMemoryService
 from app.tools.executor import PermissionRequiredError
 from app.utils.helpers import generate_uuid, get_utc_now
+from app.core.memory import log_memory
 
 
 class StreamingCoordinator:
@@ -37,7 +40,8 @@ class StreamingCoordinator:
             # Send initial metadata to UI so it knows the conversation ID
             yield f'data: {json.dumps({"type": "metadata", "conversationId": conversation_id, "title": title})}\n\n'
 
-            structured_content = [{"type": "text", "text": request.message.strip()}]
+            structured_content: list[dict[str, Any]] = [{"type": "text", "text": request.message.strip()}]
+            db_structured_content: list[dict[str, Any]] = [{"type": "text", "text": request.message.strip()}]
             has_files = False
             if request.file_ids:
                 for file_id in request.file_ids:
@@ -52,6 +56,10 @@ class StreamingCoordinator:
                                 "type": "image_url",
                                 "image_url": {"url": f"data:{row['content_type']};base64,{b64_data}"}
                             })
+                            db_structured_content.append({
+                                "type": "text",
+                                "text": f"\\n\\n[Attached Image: {row['name']}]"
+                            })
                         else:
                             text = DocumentParser.parse(file_path, row["content_type"])
                             if text:
@@ -59,10 +67,14 @@ class StreamingCoordinator:
                                     "type": "text",
                                     "text": f"\\n\\n[Attached File: {row['name']}]\\n{text}"
                                 })
+                                db_structured_content.append({
+                                    "type": "text",
+                                    "text": f"\\n\\n[Attached File: {row['name']}]\\n{text}"
+                                })
 
             content_for_db = request.message.strip()
             if has_files:
-                content_for_db = json.dumps(structured_content)
+                content_for_db = json.dumps(db_structured_content)
 
             # Persist user message
             await self._create_message(conversation_id, "user", content_for_db)
@@ -71,6 +83,7 @@ class StreamingCoordinator:
             
             if not ctx.messages:
                 # Load history if memory context is empty
+                log_memory("Before DB history fetch")
                 rows = await database.fetch_all(
                     "SELECT * FROM (SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 16) ORDER BY created_at ASC",
                     (conversation_id,)
@@ -85,6 +98,7 @@ class StreamingCoordinator:
                             ctx.messages.append({"role": row["role"], "content": content})
                     except Exception:
                         ctx.messages.append({"role": row["role"], "content": content})
+                log_memory("After DB history fetch")
             else:
                 memory_manager.append_message(conversation_id, "user", structured_content if has_files else request.message.strip())
 
@@ -104,6 +118,7 @@ class StreamingCoordinator:
             punctuation_marks = {'.', '?', '!', '\n'}
 
             try:
+                log_memory("Before router stream")
                 async for chunk in self.router_agent.route_and_stream(messages, request.approved_permissions):
                     if ttft == 0.0:
                         ttft = time.time() - start_time
@@ -138,6 +153,7 @@ class StreamingCoordinator:
                 # and then automatically re-submit the request with `approved_permissions` populated.
                 return
 
+            log_memory("After router stream")
                 
             if sentence_buffer.strip():
                 yield f'data: {json.dumps({"type": "sentence", "content": sentence_buffer.strip()})}\n\n'

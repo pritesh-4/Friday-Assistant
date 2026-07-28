@@ -23,7 +23,7 @@ class RouterAgent:
         self.planner = PlannerAgent(self.llm_service)
         self.agent_manager = AgentManager(self.llm_service, self.tool_manager)
 
-    async def route_and_execute(self, messages: list[dict[str, Any]], approved_permissions: list[str] = None) -> LLMResult:
+    async def route_and_execute(self, messages: list[dict[str, Any]], approved_permissions: list[str] | None = None) -> LLMResult:
         """
         Plans and executes the request. 
         Note: The return format is an LLMResult to maintain backwards compatibility,
@@ -76,7 +76,7 @@ class RouterAgent:
         except Exception as e:
             raise LLMProviderError(f"Conversational generation failed: {e}")
 
-    async def route_and_stream(self, messages: list[dict[str, Any]], approved_permissions: list[str] = None) -> AsyncGenerator[str, None]:
+    async def route_and_stream(self, messages: list[dict[str, Any]], approved_permissions: list[str] | None = None) -> AsyncGenerator[str, None]:
         """Plans and streams the response."""
         active_providers = self.llm_service.available_providers
         if not active_providers:

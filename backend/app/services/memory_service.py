@@ -19,7 +19,7 @@ class CognitiveMemoryService:
 
     async def save_extracted_memory(self, extracted: ExtractedMemory) -> None:
         """Takes an LLM-extracted memory, deduplicates it, and stores it in SQL + Vector DB."""
-        if not extracted.should_remember or not extracted.memory_type:
+        if not extracted.should_remember or not extracted.memory_type or not extracted.content:
             return
 
         memory_id = generate_uuid()
@@ -116,7 +116,7 @@ class CognitiveMemoryService:
 
     async def retrieve_relevant_memories(self, query: str, limit_per_type: int = 3) -> dict[str, list[dict]]:
         """Retrieve most relevant memories across types using Semantic Search."""
-        results = {
+        results: dict[str, list[dict]] = {
             "semantic": [],
             "episodic": [],
             "procedural": [],

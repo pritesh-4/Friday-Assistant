@@ -12,6 +12,7 @@ from app.services.memory_service import CognitiveMemoryService
 from app.services.providers.base import LLMProviderError
 from app.tools.executor import PermissionRequiredError
 from app.utils.helpers import generate_uuid, get_utc_now
+from typing import Literal, Any
 
 
 class ChatService:
@@ -58,7 +59,7 @@ class ChatService:
         conversation = await self._get_or_create_conversation(request)
         
         # Handle file attachments
-        structured_content = [{"type": "text", "text": request.message.strip()}]
+        structured_content: list[dict[str, Any]] = [{"type": "text", "text": request.message.strip()}]
         has_files = False
         if request.file_ids:
             for file_id in request.file_ids:
@@ -177,14 +178,15 @@ class ChatService:
             return await self._get_conversation(request.conversation_id)
 
         conversation_id = generate_uuid()
-        now = get_utc_now().isoformat()
+        now = get_utc_now()
+        now_str = now.isoformat()
         title = request.message.strip().replace("\n", " ")[:60]
         await database.execute(
             """
             INSERT INTO conversations (id, title, created_at, updated_at)
             VALUES (?, ?, ?, ?)
             """,
-            (conversation_id, title, now, now),
+            (conversation_id, title, now_str, now_str),
         )
         return Conversation(
             id=conversation_id,
@@ -202,20 +204,21 @@ class ChatService:
         return Conversation.model_validate(row)
 
     async def _create_message(
-        self, conversation_id: str, role: str, content: str
+        self, conversation_id: str, role: Literal["user", "assistant", "system"], content: str
     ) -> Message:
         message_id = generate_uuid()
-        now = get_utc_now().isoformat()
+        now = get_utc_now()
+        now_str = now.isoformat()
         await database.execute(
             """
             INSERT INTO messages (id, conversation_id, role, content, created_at)
             VALUES (?, ?, ?, ?, ?)
             """,
-            (message_id, conversation_id, role, content, now),
+            (message_id, conversation_id, role, content, now_str),
         )
         await database.execute(
             "UPDATE conversations SET last_message = ?, updated_at = ? WHERE id = ?",
-            (content, now, conversation_id),
+            (content, now_str, conversation_id),
         )
         return Message(
             id=message_id,

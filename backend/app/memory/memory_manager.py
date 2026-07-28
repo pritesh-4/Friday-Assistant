@@ -49,7 +49,7 @@ class SessionContext:
     """
 
     conversation_id: str | None = None
-    messages: list[dict[str, str]] = field(default_factory=list)
+    messages: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.monotonic)
     last_accessed: float = field(default_factory=time.monotonic)
@@ -112,7 +112,7 @@ class MemoryManager:
             ctx.conversation_id = conversation_id
 
     def append_message(
-        self, session_id: str, role: str, content: str
+        self, session_id: str, role: str, content: str | list[Any]
     ) -> None:
         """
         Append a message to the session context's short-term message buffer.

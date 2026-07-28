@@ -52,12 +52,14 @@ class BaseAgent(ABC):
         )
         return prompt
 
-    async def execute(self, task: str, context_messages: list[dict[str, Any]], approved_permissions: list[str] = None) -> AsyncGenerator[str, None]:
+    async def execute(
+        self, task: str, messages: list[dict[str, Any]], approved_permissions: list[str] | None = None
+    ) -> AsyncGenerator[str, None]:
         """
         Executes a specific task. Yields strings (thoughts/results) back to the caller.
         """
         # Create a fresh message history for this agent's execution loop
-        messages = list(context_messages)
+        messages = list(messages)
         messages.insert(0, {"role": "system", "content": self._build_system_prompt(task)})
 
         max_iterations = 10
@@ -70,6 +72,9 @@ class BaseAgent(ABC):
             provider = self.llm_service.get_provider(provider_name)
             
             try:
+                if not provider:
+                    yield "I cannot run tools right now (No AI Provider)."
+                    return
                 response = await provider.generate_response(messages)
             except Exception as e:
                 yield f"[{self.name}] LLM Error: {e}"

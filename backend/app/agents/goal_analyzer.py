@@ -67,6 +67,9 @@ class GoalAnalyzer:
             provider_name = next(iter(self.llm_service.available_providers))
             provider = self.llm_service.get_provider(provider_name)
             
+            if not provider:
+                raise RuntimeError("No LLM provider available for analysis")
+            
             response = await provider.generate_response(messages)
             content = response.content.strip()
             

@@ -44,6 +44,7 @@ from app.services.voice.transcription_service import TranscriptionService
 from app.services.voice.orchestrator import VoiceOrchestrator
 from app.services.voice_service import VoiceService
 from app.ai.whisper.engine import WhisperEngine
+from app.core.memory import log_memory
 
 _log = logging.getLogger(__name__)
 router = APIRouter(tags=["voice"])
@@ -165,7 +166,10 @@ async def upload_voice(
     Validates MIME type, file size, and handles saving securely.
     """
     _require_voice()
-    return await service.upload_audio(file)
+    log_memory("Before upload_audio")
+    res = await service.upload_audio(file)
+    log_memory("After upload_audio")
+    return res
 
 
 @router.post("/orchestrate", summary="Process full voice conversation")
@@ -214,6 +218,8 @@ async def orchestrate_voice_stream(
         filename=file.filename,
         headers=file.headers
     )
+    
+    log_memory("After loading UploadFile to memory")
     
     # Return response. The generator will run after this returns.
     return StreamingResponse(

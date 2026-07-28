@@ -14,6 +14,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.memory import log_memory
 
 _log = get_logger("whisper.engine")
 
@@ -35,7 +36,7 @@ class WhisperEngine:
                     cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, model_name: str = "small", device: str = "auto", compute_type: str = "default"):
+    def __init__(self, model_name: str = "tiny", device: str = "auto", compute_type: str = "int8"):
         if self._initialized:
             return
             
@@ -62,6 +63,7 @@ class WhisperEngine:
             if self.model is not None:
                 return
                 
+            log_memory("Before Whisper model load")
             _log.info("[VOICE] Lazily initializing Faster-Whisper model on first request...")
             _log.info("Loading Whisper...")
             _log.info(
@@ -82,6 +84,7 @@ class WhisperEngine:
                     compute_type=self.compute_type
                 )
                 _log.info("SUCCESS")
+                log_memory("After Whisper model load")
             except Exception as exc:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 tb = traceback.extract_tb(exc_traceback)
@@ -118,6 +121,7 @@ class WhisperEngine:
         # Run CPU/GPU-bound transcription in a thread to avoid blocking the event loop.
         loop = asyncio.get_running_loop()
         
+        log_memory("Before Whisper transcribe")
         _log.info("[VOICE] Decoding audio...")
         try:
             segments_generator, info = await loop.run_in_executor(
@@ -154,6 +158,7 @@ class WhisperEngine:
             raise RuntimeError(f"Segment extraction failed: {exc}") from exc
             
         _log.info("[VOICE] Inference complete")
+        log_memory("After Whisper transcribe")
 
         return {
             "transcript": transcript,
