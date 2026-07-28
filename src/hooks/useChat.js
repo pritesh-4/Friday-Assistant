@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { chatService } from "../services/chatService";
 
 /**
@@ -9,12 +9,17 @@ export function useChat(initialId = null) {
   const [activeConversationId, setActiveConversationId] = useState(initialId);
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
+  const skipNextLoadRef = useRef(false);
 
   // Auto-load conversation messages when activeConversationId changes
   useEffect(() => {
     const loadMessages = async () => {
       if (!activeConversationId) {
         setMessages([]);
+        return;
+      }
+      if (skipNextLoadRef.current) {
+        skipNextLoadRef.current = false;
         return;
       }
       setIsTyping(true);
@@ -89,6 +94,7 @@ export function useChat(initialId = null) {
         fileIds, 
         (chunk, metadata, isDone) => {
           if (metadata && metadata.conversationId && !activeConversationId) {
+            skipNextLoadRef.current = true;
             setActiveConversationId(metadata.conversationId);
           }
           
