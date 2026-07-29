@@ -1,3 +1,4 @@
+import asyncio
 import os
 import subprocess
 import time
@@ -101,11 +102,12 @@ class TranscriptionService:
                 "-c:a", "pcm_s16le",
                 str(wav_file_path)
             ]
-            subprocess.run(
+            await asyncio.to_thread(
+                subprocess.run,
                 ffmpeg_cmd,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
         except subprocess.CalledProcessError as e:
             _log.error(f"[VOICE] FFmpeg conversion failed: {e.stderr}")

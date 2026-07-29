@@ -206,7 +206,7 @@ export class VoiceSessionManager {
             this._onStreamEvent(eventType, payload);
           } else if (eventType === "done") {
             // Complete logic - but TTS queue will likely take over state to RESPONDING
-            if (this._stateMachine.state === "STREAMING_RESPONSE" || this._stateMachine.state === "THINKING") {
+            if (this._stateMachine.state === "STREAMING_RESPONSE" || this._stateMachine.state === "THINKING" || this._stateMachine.state === "TRANSCRIBING") {
               this._stateMachine.transition("COMPLETE");
             }
             this._onStreamEvent(eventType, payload);
@@ -216,6 +216,14 @@ export class VoiceSessionManager {
           }
         }
       );
+
+      // Post-stream safety guard: if the stream ended but state is still stuck
+      // in a processing state (e.g. no events were received, or events didn't
+      // transition the state), recover by resuming listening.
+      if (this._stateMachine.isProcessing) {
+        this._clearWatchdogTimer();
+        this._resumeListening();
+      }
     } catch (err) {
       this._handleError(err.message || "Voice orchestration failed.");
     }

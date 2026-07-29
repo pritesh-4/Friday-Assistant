@@ -115,12 +115,11 @@ class WhisperEngine:
         if not settings.voice_enabled:
             raise RuntimeError("Voice is disabled but transcription was requested.")
 
-        # Ensure the model is loaded before inferencing
-        self.load_model()
+        # Ensure the model is loaded before inferencing (non-blocking)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.load_model)
 
         # Run CPU/GPU-bound transcription in a thread to avoid blocking the event loop.
-        loop = asyncio.get_running_loop()
-        
         log_memory("Before Whisper transcribe")
         _log.info("[VOICE] Decoding audio...")
         try:
