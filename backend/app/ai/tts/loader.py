@@ -21,9 +21,7 @@ To use /tmp for downloaded models, set:
   KOKORO_VOICES_PATH=/tmp/friday/voices.json
 """
 
-import os
 import threading
-from pathlib import Path
 
 from app.core.logging import get_logger
 
