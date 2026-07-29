@@ -1,23 +1,122 @@
 import { API_BASE_URL } from "../api";
 
 /**
+ * VoiceManager — Deterministically loads and stores the selected browser voice.
+ * Ensures that once a voice is selected, it remains consistent throughout the session.
+ */
+class VoiceManager {
+  constructor() {
+    this.selectedVoice = null;
+    this.isLoaded = false;
+    this.onLoadedCallbacks = [];
+
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        this.loadVoices();
+      };
+      this.loadVoices();
+    }
+  }
+
+  loadVoices() {
+    if (this.selectedVoice) return;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return;
+
+    // Preferred list in order of priority:
+    const preferredNames = [
+      "Microsoft Aria Online (Natural)",
+      "Microsoft Jenny Online (Natural)",
+      "Microsoft Ava Online (Natural)",
+      "Google UK English Female",
+      "Google US English"
+    ];
+
+    // 1. Check exact matches
+    for (const name of preferredNames) {
+      const found = voices.find(v => v.name === name);
+      if (found) {
+        this.selectedVoice = found;
+        break;
+      }
+    }
+
+    // 2. Check containing matches
+    if (!this.selectedVoice) {
+      for (const name of preferredNames) {
+        const found = voices.find(v => v.name.toLowerCase().includes(name.toLowerCase()));
+        if (found) {
+          this.selectedVoice = found;
+          break;
+        }
+      }
+    }
+
+    // 3. Fallback to best available English female voice
+    if (!this.selectedVoice) {
+      this.selectedVoice = voices.find(v =>
+        v.lang.startsWith("en-") &&
+        (v.name.toLowerCase().includes("female") || 
+         v.name.toLowerCase().includes("zira") || 
+         v.name.toLowerCase().includes("samantha") ||
+         v.name.toLowerCase().includes("lisa"))
+      );
+    }
+
+    // 4. Fallback to another English voice
+    if (!this.selectedVoice) {
+      this.selectedVoice = voices.find(v => v.lang.startsWith("en-"));
+    }
+
+    // 5. Final fallback to first available voice
+    if (!this.selectedVoice) {
+      this.selectedVoice = voices[0];
+    }
+
+    if (this.selectedVoice) {
+      console.log(`[VoiceManager] Deterministically selected voice: ${this.selectedVoice.name} (${this.selectedVoice.lang})`);
+      this.isLoaded = true;
+      const callbacks = [...this.onLoadedCallbacks];
+      this.onLoadedCallbacks = [];
+      callbacks.forEach(cb => cb(this.selectedVoice));
+    }
+  }
+
+  getVoice() {
+    return new Promise((resolve) => {
+      if (this.isLoaded && this.selectedVoice) {
+        resolve(this.selectedVoice);
+      } else {
+        this.onLoadedCallbacks.push(resolve);
+        // Safety timeout of 1s
+        setTimeout(() => {
+          this.loadVoices();
+          resolve(this.selectedVoice || null);
+        }, 1000);
+      }
+    });
+  }
+}
+
+export const voiceManager = new VoiceManager();
+
+/**
  * speechQueue — Sequential TTS audio playback queue.
  *
- * Fetches audio from the backend TTS endpoint, plays it sequentially,
- * and supports interruption (cancel current + clear queue).
- * Falls back to browser SpeechSynthesis if the backend TTS is unavailable.
+ * LIMITATION WARNING:
+ * Browser-native SpeechSynthesis uses the system OS and browser voice libraries.
+ * These vary widely by client platform (Chrome uses Google/Microsoft cloud voices, Safari uses
+ * Apple Siri voices, Firefox uses local eSpeak or basic OS voices).
+ * As a result, browser synthesis CANNOT guarantee a uniform premium experience across all browsers.
+ * For production deployments, it is highly recommended to use the dedicated neural TTS engine
+ * (Kokoro-ONNX / Piper) hosted on the backend server, and use this browser fallback only
+ * when the server is offline or unreachable.
  */
 export const speechQueue = {
   queue: [],
   isPlaying: false,
   audio: null,
 
-  /**
-   * Adds text to the TTS queue and starts playback if idle.
-   * @param {string} text - Text to synthesize.
-   * @param {Function} onStart - Callback when audio begins playing.
-   * @param {Function} onEnd - Callback when audio finishes playing or fails.
-   */
   add(text, onStart, onEnd) {
     if (!text || !text.trim()) {
       if (onEnd) onEnd();
@@ -30,9 +129,6 @@ export const speechQueue = {
     }
   },
 
-  /**
-   * Plays the next item in the queue.
-   */
   async playNext() {
     if (this.queue.length === 0) {
       this.isPlaying = false;
@@ -79,7 +175,6 @@ export const speechQueue = {
         this.playNext();
       };
 
-      // Attempt play
       this.audio.play().catch(e => {
         console.error("Audio playback blocked/failed:", e);
         URL.revokeObjectURL(url);
@@ -94,10 +189,7 @@ export const speechQueue = {
     }
   },
 
-  /**
-   * Fallback to native browser SpeechSynthesis.
-   */
-  playBrowserSpeech(item) {
+  async playBrowserSpeech(item) {
     if (!window.speechSynthesis) {
       console.warn("Browser SpeechSynthesis is not supported.");
       if (item.onEnd) item.onEnd();
@@ -107,13 +199,14 @@ export const speechQueue = {
 
     const utterance = new SpeechSynthesisUtterance(item.text);
     
-    // Find premium-sounding English voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(v => v.lang.startsWith("en-") && (v.name.includes("Google") || v.name.includes("Natural"))) || 
-                          voices.find(v => v.lang.startsWith("en-")) || 
-                          voices[0];
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
+    // Warm, friendly parameters: rate 1.02, pitch 1.1, volume 1.0
+    utterance.rate = 1.02;
+    utterance.pitch = 1.1;
+    utterance.volume = 1.0;
+
+    const voice = await voiceManager.getVoice();
+    if (voice) {
+      utterance.voice = voice;
     }
     
     utterance.onstart = () => {
@@ -135,12 +228,7 @@ export const speechQueue = {
     window.speechSynthesis.speak(utterance);
   },
 
-  /**
-   * Immediately stops any playing audio and clears the queue.
-   * Invokes all pending onEnd callbacks so upstream state stays consistent.
-   */
   stop() {
-    // Cancel current audio
     if (this.audio) {
       this.audio.onended = null;
       this.audio.onerror = null;
@@ -150,16 +238,14 @@ export const speechQueue = {
       this.audio = null;
     }
 
-    // Cancel browser speech synthesis
     if (window.speechSynthesis) {
       try {
         window.speechSynthesis.cancel();
-      } catch (e) {
-        console.warn("Failed to cancel window.speechSynthesis:", e);
+      } catch {
+        // Ignore synthesis cancel error
       }
     }
 
-    // Drain remaining queue — call their onEnd so state machine doesn't hang
     const pending = [...this.queue];
     this.queue = [];
     this.isPlaying = false;
