@@ -14,6 +14,7 @@ class ChatRequest(ApiModel):
     file_ids: list[str] | None = None
     approved_permissions: list[str] | None = None
 
+
 class Message(ApiModel):
     id: str
     conversation_id: str
@@ -24,6 +25,7 @@ class Message(ApiModel):
     citations: list[str] | None = None
     context_awareness: str | None = None
     emotional_header: str | None = None
+
 
 class Conversation(ApiModel):
     id: str
@@ -44,4 +46,3 @@ class ChatResponse(ApiModel):
     latency_ms: int
     finish_reason: str | None = None
     memories_used: int = 0
-

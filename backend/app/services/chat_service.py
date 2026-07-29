@@ -23,13 +23,18 @@ class ChatService:
         self.router_agent = RouterAgent()
         self.context_builder = ContextBuilder()
         from app.services.llm_service import LLMService
+
         self.memory_extractor = MemoryExtractor(LLMService())
 
     async def list_conversations(self) -> list[Conversation]:
-        rows = await database.fetch_all("SELECT * FROM conversations ORDER BY updated_at DESC")
+        rows = await database.fetch_all(
+            "SELECT * FROM conversations ORDER BY updated_at DESC"
+        )
         return [Conversation.model_validate(row) for row in rows]
 
-    async def get_messages(self, conversation_id: str, limit: int = 100) -> list[Message]:
+    async def get_messages(
+        self, conversation_id: str, limit: int = 100
+    ) -> list[Message]:
         await self._get_conversation(conversation_id)
         limit = max(1, min(limit, 100))
         rows = await database.fetch_all(
@@ -46,6 +51,7 @@ class ChatService:
     async def send_message(self, request: ChatRequest) -> ChatResponse:
         import logging
         import time
+
         _log = logging.getLogger(__name__)
         start_time = time.time()
         _log.info("[VOICE] START POST /chat (Conversation Manager entered)")
@@ -57,30 +63,40 @@ class ChatService:
         from app.services.document_parser import DocumentParser
 
         conversation = await self._get_or_create_conversation(request)
-        
+
         # Handle file attachments
-        structured_content: list[dict[str, Any]] = [{"type": "text", "text": request.message.strip()}]
+        structured_content: list[dict[str, Any]] = [
+            {"type": "text", "text": request.message.strip()}
+        ]
         has_files = False
         if request.file_ids:
             for file_id in request.file_ids:
-                row = await database.fetch_one("SELECT * FROM files WHERE id = ?", (file_id,))
+                row = await database.fetch_one(
+                    "SELECT * FROM files WHERE id = ?", (file_id,)
+                )
                 if row:
                     has_files = True
                     file_path = Path(row["storage_path"])
                     if row["content_type"].startswith("image/"):
                         with open(file_path, "rb") as f:
                             b64_data = base64.b64encode(f.read()).decode("utf-8")
-                        structured_content.append({
-                            "type": "image_url",
-                            "image_url": {"url": f"data:{row['content_type']};base64,{b64_data}"}
-                        })
+                        structured_content.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{row['content_type']};base64,{b64_data}"
+                                },
+                            }
+                        )
                     else:
                         text = DocumentParser.parse(file_path, row["content_type"])
                         if text:
-                            structured_content.append({
-                                "type": "text",
-                                "text": f"\n\n[Attached File: {row['name']}]\n{text}"
-                            })
+                            structured_content.append(
+                                {
+                                    "type": "text",
+                                    "text": f"\n\n[Attached File: {row['name']}]\n{text}",
+                                }
+                            )
 
         content_for_db = request.message.strip()
         if has_files:
@@ -90,10 +106,10 @@ class ChatService:
         user_message = await self._create_message(
             conversation.id, "user", content_for_db
         )
-        
+
         session_id = conversation.id
         ctx = memory_manager.get_context(session_id)
-        
+
         # 1. Manage Session Memory
         if not ctx.messages:
             history = await self.get_messages(conversation.id, limit=16)
@@ -108,13 +124,19 @@ class ChatService:
                 except Exception:
                     ctx.messages.append({"role": msg.role, "content": msg.content})
         else:
-            memory_manager.append_message(session_id, "user", structured_content if has_files else request.message.strip())
+            memory_manager.append_message(
+                session_id,
+                "user",
+                structured_content if has_files else request.message.strip(),
+            )
 
         # 2. Retrieve Long-Term Memories
         _log.info("[VOICE] Memory retrieval started")
         mem_start = time.time()
-        memories = await self.memory_service.retrieve_relevant_memories(request.message, limit_per_type=2)
-        _log.info(f"[VOICE] Memory retrieved in {time.time()-mem_start:.2f}s")
+        memories = await self.memory_service.retrieve_relevant_memories(
+            request.message, limit_per_type=2
+        )
+        _log.info(f"[VOICE] Memory retrieved in {time.time() - mem_start:.2f}s")
 
         # 3. Build Context Prompt
         messages = self.context_builder.build_messages(ctx.messages, memories)
@@ -123,21 +145,27 @@ class ChatService:
         _log.info("[VOICE] Router selected provider / Provider request sent")
         llm_start = time.time()
         try:
-            llm_result = await self.router_agent.route_and_execute(messages, request.approved_permissions)
-            _log.info(f"[VOICE] Provider response received in {time.time()-llm_start:.2f}s (Provider: {llm_result.provider})")
+            llm_result = await self.router_agent.route_and_execute(
+                messages, request.approved_permissions
+            )
+            _log.info(
+                f"[VOICE] Provider response received in {time.time() - llm_start:.2f}s (Provider: {llm_result.provider})"
+            )
         except PermissionRequiredError as exc:
             # For non-streaming, we return a 403 Forbidden with details so the client can prompt
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, 
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail={
                     "type": "permission_request",
                     "tool": exc.tool_name,
                     "scope": exc.scope,
-                    "kwargs": exc.kwargs
-                }
+                    "kwargs": exc.kwargs,
+                },
             ) from exc
         except LLMProviderError as exc:
-            _log.error(f"[VOICE] Provider request failed in {time.time()-llm_start:.2f}s: {exc}")
+            _log.error(
+                f"[VOICE] Provider request failed in {time.time() - llm_start:.2f}s: {exc}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
             ) from exc
@@ -147,7 +175,7 @@ class ChatService:
             conversation.id, "assistant", llm_result.content
         )
         memory_manager.append_message(session_id, "assistant", llm_result.content)
-        
+
         # 6. Extract and Store new Memories
         extracted = await self.memory_extractor.extract_memory(request.message)
         if extracted:
@@ -170,7 +198,9 @@ class ChatService:
     async def delete_conversation(self, conversation_id: str) -> bool:
         memory_manager.clear_context(conversation_id)
         return bool(
-            await database.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+            await database.execute(
+                "DELETE FROM conversations WHERE id = ?", (conversation_id,)
+            )
         )
 
     async def _get_or_create_conversation(self, request: ChatRequest) -> Conversation:
@@ -196,7 +226,9 @@ class ChatService:
         )
 
     async def _get_conversation(self, conversation_id: str) -> Conversation:
-        row = await database.fetch_one("SELECT * FROM conversations WHERE id = ?", (conversation_id,))
+        row = await database.fetch_one(
+            "SELECT * FROM conversations WHERE id = ?", (conversation_id,)
+        )
         if row is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found."
@@ -204,7 +236,10 @@ class ChatService:
         return Conversation.model_validate(row)
 
     async def _create_message(
-        self, conversation_id: str, role: Literal["user", "assistant", "system"], content: str
+        self,
+        conversation_id: str,
+        role: Literal["user", "assistant", "system"],
+        content: str,
     ) -> Message:
         message_id = generate_uuid()
         now = get_utc_now()

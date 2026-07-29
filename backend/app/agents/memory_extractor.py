@@ -37,6 +37,7 @@ Output JSON EXACTLY matching this schema:
 }
 """
 
+
 class MemoryExtractor:
     def __init__(self, llm_service: LLMService):
         self.llm_service = llm_service
@@ -50,12 +51,15 @@ class MemoryExtractor:
 
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Extract memory from this message:\n\n{user_message}"}
+            {
+                "role": "user",
+                "content": f"Extract memory from this message:\n\n{user_message}",
+            },
         ]
 
         try:
             result = await provider.generate_response(messages)
-            
+
             # Very basic JSON cleanup if the model wraps it in markdown blocks
             raw_text = result.content.strip()
             if raw_text.startswith("```json"):
@@ -64,10 +68,10 @@ class MemoryExtractor:
                 raw_text = raw_text[3:]
             if raw_text.endswith("```"):
                 raw_text = raw_text[:-3]
-                
+
             data = json.loads(raw_text.strip())
             return ExtractedMemory(**data)
-            
+
         except Exception as e:
             _log.error(f"Failed to extract memory: {e}")
             return None

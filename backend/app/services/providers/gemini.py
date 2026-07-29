@@ -10,7 +10,7 @@ from app.services.providers.base import LLMProvider, LLMProviderError, LLMResult
 class GeminiProvider(LLMProvider):
     """
     Google Gemini Provider.
-    
+
     Uses Gemini's official OpenAI-compatible endpoint for ease of message formatting.
     """
 

@@ -25,6 +25,8 @@ from fastapi import (
     Request,
     Response,
     UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
     status,
 )
 from fastapi.responses import StreamingResponse
@@ -84,7 +86,7 @@ async def get_voice_status() -> dict[str, Any]:
         }
 
     from app.ai.tts.loader import is_tts_available
-    
+
     whisper_engine = WhisperEngine()
 
     return {
@@ -103,40 +105,45 @@ async def get_voice_health() -> dict[str, Any]:
     Matches the schema specifically requested for full observability.
     """
     import shutil
+
     ffmpeg_installed = shutil.which("ffmpeg") is not None
-    
+
     engine = WhisperEngine()
-    
+
     faster_whisper_installed = False
     try:
         import faster_whisper  # noqa: F401
+
         faster_whisper_installed = True
     except ImportError:
         pass
-        
+
     ctranslate2_installed = False
     try:
         import ctranslate2  # noqa: F401
+
         ctranslate2_installed = True
     except ImportError:
         pass
-        
+
     av_installed = False
     try:
         import av  # noqa: F401
+
         av_installed = True
     except ImportError:
         pass
-        
+
     tokenizers_installed = False
     try:
         import tokenizers  # noqa: F401
+
         tokenizers_installed = True
     except ImportError:
         pass
 
     ready = settings.voice_enabled and faster_whisper_installed and ffmpeg_installed
-    
+
     return {
         "voice_enabled": settings.voice_enabled,
         "whisper_loaded": engine.is_loaded,
@@ -148,9 +155,9 @@ async def get_voice_health() -> dict[str, Any]:
             "faster_whisper": faster_whisper_installed,
             "ctranslate2": ctranslate2_installed,
             "av": av_installed,
-            "tokenizers": tokenizers_installed
+            "tokenizers": tokenizers_installed,
         },
-        "ready": ready
+        "ready": ready,
     }
 
 
@@ -185,15 +192,19 @@ async def orchestrate_voice(
     Handles upload -> STT -> LLM Chat -> returning text synchronously.
     """
     _require_voice()
-    
+
     _log.info("[VOICE] START POST /voice/orchestrate")
     result = await orchestrator.process_conversation(file, conversation_id)
     _log.info("[VOICE] SUCCESS POST /voice/orchestrate")
-    
+
     return result
 
 
-@router.post("/orchestrate/stream", summary="Stream full voice conversation", status_code=status.HTTP_200_OK)
+@router.post(
+    "/orchestrate/stream",
+    summary="Stream full voice conversation",
+    status_code=status.HTTP_200_OK,
+)
 @limiter.limit("20/minute")
 async def orchestrate_voice_stream(
     request: Request,
@@ -206,28 +217,34 @@ async def orchestrate_voice_stream(
     Handles upload -> STT -> LLM Chat -> returning SSE stream to frontend.
     """
     _require_voice()
-    
-    _log.info(f"======== STAGE START ========\nStage Name: Backend POST /orchestrate/stream\nTimestamp: {time.time()}\nConversation ID: {conversation_id}\nInput Summary: Received file {file.filename}")
-    
+
+    _log.info(
+        f"======== STAGE START ========\nStage Name: Backend POST /orchestrate/stream\nTimestamp: {time.time()}\nConversation ID: {conversation_id}\nInput Summary: Received file {file.filename}"
+    )
+
     # MINIMAL FIX: FastAPI closes `file` automatically as soon as this function returns the StreamingResponse.
     # To prevent I/O operations on a closed file inside the generator, we load it into memory.
     content = await file.read()
     from io import BytesIO
+
     safe_file = UploadFile(
-        file=BytesIO(content),
-        filename=file.filename,
-        headers=file.headers
+        file=BytesIO(content), filename=file.filename, headers=file.headers
     )
-    
+
     log_memory("After loading UploadFile to memory")
-    
+
     # Return response. The generator will run after this returns.
     return StreamingResponse(
         orchestrator.stream_conversation(safe_file, conversation_id),
-        media_type="text/event-stream"
+        media_type="text/event-stream",
     )
 
-@router.post("/transcribe", summary="Transcribe audio to text", response_model=TranscriptionResult)
+
+@router.post(
+    "/transcribe",
+    summary="Transcribe audio to text",
+    response_model=TranscriptionResult,
+)
 async def transcribe_voice(
     file: UploadFile = File(...),
     transcription_service: TranscriptionService = Depends(get_transcription_service),
@@ -239,6 +256,7 @@ async def transcribe_voice(
     _require_voice()
 
     import time
+
     start_time = time.time()
     _log.info("[VOICE] START POST /voice/transcribe")
 
@@ -260,27 +278,29 @@ async def debug_voice(
     Returns FFprobe, FFmpeg, and Whisper results.
     """
     _require_voice()
-    
+
     response = {
         "uploaded_size": 0,
         "detected_mime": file.content_type,
-        "detected_container": file.filename.split('.')[-1] if file.filename else "unknown",
+        "detected_container": file.filename.split(".")[-1]
+        if file.filename
+        else "unknown",
         "codec": "unknown",
         "ffprobe_output": "",
         "ffmpeg_output": "",
-        "transcription_result": None
+        "transcription_result": None,
     }
-    
+
     try:
         # Step 1: Upload (this runs ffprobe and ffmpeg internally via VoiceService)
         upload_result = await voice_service.upload_audio(file)
-        
+
         response["uploaded_size"] = upload_result["size"]
         response["ffprobe_output"] = upload_result.get("ffprobe_output", "")
         response["ffmpeg_output"] = upload_result.get("ffmpeg_output", "")
-        
+
         file_path = voice_service.upload_dir / upload_result["filename"]
-        
+
         # Step 2: Transcribe via Engine directly, since file is already processed
         try:
             result = await transcription_service.engine.transcribe(str(file_path))
@@ -290,12 +310,12 @@ async def debug_voice(
                 file_path.unlink(missing_ok=True)
             except Exception:
                 pass
-                
+
     except HTTPException as e:
         response["error"] = e.detail
     except Exception as e:
         response["error"] = str(e)
-        
+
     return response
 
 
@@ -323,11 +343,12 @@ async def speak_voice(
     Returns binary audio/wav. Maximum input is 3,000 characters.
     """
     _require_voice()
-    
+
     import time
+
     start_time = time.time()
     _log.info("[VOICE] START POST /voice/speak")
-    
+
     try:
         audio_bytes = await speech_service.synthesize(request.text)
         elapsed = time.time() - start_time
@@ -347,3 +368,117 @@ async def speak_voice(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"TTS synthesis failed: {exc!s}",
         )
+
+
+@router.websocket("/stream")
+async def websocket_voice_stream(
+    websocket: WebSocket,
+    transcription_service: TranscriptionService = Depends(get_transcription_service),
+):
+    """
+    WebSocket endpoint for real-time binary audio streaming.
+    Receives raw 16kHz Int16 mono PCM chunks from client,
+    buffers in memory, transcribes, and streams response events.
+    """
+    import json
+    import numpy as np
+
+    await websocket.accept()
+    _log.info("[VOICE-WS] WebSocket voice connection accepted")
+
+    audio_chunks = []
+    active_conversation_id = None
+
+    try:
+        while True:
+            message = await websocket.receive()
+
+            if "bytes" in message:
+                data = message["bytes"]
+                if len(data) > 0:
+                    # Convert bytes to Int16 numpy array, then normalize to float32
+                    chunk = (
+                        np.frombuffer(data, dtype=np.int16).astype(np.float32) / 32768.0
+                    )
+                    audio_chunks.append(chunk)
+
+            elif "text" in message:
+                try:
+                    command = json.loads(message["text"])
+                    cmd_type = command.get("type")
+
+                    if cmd_type == "start":
+                        active_conversation_id = command.get("conversation_id")
+                        audio_chunks = []
+                        _log.info(
+                            f"[VOICE-WS] Session started for conversation: {active_conversation_id}"
+                        )
+                        await websocket.send_json({"type": "session_started"})
+
+                    elif cmd_type == "stop":
+                        _log.info(
+                            "[VOICE-WS] Silence detected or user stopped speaking. Finalizing turn..."
+                        )
+                        if not audio_chunks:
+                            await websocket.send_json(
+                                {"type": "transcript", "text": "", "final": True}
+                            )
+                            continue
+
+                        # Concatenate all chunks to a single numpy array
+                        full_audio = np.concatenate(audio_chunks)
+
+                        await websocket.send_json(
+                            {"type": "status", "state": "transcribing"}
+                        )
+
+                        # Transcribe array in memory
+                        stt_result = await transcription_service.transcribe_array(
+                            full_audio
+                        )
+                        transcript = stt_result["transcript"]
+
+                        _log.info(f"[VOICE-WS] Final transcript: '{transcript}'")
+                        await websocket.send_json(
+                            {"type": "transcript", "text": transcript, "final": True}
+                        )
+
+                        # If transcript is empty, stop
+                        if not transcript.strip():
+                            await websocket.send_json({"type": "done"})
+                            continue
+
+                        # Trigger LLM and stream response
+                        await websocket.send_json(
+                            {"type": "status", "state": "processing_intent"}
+                        )
+
+                        from app.schemas.chat import ChatRequest
+                        from app.services.streaming_coordinator import (
+                            StreamingCoordinator,
+                        )
+
+                        chat_request = ChatRequest(
+                            message=transcript, conversation_id=active_conversation_id
+                        )
+                        coordinator = StreamingCoordinator()
+
+                        async for event in coordinator.stream_chat(chat_request):
+                            if event.startswith("data: "):
+                                payload_str = event[6:].strip()
+                                if payload_str:
+                                    payload = json.loads(payload_str)
+                                    await websocket.send_json(payload)
+
+                except Exception as exc:
+                    _log.error(
+                        f"[VOICE-WS] Error processing text frame: {exc}", exc_info=True
+                    )
+                    await websocket.send_json({"type": "error", "message": str(exc)})
+
+    except WebSocketDisconnect:
+        _log.info("[VOICE-WS] WebSocket voice stream disconnected by client")
+    except Exception as exc:
+        _log.error(f"[VOICE-WS] Error in websocket handler: {exc}", exc_info=True)
+    finally:
+        _log.info("[VOICE-WS] WebSocket connection clean up complete")

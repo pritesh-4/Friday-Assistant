@@ -11,6 +11,7 @@ from app.tools.executor import PermissionRequiredError
 
 logger = get_logger(__name__)
 
+
 class BaseAgent(ABC):
     """Abstract base class for all specialized execution agents."""
 
@@ -36,7 +37,7 @@ class BaseAgent(ABC):
     def _build_system_prompt(self, task: str) -> str:
         """Construct the system prompt for this specific agent."""
         tools_prompt = self.tool_manager.get_tools_prompt(self.allowed_tools)
-        
+
         prompt = (
             f"You are the {self.name}. {self.description}\n\n"
             f"Your current task is: {task}\n\n"
@@ -53,14 +54,19 @@ class BaseAgent(ABC):
         return prompt
 
     async def execute(
-        self, task: str, messages: list[dict[str, Any]], approved_permissions: list[str] | None = None
+        self,
+        task: str,
+        messages: list[dict[str, Any]],
+        approved_permissions: list[str] | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Executes a specific task. Yields strings (thoughts/results) back to the caller.
         """
         # Create a fresh message history for this agent's execution loop
         messages = list(messages)
-        messages.insert(0, {"role": "system", "content": self._build_system_prompt(task)})
+        messages.insert(
+            0, {"role": "system", "content": self._build_system_prompt(task)}
+        )
 
         max_iterations = 10
         yield f"[{self.name}] Starting execution..."
@@ -70,7 +76,7 @@ class BaseAgent(ABC):
             # In a full implementation, we'd iterate through providers like RouterAgent does.
             provider_name = next(iter(self.llm_service.available_providers))
             provider = self.llm_service.get_provider(provider_name)
-            
+
             try:
                 if not provider:
                     yield "I cannot run tools right now (No AI Provider)."
@@ -83,7 +89,11 @@ class BaseAgent(ABC):
             content = response.content.strip()
 
             # Check for tool call
-            if content.startswith("{") and content.endswith("}") and '"tool"' in content:
+            if (
+                content.startswith("{")
+                and content.endswith("}")
+                and '"tool"' in content
+            ):
                 try:
                     tool_call = json.loads(content)
                     tool_name = tool_call.get("tool")
@@ -92,7 +102,12 @@ class BaseAgent(ABC):
                     if tool_name not in self.allowed_tools:
                         yield f"[{self.name}] Attempted to use unauthorized tool: {tool_name}"
                         messages.append({"role": "assistant", "content": content})
-                        messages.append({"role": "system", "content": f"Error: Tool '{tool_name}' is not allowed for this agent."})
+                        messages.append(
+                            {
+                                "role": "system",
+                                "content": f"Error: Tool '{tool_name}' is not allowed for this agent.",
+                            }
+                        )
                         continue
 
                     yield f"[{self.name}] Using tool: {tool_name}..."
@@ -100,7 +115,9 @@ class BaseAgent(ABC):
 
                     try:
                         # Call the tool
-                        tool_result = await self.tool_manager.execute_tool(tool_name, tool_kwargs, approved_permissions)
+                        tool_result = await self.tool_manager.execute_tool(
+                            tool_name, tool_kwargs, approved_permissions
+                        )
                         observation = f"Tool '{tool_name}' result:\n{tool_result}"
                         messages.append({"role": "system", "content": observation})
                         # yield f"[{self.name}] Tool {tool_name} returned successfully."
@@ -109,10 +126,10 @@ class BaseAgent(ABC):
                         yield f"[{self.name}] PERMISSION_REQUIRED: {e.scope}"
                         raise e
 
-                    continue # Loop again with the new observation
+                    continue  # Loop again with the new observation
 
                 except json.JSONDecodeError:
-                    pass # Not a valid JSON, just standard text output
+                    pass  # Not a valid JSON, just standard text output
 
             # Reached a final answer
             yield content

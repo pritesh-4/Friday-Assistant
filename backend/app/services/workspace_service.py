@@ -30,7 +30,9 @@ class WorkspaceService:
         """Retrieve a single note by ID. Raises 404 if not found."""
         row = await database.fetch_one("SELECT * FROM notes WHERE id = ?", (note_id,))
         if row is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Note not found."
+            )
         return Note.model_validate(row)
 
     async def create_note(self, note: NoteCreate) -> Note:
@@ -60,11 +62,15 @@ class WorkspaceService:
             (*values.values(), note_id),
         )
         if not updated:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Note not found."
+            )
         return await self.get_note(note_id)
 
     async def delete_note(self, note_id: str) -> bool:
-        return bool(await database.execute("DELETE FROM notes WHERE id = ?", (note_id,)))
+        return bool(
+            await database.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        )
 
     # ── Tasks ─────────────────────────────────────────────────────────────────
 
@@ -88,21 +94,34 @@ class WorkspaceService:
     async def update_task(self, task_id: str, update: TaskUpdate) -> Task:
         values = update.model_dump(exclude_unset=True)
         if not values:
-            row = await database.fetch_one("SELECT * FROM tasks WHERE id = ?", (task_id,))
+            row = await database.fetch_one(
+                "SELECT * FROM tasks WHERE id = ?", (task_id,)
+            )
             if row is None:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found.")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Task not found."
+                )
             return Task.model_validate(row)
 
-        columns = {"title": "title", "status": "status", "priority": "priority", "due_date": "due_date"}
+        columns = {
+            "title": "title",
+            "status": "status",
+            "priority": "priority",
+            "due_date": "due_date",
+        }
         assignments = ", ".join(f"{columns[key]} = ?" for key in values)
         updated = await database.execute(
             f"UPDATE tasks SET {assignments} WHERE id = ?",  # nosec B608
             (*values.values(), task_id),
         )
         if not updated:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found."
+            )
         row = await database.fetch_one("SELECT * FROM tasks WHERE id = ?", (task_id,))
         return Task.model_validate(row)
 
     async def delete_task(self, task_id: str) -> bool:
-        return bool(await database.execute("DELETE FROM tasks WHERE id = ?", (task_id,)))
+        return bool(
+            await database.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        )

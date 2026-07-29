@@ -11,21 +11,22 @@ from app.tools.registry import tool_registry
 
 logger = get_logger(__name__)
 
+
 class PermissionRequiredError(Exception):
     """Raised when a tool requires explicit user permission."""
+
     def __init__(self, tool_name: str, scope: str, kwargs: dict[str, Any]):
         self.tool_name = tool_name
         self.scope = scope
         self.kwargs = kwargs
         super().__init__(f"Tool '{tool_name}' requires permission: {scope}")
 
+
 class ToolExecutor:
     """Handles execution, validation, timeout, retries, and permissions for tools."""
 
     async def execute(
-        self, 
-        request: ToolExecutionRequest, 
-        approved_permissions: list[str] = None
+        self, request: ToolExecutionRequest, approved_permissions: list[str] = None
     ) -> ToolExecutionResponse:
         """Execute a tool with validation, timeout, retries, and permission checks."""
         start_time = time.time()
@@ -39,12 +40,19 @@ class ToolExecutor:
         try:
             jsonschema.validate(instance=request.kwargs, schema=tool.parameters)
         except jsonschema.ValidationError as e:
-            return self._build_error_response(f"Invalid arguments: {e.message}", start_time)
+            return self._build_error_response(
+                f"Invalid arguments: {e.message}", start_time
+            )
 
         # 2. Permission Check
-        if tool.requires_permission and tool.permission_scope not in approved_permissions:
+        if (
+            tool.requires_permission
+            and tool.permission_scope not in approved_permissions
+        ):
             # We raise this so the upper layer (Agent/Router) can catch it and prompt the user
-            raise PermissionRequiredError(tool.name, tool.permission_scope, request.kwargs)
+            raise PermissionRequiredError(
+                tool.name, tool.permission_scope, request.kwargs
+            )
 
         # 3. Execution with Retries & Timeout
         retries = 0
@@ -55,32 +63,37 @@ class ToolExecutor:
             try:
                 # Run the tool with timeout
                 result = await asyncio.wait_for(
-                    tool.execute(**request.kwargs),
-                    timeout=tool.timeout_seconds
+                    tool.execute(**request.kwargs), timeout=tool.timeout_seconds
                 )
-                
+
                 execution_time = int((time.time() - start_time) * 1000)
-                logger.info(f"Tool '{tool.name}' executed successfully in {execution_time}ms")
-                
+                logger.info(
+                    f"Tool '{tool.name}' executed successfully in {execution_time}ms"
+                )
+
                 return ToolExecutionResponse(
                     success=True,
                     result=result,
                     execution_time_ms=execution_time,
-                    retries=retries
+                    retries=retries,
                 )
 
             except asyncio.TimeoutError:
                 err_msg = f"Tool '{tool.name}' timed out after {tool.timeout_seconds}s"
                 logger.warning(err_msg)
-            
+
             except Exception as e:
                 err_msg = f"Tool '{tool.name}' failed: {e!s}"
                 logger.warning(err_msg)
 
             retries += 1
             if retries <= max_retries:
-                sleep_time = min(backoff * (2 ** (retries - 1)), tool.retry_policy.max_backoff)
-                logger.info(f"Retrying tool '{tool.name}' in {sleep_time}s... ({retries}/{max_retries})")
+                sleep_time = min(
+                    backoff * (2 ** (retries - 1)), tool.retry_policy.max_backoff
+                )
+                logger.info(
+                    f"Retrying tool '{tool.name}' in {sleep_time}s... ({retries}/{max_retries})"
+                )
                 await asyncio.sleep(sleep_time)
 
         # Exhausted retries
@@ -90,17 +103,17 @@ class ToolExecutor:
             result=None,
             error=err_msg,
             execution_time_ms=execution_time,
-            retries=retries - 1
+            retries=retries - 1,
         )
 
-    def _build_error_response(self, error: str, start_time: float) -> ToolExecutionResponse:
+    def _build_error_response(
+        self, error: str, start_time: float
+    ) -> ToolExecutionResponse:
         execution_time = int((time.time() - start_time) * 1000)
         return ToolExecutionResponse(
-            success=False,
-            result=None,
-            error=error,
-            execution_time_ms=execution_time
+            success=False, result=None, error=error, execution_time_ms=execution_time
         )
+
 
 # Global singleton executor
 tool_executor = ToolExecutor()

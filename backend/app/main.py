@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):
     if settings.voice_enabled:
         _log.info("[2/3] Voice models enabled (VOICE_ENABLED=true).")
         _log.info("      Validating dependencies and initializing WhisperEngine...")
-        
+
         try:
             # Import to verify dependencies
             import faster_whisper  # noqa: F401
@@ -83,17 +83,19 @@ async def lifespan(app: FastAPI):
             import av  # noqa: F401
             import tokenizers  # noqa: F401
             import shutil
-            
+
             if not shutil.which("ffmpeg"):
                 raise RuntimeError("ffmpeg executable not found in system PATH.")
-                
+
             from app.ai.whisper.engine import WhisperEngine
-            
+
             engine = WhisperEngine()
             _log.info(f"      Model     : {engine.model_name} (default)")
             _log.info(f"      Device    : {engine.device}")
             _log.info(f"      Compute   : {engine.compute_type}")
-            _log.info("      Dependencies validated. Model will be lazily loaded into memory on the first STT request.")
+            _log.info(
+                "      Dependencies validated. Model will be lazily loaded into memory on the first STT request."
+            )
         except ImportError as exc:
             _log.critical(
                 "FATAL: Voice features are enabled but required dependencies are missing.\n"
@@ -108,16 +110,16 @@ async def lifespan(app: FastAPI):
         _log.info("[2/3] Voice models skipped (VOICE_ENABLED=false).")
 
     # ── Stage 3: Ready ────────────────────────────────────────────────────────
-    
+
     # Start Background Worker & Scheduler
     agent_mgr = get_agent_manager()
     global _bg_worker
     _bg_worker = BackgroundWorker(agent_mgr)
     await _bg_worker.start()
-    
+
     scheduler = get_scheduler()
     await scheduler.start()
-    
+
     _startup_time = time.monotonic()
     _log.info("[3/3] All routes registered. API is ready.")
     _log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -127,11 +129,11 @@ async def lifespan(app: FastAPI):
     # ── Shutdown ──────────────────────────────────────────────────────────────
     if _bg_worker:
         _bg_worker.stop()
-    
+
     scheduler = get_scheduler()
     if scheduler:
         scheduler.stop()
-        
+
     _log.info("Shutting down F.R.I.D.A.Y. API.")
 
 
@@ -167,31 +169,39 @@ app.add_middleware(RequestContextMiddleware)
 
 
 @app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
     """Return clean, consistent HTTP error responses."""
     _log.warning("HTTP %s — %s %s", exc.status_code, request.method, request.url.path)
-    
-    msg = "The requested resource was not found." if exc.status_code == status.HTTP_404_NOT_FOUND else exc.detail
-    
+
+    msg = (
+        "The requested resource was not found."
+        if exc.status_code == status.HTTP_404_NOT_FOUND
+        else exc.detail
+    )
+
     err = ErrorResponse(
         error=ErrorDetail(
             code=f"HTTP_{exc.status_code}",
             message=msg,
-            request_id=getattr(request.state, "request_id", None)
+            request_id=getattr(request.state, "request_id", None),
         )
     )
     return JSONResponse(status_code=exc.status_code, content=err.model_dump())
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     """Return a predictable validation error envelope for browser clients."""
     err = ErrorResponse(
         error=ErrorDetail(
             code="VALIDATION_ERROR",
             message="Request validation failed.",
             details=exc.errors(),
-            request_id=getattr(request.state, "request_id", None)
+            request_id=getattr(request.state, "request_id", None),
         )
     )
     return JSONResponse(
@@ -204,13 +214,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Return a safe 500 response for unhandled exceptions, without leaking internals."""
     _log.error(
-        "Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True
+        "Unhandled exception on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
+        exc_info=True,
     )
     err = ErrorResponse(
         error=ErrorDetail(
             code="INTERNAL_SERVER_ERROR",
             message="An internal server error occurred.",
-            request_id=getattr(request.state, "request_id", None)
+            request_id=getattr(request.state, "request_id", None),
         )
     )
     return JSONResponse(

@@ -10,7 +10,7 @@ from app.services.providers.base import LLMProvider, LLMProviderError, LLMResult
 class OpenRouterProvider(LLMProvider):
     """
     OpenRouter Provider.
-    
+
     Serves as an aggregator for multiple models, supporting a unified API.
     """
 
@@ -28,7 +28,9 @@ class OpenRouterProvider(LLMProvider):
 
     async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         if not self.is_configured:
-            raise LLMProviderError("OpenRouter is not configured (missing OPENROUTER_API_KEY).")
+            raise LLMProviderError(
+                "OpenRouter is not configured (missing OPENROUTER_API_KEY)."
+            )
 
         payload = {
             "model": settings.openrouter_model,
@@ -51,7 +53,9 @@ class OpenRouterProvider(LLMProvider):
 
     async def stream_response(self, messages: Sequence[dict[str, Any]]) -> Any:
         if not self.is_configured:
-            raise LLMProviderError("OpenRouter is not configured (missing OPENROUTER_API_KEY).")
+            raise LLMProviderError(
+                "OpenRouter is not configured (missing OPENROUTER_API_KEY)."
+            )
 
         payload = {
             "model": settings.openrouter_model,

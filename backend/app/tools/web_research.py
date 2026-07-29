@@ -38,10 +38,10 @@ class WebSearchTool(BaseTool):
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The search query to look up on the web."
+                    "description": "The search query to look up on the web.",
                 }
             },
-            "required": ["query"]
+            "required": ["query"],
         }
 
     async def execute(self, query: str, **kwargs) -> str:
@@ -54,14 +54,16 @@ class WebSearchTool(BaseTool):
             results = await asyncio.to_thread(_search)
             if not results:
                 return f"No web search results found for: '{query}'"
-            
+
             output = []
             for i, r in enumerate(results):
-                title = r.get('title', 'No Title')
-                href = r.get('href', 'No URL')
-                body = r.get('body', 'No snippet available.')
-                output.append(f"Result {i+1}:\nTitle: {title}\nURL: {href}\nSnippet: {body}\n")
-            
+                title = r.get("title", "No Title")
+                href = r.get("href", "No URL")
+                body = r.get("body", "No snippet available.")
+                output.append(
+                    f"Result {i + 1}:\nTitle: {title}\nURL: {href}\nSnippet: {body}\n"
+                )
+
             return "\n".join(output)
         except Exception as e:
             return f"Web search failed: {e!s}"

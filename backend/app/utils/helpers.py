@@ -31,7 +31,7 @@ def truncate_text(text: str, max_length: int, suffix: str = "…") -> str:
     if len(text) <= max_length:
         return text
     cut = max_length - len(suffix)
-    return text[:max(cut, 0)] + suffix
+    return text[: max(cut, 0)] + suffix
 
 
 def sanitize_filename(name: str) -> str:

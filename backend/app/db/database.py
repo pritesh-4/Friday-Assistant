@@ -21,7 +21,9 @@ class Database:
     def configure(self, database_url: str) -> None:
         """Set the SQLite database used by the application or a test."""
         if not database_url.startswith("sqlite://"):
-            raise ValueError("FRIDAY currently supports SQLite DATABASE_URL values only.")
+            raise ValueError(
+                "FRIDAY currently supports SQLite DATABASE_URL values only."
+            )
 
         raw_path = database_url.removeprefix("sqlite://")
         if raw_path.startswith("//"):
@@ -58,7 +60,6 @@ class Database:
         # Using a list of statements instead of one big script allows us to
         # catch benign errors (e.g. "duplicate column") on a per-statement basis.
         migrations: list[tuple[int, list[str]]] = [
-
             (
                 1,
                 [

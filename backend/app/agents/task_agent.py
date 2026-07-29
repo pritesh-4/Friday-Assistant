@@ -36,7 +36,8 @@ _ACTION_VERBS: re.Pattern[str] = re.compile(
 )
 
 _HIGH_PRIORITY_WORDS: re.Pattern[str] = re.compile(
-    r"\b(?:urgent|asap|immediately|critical|important|priority|deadline|due)\b", re.IGNORECASE
+    r"\b(?:urgent|asap|immediately|critical|important|priority|deadline|due)\b",
+    re.IGNORECASE,
 )
 
 

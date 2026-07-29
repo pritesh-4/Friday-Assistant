@@ -8,6 +8,7 @@ from app.schemas.execution import ToolExecutionRequest
 
 logger = get_logger(__name__)
 
+
 class ToolManager:
     """Manages registration, discovery, and execution of tools."""
 
@@ -27,10 +28,12 @@ class ToolManager:
     def get_tools_prompt(self, allowed_tools: list[str] = None) -> str:
         return tool_registry.get_tools_prompt(allowed_tools)
 
-    async def execute_tool(self, name: str, kwargs: dict[str, Any], approved_permissions: list[str] = None) -> str:
+    async def execute_tool(
+        self, name: str, kwargs: dict[str, Any], approved_permissions: list[str] = None
+    ) -> str:
         """Executes a tool by name with the given arguments using the new executor."""
         request = ToolExecutionRequest(tool_name=name, kwargs=kwargs)
-        
+
         try:
             response = await tool_executor.execute(request, approved_permissions)
             if response.success:
@@ -40,5 +43,3 @@ class ToolManager:
         except PermissionRequiredError as e:
             # Re-raise so the router can handle the approval flow
             raise e
-        
-

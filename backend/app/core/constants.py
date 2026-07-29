@@ -12,8 +12,8 @@ API_VERSION = "0.1.0"
 API_PREFIX = "/api/v1"
 
 # ── Memory ────────────────────────────────────────────────────────────────────
-MEMORY_SEARCH_LIMIT = 5          # Default memories injected into each LLM prompt
-MEMORY_MAX_HISTORY_MESSAGES = 16 # Maximum conversation turns sent to the LLM
+MEMORY_SEARCH_LIMIT = 5  # Default memories injected into each LLM prompt
+MEMORY_MAX_HISTORY_MESSAGES = 16  # Maximum conversation turns sent to the LLM
 
 # ── Session ───────────────────────────────────────────────────────────────────
 SESSION_CONTEXT_TTL_SECONDS = 3600  # 1 hour — session context eviction window

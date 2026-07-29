@@ -6,6 +6,7 @@ from app.tools.base import BaseTool
 
 logger = get_logger(__name__)
 
+
 class ToolRegistry:
     """Centralized Tool Registry for F.R.I.D.A.Y."""
 
@@ -52,8 +53,9 @@ class ToolRegistry:
                 f"Parameters (JSON Schema):\n{params}"
             )
             tool_descriptions.append(desc)
-        
+
         return "\n\n---\n\n".join(tool_descriptions)
+
 
 # Global singleton registry
 tool_registry = ToolRegistry()

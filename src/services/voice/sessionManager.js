@@ -1,6 +1,5 @@
 import { VoiceStateMachine } from "./voiceStateMachine";
-import { VoiceRecorderService } from "./recorder";
-import { voiceUploadService } from "./uploadService";
+import { VoiceStreamService } from "./streamService";
 import { speechQueue } from "./speechQueue";
 
 export class VoiceSessionManager {
@@ -122,22 +121,57 @@ export class VoiceSessionManager {
   async _startRecording() {
     try {
       if (!this._recorder) {
-        this._recorder = new VoiceRecorderService({
-          onVoiceStart: () => {
-            if (this._stateMachine.state === "LISTENING") {
+        this._recorder = new VoiceStreamService({
+          onTranscript: (text, isFinal) => {
+            if (isFinal) {
+              const cleanText = text?.trim();
+              if (!cleanText) {
+                this._clearWatchdogTimer();
+                this._resumeListening();
+                return;
+              }
+              this._stateMachine.transition("THINKING");
+              this._onStreamEvent("transcript", { text: cleanText });
+            }
+          },
+          onStatus: (state) => {
+            this._startWatchdogTimer();
+            if (state === "transcribing") {
+              this._stateMachine.transition("TRANSCRIBING");
+            } else if (state === "processing_intent") {
+              this._stateMachine.transition("THINKING");
+            }
+          },
+          onContent: (content) => {
+            this._startWatchdogTimer();
+            if (this._stateMachine.state === "THINKING") {
+              this._stateMachine.transition("STREAMING_RESPONSE");
+            }
+            this._onStreamEvent("chunk", { content });
+          },
+          onSentence: (text) => {
+            this._onStreamEvent("sentence", { text });
+          },
+          onDone: (metrics) => {
+            if (this._stateMachine.state === "STREAMING_RESPONSE" || this._stateMachine.state === "THINKING" || this._stateMachine.state === "TRANSCRIBING") {
+              this._stateMachine.transition("COMPLETE");
+            }
+            this._onStreamEvent("done", metrics);
+            this._clearWatchdogTimer();
+          },
+          onError: (err) => {
+            this._handleError(err.message || "Streaming error occurred.");
+          },
+          onVolumeChange: (vol) => {
+            if (vol > 0.05 && this._stateMachine.state === "LISTENING") {
               this._stateMachine.transition("RECORDING");
             }
-          },
-          onVoiceStop: () => {
-            if (this._stateMachine.state === "RECORDING") {
-              this.stopRecording();
-            }
-          },
-          onVolumeChange: (vol) => this._onVolumeChange(vol)
+            this._onVolumeChange(vol);
+          }
         });
       }
 
-      await this._recorder.start();
+      await this._recorder.start(this._activeConversationId);
       
       if (this._stateMachine.state === "REQUEST_PERMISSION" || this._stateMachine.state === "ERROR") {
         this._stateMachine.transition("READY");
@@ -149,7 +183,7 @@ export class VoiceSessionManager {
   }
 
   async _processRecording() {
-    console.log(`======== STAGE START ========\nStage Name: Process Recording\nTimestamp: ${new Date().toISOString()}\nInput Summary: Processing recording via state machine`);
+    console.log(`======== STAGE START ========\nStage Name: Process Recording\nTimestamp: ${new Date().toISOString()}\nInput Summary: Processing recording via WebSocket trigger`);
     const t0 = performance.now();
 
     const ok = this._stateMachine.transition("UPLOADING");
@@ -160,72 +194,11 @@ export class VoiceSessionManager {
     
     this._startWatchdogTimer();
 
-    let result;
     try {
-      result = await this._recorder.stop();
-    } catch (err) {
-      if (err.message.includes("empty")) {
-        this._clearWatchdogTimer();
-        this._resumeListening();
-        console.warn(`======== STAGE END =========\nResult: Empty\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: Resumed listening after empty recording`);
-      } else {
-        this._handleError(err.message || "Recording failed.");
-        console.error(`======== STAGE END =========\nResult: Error\nElapsed Time: ${performance.now() - t0}ms\nOutput Summary: ${err.message}`);
-      }
-      return;
-    }
-
-    try {
-      // Immediately start transcribing transition as upload via fetch begins immediately
       this._stateMachine.transition("TRANSCRIBING");
-
-      await voiceUploadService.orchestrateConversationStream(
-        result.blob,
-        result.mimeType || "audio/webm",
-        this._activeConversationId,
-        (eventType, payload) => {
-          this._startWatchdogTimer(); // reset on every event
-
-          if (eventType === "transcript") {
-            const transcript = payload.text?.trim();
-            if (!transcript) {
-              this._clearWatchdogTimer();
-              this._resumeListening();
-              return;
-            }
-            this._stateMachine.transition("THINKING");
-            this._onStreamEvent(eventType, payload);
-          } else if (eventType === "metadata") {
-            this._onStreamEvent(eventType, payload);
-          } else if (eventType === "chunk") {
-            if (this._stateMachine.state === "THINKING") {
-              this._stateMachine.transition("STREAMING_RESPONSE");
-            }
-            this._onStreamEvent(eventType, payload);
-          } else if (eventType === "sentence") {
-            this._onStreamEvent(eventType, payload);
-          } else if (eventType === "done") {
-            // Complete logic - but TTS queue will likely take over state to RESPONDING
-            if (this._stateMachine.state === "STREAMING_RESPONSE" || this._stateMachine.state === "THINKING" || this._stateMachine.state === "TRANSCRIBING") {
-              this._stateMachine.transition("COMPLETE");
-            }
-            this._onStreamEvent(eventType, payload);
-            this._clearWatchdogTimer();
-          } else if (eventType === "error") {
-            this._handleError(payload.content || "Streaming error occurred.");
-          }
-        }
-      );
-
-      // Post-stream safety guard: if the stream ended but state is still stuck
-      // in a processing state (e.g. no events were received, or events didn't
-      // transition the state), recover by resuming listening.
-      if (this._stateMachine.isProcessing) {
-        this._clearWatchdogTimer();
-        this._resumeListening();
-      }
+      this._recorder.stop();
     } catch (err) {
-      this._handleError(err.message || "Voice orchestration failed.");
+      this._handleError(err.message || "Recording stop failed.");
     }
   }
 

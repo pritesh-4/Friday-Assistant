@@ -6,8 +6,15 @@ from app.schemas.execution import ToolExecutionRequest, PermissionLevel, RetryCo
 from app.tools.executor import ToolExecutor, PermissionRequiredError
 from app.tools.registry import ToolRegistry
 
+
 class DummyTool(BaseTool):
-    def __init__(self, name: str, permission_level: PermissionLevel, retry_policy: RetryConfig, should_fail: bool = False):
+    def __init__(
+        self,
+        name: str,
+        permission_level: PermissionLevel,
+        retry_policy: RetryConfig,
+        should_fail: bool = False,
+    ):
         self._name = name
         self._permission_level = permission_level
         self._retry_policy = retry_policy
@@ -34,10 +41,8 @@ class DummyTool(BaseTool):
     def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
-            "properties": {
-                "arg": {"type": "string"}
-            },
-            "required": ["arg"]
+            "properties": {"arg": {"type": "string"}},
+            "required": ["arg"],
         }
 
     async def execute(self, arg: str, **kwargs) -> str:
@@ -65,7 +70,7 @@ async def test_tool_validation_success(monkeypatch, executor, test_registry):
 
     req = ToolExecutionRequest(tool_name="test_safe", kwargs={"arg": "value"})
     res = await executor.execute(req)
-    
+
     assert res.success is True
     assert res.result == "success:value"
     assert tool.execution_count == 1
@@ -79,7 +84,7 @@ async def test_tool_validation_failure(monkeypatch, executor, test_registry):
 
     req = ToolExecutionRequest(tool_name="test_safe", kwargs={"wrong_arg": "value"})
     res = await executor.execute(req)
-    
+
     assert res.success is False
     assert "Invalid arguments" in res.error
     assert tool.execution_count == 0
@@ -92,10 +97,10 @@ async def test_tool_permission_denied(monkeypatch, executor, test_registry):
     monkeypatch.setattr("app.tools.executor.tool_registry", test_registry)
 
     req = ToolExecutionRequest(tool_name="test_destructive", kwargs={"arg": "value"})
-    
+
     with pytest.raises(PermissionRequiredError) as exc_info:
         await executor.execute(req, approved_permissions=[])
-        
+
     assert exc_info.value.tool_name == "test_destructive"
 
 
@@ -107,7 +112,7 @@ async def test_tool_permission_approved(monkeypatch, executor, test_registry):
 
     req = ToolExecutionRequest(tool_name="test_destructive", kwargs={"arg": "value"})
     res = await executor.execute(req, approved_permissions=[tool.permission_scope])
-    
+
     assert res.success is True
     assert tool.execution_count == 1
 
@@ -122,7 +127,7 @@ async def test_tool_retry_policy(monkeypatch, executor, test_registry):
 
     req = ToolExecutionRequest(tool_name="test_retry", kwargs={"arg": "value"})
     res = await executor.execute(req)
-    
+
     assert res.success is True
     assert res.retries == 2
     assert tool.execution_count == 3
@@ -133,18 +138,20 @@ async def test_tool_retry_exhausted(monkeypatch, executor, test_registry):
     # Tool fails always, retry exhausted
     retry_policy = RetryConfig(max_retries=1, backoff_factor=0.01)
     tool = DummyTool("test_fail", PermissionLevel.SAFE, retry_policy, should_fail=True)
+
     # Patch execute to always fail
     async def always_fail(*args, **kwargs):
         tool.execution_count += 1
         raise ValueError("Permanent error")
+
     tool.execute = always_fail
-    
+
     test_registry.register(tool)
     monkeypatch.setattr("app.tools.executor.tool_registry", test_registry)
 
     req = ToolExecutionRequest(tool_name="test_fail", kwargs={"arg": "value"})
     res = await executor.execute(req)
-    
+
     assert res.success is False
     assert "Permanent error" in res.error
     assert tool.execution_count == 2

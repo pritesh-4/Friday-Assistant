@@ -5,6 +5,7 @@ from slowapi.errors import RateLimitExceeded
 # Use client IP address for rate limiting
 limiter = Limiter(key_func=get_remote_address)
 
+
 def configure_rate_limiting(app):
     """Register rate limiter and exception handler with the FastAPI app."""
     app.state.limiter = limiter

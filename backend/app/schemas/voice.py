@@ -9,6 +9,7 @@ class WhisperSegment(BaseModel):
     end: float
     text: str
 
+
 class TranscriptionResult(BaseModel):
     transcript: str
     detected_language: str

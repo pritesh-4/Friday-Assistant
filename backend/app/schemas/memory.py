@@ -17,6 +17,7 @@ class MemoryType(str, Enum):
 
 class MemoryMetadata(ApiModel):
     """Metadata used for observability and retrieval logic."""
+
     id: str
     memory_type: MemoryType
     memory_id: str
@@ -78,6 +79,7 @@ class Project(ApiModel):
 
 class CognitiveMemoryPayload(ApiModel):
     """Used for returning memory data to the client."""
+
     id: str
     memory_type: MemoryType
     content: str
@@ -88,6 +90,7 @@ class CognitiveMemoryPayload(ApiModel):
 
 class ExtractedMemory(ApiModel):
     """Output from the MemoryExtractor LLM Agent."""
+
     should_remember: bool
     memory_type: MemoryType | None = None
     importance_score: int | None = None

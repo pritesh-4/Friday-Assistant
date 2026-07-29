@@ -20,6 +20,7 @@ class LLMProviderError(RuntimeError):
 @dataclass(frozen=True)
 class LLMResult:
     """Standardized response from any LLM provider."""
+
     content: str
     provider: str
     model: str
@@ -30,7 +31,7 @@ class LLMResult:
 class LLMProvider(ABC):
     """
     Abstract Base Class for all LLM providers.
-    
+
     Ensures that every provider implements a common interface for the router/orchestrator.
     """
 
@@ -53,13 +54,13 @@ class LLMProvider(ABC):
     async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         """
         Generate a text response from the given message history.
-        
+
         Args:
             messages: A sequence of dicts containing 'role' and 'content' keys.
-            
+
         Returns:
             An LLMResult containing the generated content and metadata.
-            
+
         Raises:
             LLMProviderError: If the request fails due to network, auth, or provider errors.
         """
@@ -80,26 +81,37 @@ class LLMProvider(ABC):
         start_time = time.monotonic()
         timeout = httpx.Timeout(timeout_seconds)
         max_retries = 3
-        
+
         for attempt in range(max_retries):
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     response = await client.post(url, headers=headers, json=payload)
                     response.raise_for_status()
-                    break # Success
+                    break  # Success
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
-                    logger.warning("%s provider HTTP %s, retrying...", self.name, exc.response.status_code)
+                if (
+                    exc.response.status_code in (429, 500, 502, 503, 504)
+                    and attempt < max_retries - 1
+                ):
+                    logger.warning(
+                        "%s provider HTTP %s, retrying...",
+                        self.name,
+                        exc.response.status_code,
+                    )
                     import asyncio
-                    await asyncio.sleep(2 ** attempt)
+
+                    await asyncio.sleep(2**attempt)
                     continue
                 logger.error("%s provider HTTP error: %s", self.name, exc)
                 raise LLMProviderError(f"{self.name} API error: {exc}") from exc
             except httpx.RequestError as exc:
                 if attempt < max_retries - 1:
-                    logger.warning("%s provider connection error, retrying...", self.name)
+                    logger.warning(
+                        "%s provider connection error, retrying...", self.name
+                    )
                     import asyncio
-                    await asyncio.sleep(2 ** attempt)
+
+                    await asyncio.sleep(2**attempt)
                     continue
                 logger.error("%s provider Request error: %s", self.name, exc)
                 raise LLMProviderError(f"{self.name} connection error: {exc}") from exc
@@ -111,7 +123,9 @@ class LLMProvider(ABC):
             finish_reason = choice.get("finish_reason")
         except (KeyError, IndexError, TypeError) as exc:
             logger.error("%s response parsing error: %s", self.name, exc)
-            raise LLMProviderError(f"Invalid response format from {self.name} API.") from exc
+            raise LLMProviderError(
+                f"Invalid response format from {self.name} API."
+            ) from exc
 
         if not isinstance(content, str) or not content.strip():
             raise LLMProviderError(f"{self.name} returned an empty response.")
@@ -125,13 +139,15 @@ class LLMProvider(ABC):
         )
 
     @abstractmethod
-    async def stream_response(self, messages: Sequence[dict[str, Any]]) -> Any: # Returns AsyncGenerator[str, None]
+    async def stream_response(
+        self, messages: Sequence[dict[str, Any]]
+    ) -> Any:  # Returns AsyncGenerator[str, None]
         """
         Generate a text response from the given message history as an asynchronous stream.
-        
+
         Args:
             messages: A sequence of dicts containing 'role' and 'content' keys.
-            
+
         Yields:
             String chunks of the generated response as they arrive.
         """
@@ -143,11 +159,11 @@ class LLMProvider(ABC):
         payload: dict[str, Any],
         model: str,
         timeout_seconds: float,
-    ) -> Any: # Returns AsyncGenerator[str, None]
+    ) -> Any:  # Returns AsyncGenerator[str, None]
         """Helper to make a streaming request to any OpenAI-compatible API and yield chunks."""
         import json
         import asyncio
-        
+
         payload["stream"] = True
         timeout = httpx.Timeout(timeout_seconds)
         max_retries = 3
@@ -155,17 +171,19 @@ class LLMProvider(ABC):
         for attempt in range(max_retries):
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
-                    async with client.stream("POST", url, headers=headers, json=payload) as response:
+                    async with client.stream(
+                        "POST", url, headers=headers, json=payload
+                    ) as response:
                         response.raise_for_status()
                         async for line in response.aiter_lines():
                             line = line.strip()
                             if not line or not line.startswith("data: "):
                                 continue
-                                
-                            data_str = line[len("data: "):].strip()
+
+                            data_str = line[len("data: ") :].strip()
                             if data_str == "[DONE]":
                                 break
-                                
+
                             try:
                                 data = json.loads(data_str)
                                 if "choices" in data and len(data["choices"]) > 0:
@@ -174,21 +192,37 @@ class LLMProvider(ABC):
                                     if chunk:
                                         yield chunk
                             except (json.JSONDecodeError, KeyError, IndexError) as exc:
-                                logger.debug("%s streaming parsing skipped for chunk: %s", self.name, exc)
+                                logger.debug(
+                                    "%s streaming parsing skipped for chunk: %s",
+                                    self.name,
+                                    exc,
+                                )
                                 continue
-                return # Exit successfully after streaming
+                return  # Exit successfully after streaming
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
-                    logger.warning("%s provider HTTP %s in stream, retrying...", self.name, exc.response.status_code)
-                    await asyncio.sleep(2 ** attempt)
+                if (
+                    exc.response.status_code in (429, 500, 502, 503, 504)
+                    and attempt < max_retries - 1
+                ):
+                    logger.warning(
+                        "%s provider HTTP %s in stream, retrying...",
+                        self.name,
+                        exc.response.status_code,
+                    )
+                    await asyncio.sleep(2**attempt)
                     continue
                 logger.error("%s provider HTTP stream error: %s", self.name, exc)
-                raise LLMProviderError(f"{self.name} API streaming error: {exc}") from exc
+                raise LLMProviderError(
+                    f"{self.name} API streaming error: {exc}"
+                ) from exc
             except httpx.RequestError as exc:
                 if attempt < max_retries - 1:
-                    logger.warning("%s provider connection stream error, retrying...", self.name)
-                    await asyncio.sleep(2 ** attempt)
+                    logger.warning(
+                        "%s provider connection stream error, retrying...", self.name
+                    )
+                    await asyncio.sleep(2**attempt)
                     continue
                 logger.error("%s provider Request stream error: %s", self.name, exc)
-                raise LLMProviderError(f"{self.name} API streaming connection error: {exc}") from exc
-
+                raise LLMProviderError(
+                    f"{self.name} API streaming connection error: {exc}"
+                ) from exc

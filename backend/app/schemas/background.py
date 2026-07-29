@@ -4,15 +4,17 @@ from pydantic import BaseModel, Field
 
 from app.schemas.common import ApiModel
 
+
 class JobStatus(str, Enum):
     QUEUED = "queued"
     SCHEDULED = "scheduled"
     RUNNING = "running"
-    WAITING = "waiting" # E.g., waiting for user permission
+    WAITING = "waiting"  # E.g., waiting for user permission
     RETRY = "retry"
     COMPLETED = "completed"
     FAILED = "failed"
     ARCHIVED = "archived"
+
 
 class NotificationType(str, Enum):
     INFO = "info"
@@ -21,17 +23,22 @@ class NotificationType(str, Enum):
     ERROR = "error"
     APPROVAL = "approval"
 
+
 class NotificationStatus(str, Enum):
     UNREAD = "unread"
     READ = "read"
     ARCHIVED = "archived"
 
+
 class JobCreate(BaseModel):
-    task_type: str = Field(..., description="e.g., 'research', 'periodic_scan', 'kb_index'")
+    task_type: str = Field(
+        ..., description="e.g., 'research', 'periodic_scan', 'kb_index'"
+    )
     payload: dict = Field(default_factory=dict, description="JSON payload for the task")
     scheduled_at: datetime | None = None
     max_retries: int = 3
     agent_name: str | None = None
+
 
 class Job(ApiModel):
     id: str
@@ -48,11 +55,13 @@ class Job(ApiModel):
     created_at: datetime
     updated_at: datetime
 
+
 class NotificationCreate(BaseModel):
     title: str
     message: str
     type: NotificationType = NotificationType.INFO
     action_url: str | None = None
+
 
 class Notification(ApiModel):
     id: str

@@ -35,12 +35,14 @@ ALLOWED_EXTENSIONS = {
 
 MAX_FILE_SIZE = settings.max_upload_size_bytes
 
+
 class TranscriptionService:
     """
     Service for handling the entire transcription lifecycle:
     receiving an UploadFile, validating, decoding via FFmpeg,
     running WhisperEngine, and cleaning up temporary files.
     """
+
     def __init__(self):
         self.engine = WhisperEngine()
         self.upload_dir = settings.voice_uploads_directory
@@ -55,7 +57,9 @@ class TranscriptionService:
         if not file.filename:
             raise HTTPException(status_code=400, detail="Empty filename")
 
-        normalized_mime = file.content_type.split(";")[0].strip().lower() if file.content_type else ""
+        normalized_mime = (
+            file.content_type.split(";")[0].strip().lower() if file.content_type else ""
+        )
 
         if normalized_mime not in ALLOWED_MIME_TYPES:
             raise HTTPException(
@@ -81,7 +85,7 @@ class TranscriptionService:
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail="File is too large",
             )
-            
+
         upload_id = str(uuid.uuid4())
         raw_filename = f"{upload_id}_raw{ext}"
         raw_file_path = self.upload_dir / raw_filename
@@ -91,17 +95,22 @@ class TranscriptionService:
 
         wav_filename = f"{upload_id}.wav"
         wav_file_path = self.upload_dir / wav_filename
-        
+
         try:
             ffmpeg_cmd = [
                 "ffmpeg",
                 "-y",
-                "-i", str(raw_file_path),
-                "-ar", "16000",
-                "-ac", "1",
-                "-filter:a", "dynaudnorm",
-                "-c:a", "pcm_s16le",
-                str(wav_file_path)
+                "-i",
+                str(raw_file_path),
+                "-ar",
+                "16000",
+                "-ac",
+                "1",
+                "-filter:a",
+                "dynaudnorm",
+                "-c:a",
+                "pcm_s16le",
+                str(wav_file_path),
             ]
             await asyncio.to_thread(
                 subprocess.run,
@@ -132,29 +141,29 @@ class TranscriptionService:
 
         return wav_file_path
 
-
     async def transcribe(self, file: UploadFile) -> dict[str, Any]:
         """
         Orchestrates the validation, conversion, and transcription of an audio file.
         Ensures strict cleanup of temporary resources.
-        
+
         Args:
             file: The UploadFile object received from the route.
-        
+
         Returns:
             Dictionary matching the TranscriptionResult schema.
         """
         _log.info(f"[VOICE] STT Engine Started processing upload: {file.filename}")
         start_time = time.time()
-        
+
         wav_path = await self._process_upload(file)
-        
+
         try:
             result = await self.engine.transcribe(str(wav_path))
         except HTTPException:
             raise
         except Exception as e:
             import traceback
+
             _log.error(f"[VOICE] FAILURE: Transcription failed: {e}", exc_info=True)
             tb_str = traceback.format_exc()
             raise HTTPException(
@@ -165,21 +174,23 @@ class TranscriptionService:
                     "failing_module": __name__,
                     "failing_function": "transcribe",
                     "stack_trace": tb_str,
-                    "execution_stage": "STT Inference"
-                }
+                    "execution_stage": "STT Inference",
+                },
             )
         finally:
             if wav_path.exists():
                 wav_path.unlink(missing_ok=True)
-            
+
         processing_time = time.time() - start_time
-        _log.info(f"[VOICE] STT Engine Completed transcription in {processing_time:.2f}s")
-        
+        _log.info(
+            f"[VOICE] STT Engine Completed transcription in {processing_time:.2f}s"
+        )
+
         if not result["segments"] or not result["transcript"].strip():
             _log.warning(f"[VOICE] No speech detected in audio file: {file.filename}")
-            
+
         _log.info("[VOICE] Returning transcript")
-        
+
         return {
             "transcript": result["transcript"],
             "detected_language": result["detected_language"],
@@ -187,5 +198,29 @@ class TranscriptionService:
             "duration": result["duration"],
             "processing_time": processing_time,
             "segments": result["segments"],
-            "metadata": result["metadata"]
+            "metadata": result["metadata"],
+        }
+
+    async def transcribe_array(self, samples: Any) -> dict[str, Any]:
+        """
+        Transcribe a 1D float32 numpy array directly from memory.
+        """
+        _log.info("[VOICE] STT Engine Started processing audio array in memory")
+        start_time = time.time()
+
+        result = await self.engine.transcribe_array(samples)
+
+        processing_time = time.time() - start_time
+        _log.info(
+            f"[VOICE] STT Engine Completed transcription in {processing_time:.2f}s"
+        )
+
+        return {
+            "transcript": result["transcript"],
+            "detected_language": result["detected_language"],
+            "confidence": result["confidence"],
+            "duration": result["duration"],
+            "processing_time": processing_time,
+            "segments": result["segments"],
+            "metadata": result["metadata"],
         }

@@ -24,7 +24,7 @@ class WhisperEngine:
     Wrapper around Faster-Whisper for Speech-to-Text inference.
     Implemented as a thread-safe Singleton.
     """
-    
+
     _instance = None
     _lock = threading.Lock()
 
@@ -36,11 +36,17 @@ class WhisperEngine:
                     cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, model_name: str | None = None, device: str = "auto", compute_type: str = "int8"):
+    def __init__(
+        self,
+        model_name: str | None = None,
+        device: str = "auto",
+        compute_type: str = "int8",
+    ):
         if self._initialized:
             return
-            
+
         from app.core.config import settings
+
         self.model_name = model_name or settings.whisper_model
         self.device = device
         self.compute_type = compute_type
@@ -63,9 +69,11 @@ class WhisperEngine:
             # Double-checked locking
             if self.model is not None:
                 return
-                
+
             log_memory("Before Whisper model load")
-            _log.info("[VOICE] Lazily initializing Faster-Whisper model on first request...")
+            _log.info(
+                "[VOICE] Lazily initializing Faster-Whisper model on first request..."
+            )
             _log.info("Loading Whisper...")
             _log.info(
                 "Loading Model... (model='%s', device='%s', compute='%s')",
@@ -73,22 +81,24 @@ class WhisperEngine:
                 self.device,
                 self.compute_type,
             )
-            
+
             try:
                 from faster_whisper import WhisperModel
                 from app.core.config import settings
-                
+
                 _log.info("Downloading...")
                 _log.info("Initializing...")
-                
+
                 # Resolve download_root relative to settings.uploads_directory
-                download_root = str(settings.uploads_directory.parent / "models" / "whisper")
-                
+                download_root = str(
+                    settings.uploads_directory.parent / "models" / "whisper"
+                )
+
                 self.model = WhisperModel(
-                    self.model_name, 
-                    device=self.device, 
+                    self.model_name,
+                    device=self.device,
                     compute_type=self.compute_type,
-                    download_root=download_root
+                    download_root=download_root,
                 )
                 _log.info("SUCCESS")
                 log_memory("After Whisper model load")
@@ -96,7 +106,7 @@ class WhisperEngine:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 tb = traceback.extract_tb(exc_traceback)
                 last_call = tb[-1] if tb else None
-                
+
                 _log.error(
                     "[VOICE] FAILED\n"
                     f"Exception type: {exc_type.__name__ if exc_type else 'Unknown'}\n"
@@ -106,7 +116,9 @@ class WhisperEngine:
                     f"Failing file: {last_call.filename if last_call else 'Unknown'}\n"
                     f"Failing line: {last_call.lineno if last_call else 'Unknown'}"
                 )
-                raise RuntimeError(f"Failed to initialize Faster-Whisper model: {exc}") from exc
+                raise RuntimeError(
+                    f"Failed to initialize Faster-Whisper model: {exc}"
+                ) from exc
 
     async def transcribe(self, audio_path: str) -> dict[str, Any]:
         """
@@ -132,13 +144,21 @@ class WhisperEngine:
         try:
             segments_generator, info = await loop.run_in_executor(
                 None,
-                lambda: self.model.transcribe(audio_path, beam_size=3, vad_filter=True, language="en"),
+                lambda: self.model.transcribe(
+                    audio_path, beam_size=3, vad_filter=True, language="en"
+                ),
             )
         except Exception as exc:
-            _log.error("[VOICE] Failed during audio decoding or model inference", exc_info=True)
+            _log.error(
+                "[VOICE] Failed during audio decoding or model inference", exc_info=True
+            )
             raise RuntimeError(f"Audio decoding failed: {exc}") from exc
-            
-        _log.info("[VOICE] Audio decoded. Detected language '%s' with probability %.2f", info.language, info.language_probability)
+
+        _log.info(
+            "[VOICE] Audio decoded. Detected language '%s' with probability %.2f",
+            info.language,
+            info.language_probability,
+        )
         _log.info("[VOICE] Running inference...")
 
         # Collect the lazy generator — must be done in the same thread context.
@@ -160,9 +180,11 @@ class WhisperEngine:
         try:
             segments, transcript = await loop.run_in_executor(None, collect_segments)
         except Exception as exc:
-            _log.error("[VOICE] Failed during inference or segment extraction", exc_info=True)
+            _log.error(
+                "[VOICE] Failed during inference or segment extraction", exc_info=True
+            )
             raise RuntimeError(f"Segment extraction failed: {exc}") from exc
-            
+
         _log.info("[VOICE] Inference complete")
         log_memory("After Whisper transcribe")
 
@@ -174,7 +196,79 @@ class WhisperEngine:
             "segments": segments,
             "metadata": {
                 "all_language_probs": (
-                    info.all_language_probs if hasattr(info, "all_language_probs") else None
+                    info.all_language_probs
+                    if hasattr(info, "all_language_probs")
+                    else None
                 )
             },
+        }
+
+    async def transcribe_array(self, samples: Any) -> dict[str, Any]:
+        """
+        Transcribe a 1D float32 numpy array directly from memory.
+        """
+        if not settings.voice_enabled:
+            raise RuntimeError("Voice is disabled but transcription was requested.")
+
+        # Ensure the model is loaded before inferencing (non-blocking)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.load_model)
+
+        # Run CPU/GPU-bound transcription in a thread to avoid blocking the event loop.
+        log_memory("Before Whisper transcribe_array")
+        _log.info("[VOICE] Decoding audio array...")
+        try:
+            segments_generator, info = await loop.run_in_executor(
+                None,
+                lambda: self.model.transcribe(
+                    samples, beam_size=3, vad_filter=True, language="en"
+                ),
+            )
+        except Exception as exc:
+            _log.error(
+                "[VOICE] Failed during audio array decoding or model inference",
+                exc_info=True,
+            )
+            raise RuntimeError(f"Audio array decoding failed: {exc}") from exc
+
+        _log.info(
+            "[VOICE] Audio array decoded. Detected language '%s' with probability %.2f",
+            info.language,
+            info.language_probability,
+        )
+
+        # Collect the lazy generator — must be done in the same thread context.
+        def collect_segments() -> tuple[list[dict[str, Any]], str]:
+            collected: list[dict[str, Any]] = []
+            full_text = ""
+            for segment in segments_generator:
+                collected.append(
+                    {
+                        "id": segment.id,
+                        "start": segment.start,
+                        "end": segment.end,
+                        "text": segment.text.strip(),
+                    }
+                )
+                full_text += segment.text
+            return collected, full_text.strip()
+
+        try:
+            segments, transcript = await loop.run_in_executor(None, collect_segments)
+        except Exception as exc:
+            _log.error(
+                "[VOICE] Failed during inference or segment extraction", exc_info=True
+            )
+            raise RuntimeError(f"Segment extraction failed: {exc}") from exc
+
+        _log.info("[VOICE] Inference complete")
+        log_memory("After Whisper transcribe_array")
+
+        return {
+            "transcript": transcript,
+            "detected_language": info.language,
+            "confidence": info.language_probability,
+            "duration": info.duration,
+            "segments": segments,
+            "metadata": {},
         }

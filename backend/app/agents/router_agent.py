@@ -14,6 +14,7 @@ from app.tools.executor import PermissionRequiredError
 
 logger = get_logger(__name__)
 
+
 class RouterAgent:
     """Uses PlannerAgent to determine intent and routes to specialized agents."""
 
@@ -23,9 +24,13 @@ class RouterAgent:
         self.planner = PlannerAgent(self.llm_service)
         self.agent_manager = AgentManager(self.llm_service, self.tool_manager)
 
-    async def route_and_execute(self, messages: list[dict[str, Any]], approved_permissions: list[str] | None = None) -> LLMResult:
+    async def route_and_execute(
+        self,
+        messages: list[dict[str, Any]],
+        approved_permissions: list[str] | None = None,
+    ) -> LLMResult:
         """
-        Plans and executes the request. 
+        Plans and executes the request.
         Note: The return format is an LLMResult to maintain backwards compatibility,
         even if the work was done by an agent.
         """
@@ -42,7 +47,9 @@ class RouterAgent:
         # 1. Plan Execution
         available_agents = self.agent_manager.get_available_agents()
         plan = await self.planner.plan_execution(messages, available_agents)
-        logger.info(f"Execution plan: Strategy={plan.strategy.value}, Agent={plan.agent_name}")
+        logger.info(
+            f"Execution plan: Strategy={plan.strategy.value}, Agent={plan.agent_name}"
+        )
 
         # 2. Execute Strategy
         if plan.strategy == ExecutionStrategy.SINGLE_AGENT and plan.agent_name:
@@ -52,19 +59,19 @@ class RouterAgent:
                 final_content = ""
                 # We need the task string, typically the last user message
                 task = messages[-1]["content"] if messages else ""
-                
+
                 async for chunk in agent.execute(task, messages, approved_permissions):
                     final_content += chunk + "\n"
-                    
+
                 return LLMResult(
                     content=final_content.strip(),
                     provider="AgentFramework",
                     model=plan.agent_name,
                     latency_ms=0,
-                    finish_reason="stop"
+                    finish_reason="stop",
                 )
             except PermissionRequiredError as e:
-                raise e # Handled by outer service
+                raise e  # Handled by outer service
             except Exception as e:
                 logger.error(f"Agent execution failed: {e}")
                 # Fallback to conversational
@@ -76,7 +83,11 @@ class RouterAgent:
         except Exception as e:
             raise LLMProviderError(f"Conversational generation failed: {e}")
 
-    async def route_and_stream(self, messages: list[dict[str, Any]], approved_permissions: list[str] | None = None) -> AsyncGenerator[str, None]:
+    async def route_and_stream(
+        self,
+        messages: list[dict[str, Any]],
+        approved_permissions: list[str] | None = None,
+    ) -> AsyncGenerator[str, None]:
         """Plans and streams the response."""
         active_providers = self.llm_service.available_providers
         if not active_providers:
@@ -85,13 +96,15 @@ class RouterAgent:
 
         available_agents = self.agent_manager.get_available_agents()
         plan = await self.planner.plan_execution(messages, available_agents)
-        logger.info(f"Execution plan: Strategy={plan.strategy.value}, Agent={plan.agent_name}")
+        logger.info(
+            f"Execution plan: Strategy={plan.strategy.value}, Agent={plan.agent_name}"
+        )
 
         if plan.strategy == ExecutionStrategy.SINGLE_AGENT and plan.agent_name:
             try:
                 agent = self.agent_manager.spawn_agent(plan.agent_name)
                 task = messages[-1]["content"] if messages else ""
-                
+
                 async for chunk in agent.execute(task, messages, approved_permissions):
                     yield chunk + "\n"
                 return
@@ -109,7 +122,6 @@ class RouterAgent:
         except Exception as e:
             yield f"Error: {e}"
 
-
     def _contains_images(self, messages: list[dict[str, Any]]) -> bool:
         for msg in messages:
             content = msg.get("content")
@@ -119,7 +131,9 @@ class RouterAgent:
                         return True
         return False
 
-    def _sanitize_for_text_only(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _sanitize_for_text_only(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         sanitized = []
         for msg in messages:
             content = msg.get("content")
@@ -131,7 +145,12 @@ class RouterAgent:
                             text_parts.append(item.get("text", ""))
                         elif item.get("type") == "image_url":
                             text_parts.append("[Attached Image]")
-                sanitized.append({"role": msg.get("role", "user"), "content": " ".join(text_parts).strip()})
+                sanitized.append(
+                    {
+                        "role": msg.get("role", "user"),
+                        "content": " ".join(text_parts).strip(),
+                    }
+                )
             else:
                 sanitized.append(msg)
         return sanitized
@@ -141,7 +160,7 @@ class RouterAgent:
         for p in settings.fallback_chain:
             if p not in chain:
                 chain.append(p)
-                
+
         errors = []
         has_images = self._contains_images(messages)
 
@@ -163,7 +182,7 @@ class RouterAgent:
                 return await provider.generate_response(messages)
             except Exception as exc:
                 errors.append(f"{provider_name}: {exc}")
-                
+
         for provider_name, provider in self.llm_service.available_providers.items():
             if provider_name in chain:
                 continue
@@ -171,7 +190,7 @@ class RouterAgent:
                 return await provider.generate_response(messages)
             except Exception as exc:
                 errors.append(f"{provider_name}: {exc}")
-                
+
         raise LLMProviderError(f"All providers failed. Details: {' | '.join(errors)}")
 
     async def _call_providers_stream(self, messages: list[dict[str, Any]]) -> Any:
@@ -179,7 +198,7 @@ class RouterAgent:
         for p in settings.fallback_chain:
             if p not in chain:
                 chain.append(p)
-                
+
         errors = []
         has_images = self._contains_images(messages)
 
@@ -201,7 +220,7 @@ class RouterAgent:
                 return provider.stream_response(messages)
             except Exception as exc:
                 errors.append(f"{provider_name}: {exc}")
-                
+
         for provider_name, provider in self.llm_service.available_providers.items():
             if provider_name in chain:
                 continue
@@ -209,5 +228,7 @@ class RouterAgent:
                 return provider.stream_response(messages)
             except Exception as exc:
                 errors.append(f"{provider_name}: {exc}")
-                
-        raise LLMProviderError(f"All stream providers failed. Details: {' | '.join(errors)}")
+
+        raise LLMProviderError(
+            f"All stream providers failed. Details: {' | '.join(errors)}"
+        )

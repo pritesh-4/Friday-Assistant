@@ -34,4 +34,6 @@ async def delete_memory(
 ) -> None:
     """Permanently delete a cognitive memory."""
     if not await service.delete_memory(memory_id, memory_type):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Memory not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Memory not found."
+        )

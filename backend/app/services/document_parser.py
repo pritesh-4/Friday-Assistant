@@ -9,6 +9,7 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 class DocumentParser:
     """Extracts text content from various file formats."""
 
@@ -19,7 +20,7 @@ class DocumentParser:
             return ""
 
         ext = file_path.suffix.lower()
-        
+
         try:
             if ext == ".pdf":
                 return DocumentParser._parse_pdf(file_path)

@@ -31,6 +31,7 @@ class FileService:
 
     async def save_uploaded_file(self, upload: UploadFile) -> StoredFile:
         import re
+
         raw_name = Path(upload.filename or "").name
         # Sanitize filename to prevent malicious header injections or unsafe filesystem chars
         original_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", raw_name) or "unnamed_file"
@@ -43,7 +44,9 @@ class FileService:
 
         content = await upload.read(settings.max_upload_size_bytes + 1)
         if not content:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File is empty.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="File is empty."
+            )
         if len(content) > settings.max_upload_size_bytes:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -53,10 +56,12 @@ class FileService:
         file_id = generate_uuid()
         uploads_dir = settings.uploads_directory.resolve()
         storage_path = (uploads_dir / f"{file_id}{suffix}").resolve()
-        
+
         # Verify no path traversal outside uploads directory
         if not str(storage_path).startswith(str(uploads_dir)):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid storage path.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid storage path."
+            )
 
         await asyncio.to_thread(storage_path.parent.mkdir, parents=True, exist_ok=True)
         await asyncio.to_thread(storage_path.write_bytes, content)
@@ -69,7 +74,14 @@ class FileService:
                 INSERT INTO files (id, name, content_type, size_bytes, storage_path, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (file_id, original_name, content_type, len(content), str(storage_path), created_at),
+                (
+                    file_id,
+                    original_name,
+                    content_type,
+                    len(content),
+                    str(storage_path),
+                    created_at,
+                ),
             )
         except Exception:
             await asyncio.to_thread(storage_path.unlink, missing_ok=True)
@@ -86,7 +98,9 @@ class FileService:
         )
 
     async def delete_file(self, file_id: str) -> bool:
-        row = await database.fetch_one("SELECT storage_path FROM files WHERE id = ?", (file_id,))
+        row = await database.fetch_one(
+            "SELECT storage_path FROM files WHERE id = ?", (file_id,)
+        )
         if row is None:
             return False
         await database.execute("DELETE FROM files WHERE id = ?", (file_id,))

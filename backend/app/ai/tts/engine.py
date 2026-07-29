@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # soundfile is bundled with requirements-voice.txt — guard the import.
 try:
     import soundfile as sf
+
     _SOUNDFILE_AVAILABLE = True
 except ImportError:
     sf = None  # type: ignore[assignment]
@@ -27,7 +28,9 @@ class TTSEngine:
     Wraps the Kokoro TTS engine to provide non-blocking asynchronous audio generation.
     """
 
-    async def generate_audio(self, text: str, voice: str = "af_sarah", speed: float = 1.0) -> bytes:
+    async def generate_audio(
+        self, text: str, voice: str = "af_sarah", speed: float = 1.0
+    ) -> bytes:
         """
         Synthesize text into a WAV audio payload.
 
@@ -51,7 +54,9 @@ class TTSEngine:
 
         def _sync_generate() -> bytes:
             # Create audio stream (numpy array)
-            samples, sample_rate = engine.create(text, voice=voice, speed=speed, lang="en-us")
+            samples, sample_rate = engine.create(
+                text, voice=voice, speed=speed, lang="en-us"
+            )
 
             # Write to in-memory bytes buffer as WAV
             out_buffer = io.BytesIO()

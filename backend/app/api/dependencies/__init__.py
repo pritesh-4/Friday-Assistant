@@ -60,6 +60,7 @@ _scheduler = ExecutionScheduler(_agent_manager)
 
 # ── Provider functions ─────────────────────────────────────────────────────────
 
+
 def get_chat_service() -> ChatService:
     """Provide the shared ChatService instance."""
     return _chat_service

@@ -43,4 +43,6 @@ async def delete_task(
 ) -> None:
     """Delete a task permanently."""
     if not await service.delete_task(task_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found."
+        )

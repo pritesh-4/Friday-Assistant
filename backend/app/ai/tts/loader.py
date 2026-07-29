@@ -30,6 +30,7 @@ _log = get_logger("tts.loader")
 # Attempt to import kokoro-onnx. Degrade gracefully if not installed.
 try:
     from kokoro_onnx import Kokoro as _Kokoro
+
     _KOKORO_AVAILABLE = True
 except ImportError:
     _Kokoro = None  # type: ignore[assignment,misc]
@@ -73,7 +74,7 @@ def get_tts_engine():
                 success = initialize_tts_model()
                 if not success or _tts_engine is None:
                     raise RuntimeError("Failed to initialize Kokoro TTS engine.")
-                    
+
     return _tts_engine
 
 
@@ -105,6 +106,7 @@ def initialize_tts_model() -> bool:
 
     # Resolve model paths from settings.
     from app.core.config import settings
+
     model_path = settings.kokoro_model_path
     voices_path = settings.kokoro_voices_path
 

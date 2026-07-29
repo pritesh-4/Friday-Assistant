@@ -1,5 +1,6 @@
 from typing import Any
 
+
 class ContextBuilder:
     """Builds the final prompt context containing system instructions, memories, and history."""
 
@@ -21,25 +22,27 @@ class ContextBuilder:
             session_messages: A list of dicts with 'role' and 'content', representing recent history.
             memories: Dictionary of retrieved memories categorized by type.
         """
-        messages: list[dict[str, Any]] = [{"role": "system", "content": self.system_prompt}]
-        
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": self.system_prompt}
+        ]
+
         memory_context = ""
-        
+
         if memories.get("semantic"):
             memory_context += "Facts about the User:\n"
             for doc in memories["semantic"]:
                 memory_context += f"- {doc['document']}\n"
-                
+
         if memories.get("episodic"):
             memory_context += "\nImportant Events & Timeline:\n"
             for doc in memories["episodic"]:
                 memory_context += f"- {doc['document']}\n"
-                
+
         if memories.get("procedural"):
             memory_context += "\nUser Workflows & Preferences:\n"
             for doc in memories["procedural"]:
                 memory_context += f"- {doc['document']}\n"
-                
+
         if memories.get("project"):
             memory_context += "\nCurrent Projects:\n"
             for doc in memories["project"]:

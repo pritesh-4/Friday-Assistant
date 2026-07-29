@@ -10,7 +10,7 @@ from app.services.providers.base import LLMProvider, LLMProviderError, LLMResult
 class NvidiaProvider(LLMProvider):
     """
     NVIDIA NIM Provider.
-    
+
     Uses NVIDIA's high-performance inference microservices (OpenAI-compatible).
     """
 
@@ -28,7 +28,9 @@ class NvidiaProvider(LLMProvider):
 
     async def generate_response(self, messages: Sequence[dict[str, Any]]) -> LLMResult:
         if not self.is_configured:
-            raise LLMProviderError("NVIDIA NIM is not configured (missing NVIDIA_API_KEY).")
+            raise LLMProviderError(
+                "NVIDIA NIM is not configured (missing NVIDIA_API_KEY)."
+            )
 
         payload = {
             "model": settings.nvidia_model,
@@ -50,7 +52,9 @@ class NvidiaProvider(LLMProvider):
 
     async def stream_response(self, messages: Sequence[dict[str, Any]]) -> Any:
         if not self.is_configured:
-            raise LLMProviderError("NVIDIA NIM is not configured (missing NVIDIA_API_KEY).")
+            raise LLMProviderError(
+                "NVIDIA NIM is not configured (missing NVIDIA_API_KEY)."
+            )
 
         payload = {
             "model": settings.nvidia_model,

@@ -142,10 +142,10 @@ class MemoryManager:
         ctx = self.get_context(session_id)
         if not ctx.messages:
             return "No messages in this session yet."
-        lines = [f"{m['role'].capitalize()}: {m['content'][:80]}" for m in ctx.messages[-5:]]
+        lines = [
+            f"{m['role'].capitalize()}: {m['content'][:80]}" for m in ctx.messages[-5:]
+        ]
         return "\n".join(lines)
-
-
 
     # ── Session lifecycle ──────────────────────────────────────────────────────
 

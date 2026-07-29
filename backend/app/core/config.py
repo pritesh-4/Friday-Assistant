@@ -105,7 +105,13 @@ class Settings(BaseSettings):
                 return "sqlite:///tmp/friday/friday.db"
         return v
 
-    @field_validator("uploads_directory", "voice_uploads_directory", "kokoro_model_path", "kokoro_voices_path", mode="before")
+    @field_validator(
+        "uploads_directory",
+        "voice_uploads_directory",
+        "kokoro_model_path",
+        "kokoro_voices_path",
+        mode="before",
+    )
     @classmethod
     def resolve_upload_dirs(cls, v: str | Path) -> Path:
         """

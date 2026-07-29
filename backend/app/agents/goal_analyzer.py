@@ -8,15 +8,18 @@ from app.schemas.planning import GoalBase
 
 logger = get_logger(__name__)
 
+
 class GoalAnalyzer:
     """Uses LLM to structure complex project/goal requests."""
 
     def __init__(self, llm_service: LLMService):
         self.llm_service = llm_service
 
-    async def analyze_goal(self, request_text: str, available_agents: list[str]) -> GoalBase:
+    async def analyze_goal(
+        self, request_text: str, available_agents: list[str]
+    ) -> GoalBase:
         """Parses a natural language request into a structured GoalBase object."""
-        
+
         system_prompt = (
             "You are the Goal Analyzer for F.R.I.D.A.Y. AI.\n"
             "Your task is to take a user's complex request or goal and break it down into a structured project plan.\n\n"
@@ -57,32 +60,32 @@ class GoalAnalyzer:
             "  ]\n"
             "}\n"
         )
-        
+
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": request_text}
+            {"role": "user", "content": request_text},
         ]
-        
+
         try:
             provider_name = next(iter(self.llm_service.available_providers))
             provider = self.llm_service.get_provider(provider_name)
-            
+
             if not provider:
                 raise RuntimeError("No LLM provider available for analysis")
-            
+
             response = await provider.generate_response(messages)
             content = response.content.strip()
-            
+
             if content.startswith("```json"):
                 content = content[7:]
             if content.endswith("```"):
                 content = content[:-3]
-            
+
             content = content.strip()
-            
+
             goal_data = json.loads(content)
             return GoalBase.model_validate(goal_data)
-            
+
         except Exception as e:
             logger.error(f"Goal Analyzer failed: {e}")
             raise ValueError(f"Failed to analyze goal: {e}")

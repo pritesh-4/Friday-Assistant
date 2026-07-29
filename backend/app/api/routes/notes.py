@@ -52,4 +52,6 @@ async def delete_note(
 ) -> None:
     """Delete a note permanently."""
     if not await service.delete_note(note_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Note not found."
+        )

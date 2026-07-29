@@ -14,8 +14,13 @@ import contextvars
 
 from app.core.config import settings
 
-request_id_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
-conversation_id_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar("conversation_id", default=None)
+request_id_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "request_id", default=None
+)
+conversation_id_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "conversation_id", default=None
+)
+
 
 class ContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
@@ -46,7 +51,7 @@ def configure_logging() -> None:
     """
     logging.basicConfig(
         level=settings.log_level,
-        format="%(message)s",   # overridden by handler below
+        format="%(message)s",  # overridden by handler below
         handlers=[],
         force=True,
     )

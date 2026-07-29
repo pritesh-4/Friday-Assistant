@@ -60,4 +60,6 @@ async def delete_conversation(
 ) -> None:
     """Delete a conversation and all its messages."""
     if not await service.delete_conversation(conversation_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found."
+        )

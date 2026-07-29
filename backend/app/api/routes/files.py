@@ -33,4 +33,6 @@ async def delete_file(
 ) -> None:
     """Delete a file and its metadata permanently."""
     if not await service.delete_file(file_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found."
+        )

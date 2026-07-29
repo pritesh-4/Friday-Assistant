@@ -10,7 +10,7 @@ from app.services.providers.base import LLMProvider, LLMProviderError, LLMResult
 class GroqProvider(LLMProvider):
     """
     Groq Provider.
-    
+
     Known for extremely low-latency inference. Standard OpenAI-compatible API structure.
     """
 

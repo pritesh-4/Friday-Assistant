@@ -1,6 +1,5 @@
 """LLM Orchestrator: Manages fallback logic across multiple modular AI providers."""
 
-
 from app.core.logging import get_logger
 from app.services.providers.base import LLMProvider, LLMProviderError, LLMResult
 from app.services.providers.gemini import GeminiProvider
@@ -47,4 +46,3 @@ class LLMService:
         if not active:
             return None
         return next(iter(active.values()))
-

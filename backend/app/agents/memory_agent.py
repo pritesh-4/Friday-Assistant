@@ -21,21 +21,58 @@ from app.schemas.memory import MemoryCreate
 # ── Extraction patterns ────────────────────────────────────────────────────────
 
 _PREFERENCE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\bi (?:prefer|like|love|enjoy|hate|dislike|always|never)\b.{5,100}", re.IGNORECASE), "preferences"),
-    (re.compile(r"\bmy (?:favourite|favorite|preferred)\b.{3,80}", re.IGNORECASE), "preferences"),
+    (
+        re.compile(
+            r"\bi (?:prefer|like|love|enjoy|hate|dislike|always|never)\b.{5,100}",
+            re.IGNORECASE,
+        ),
+        "preferences",
+    ),
+    (
+        re.compile(r"\bmy (?:favourite|favorite|preferred)\b.{3,80}", re.IGNORECASE),
+        "preferences",
+    ),
     (re.compile(r"\bdon't (?:like|want|enjoy)\b.{5,80}", re.IGNORECASE), "preferences"),
 ]
 
 _FACT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\bmy (?:name|age|job|work|role|company|team|location|city|country)\b.{2,80}", re.IGNORECASE), "facts"),
-    (re.compile(r"\bi (?:am|work as|live in|study|graduated)\b.{5,100}", re.IGNORECASE), "facts"),
-    (re.compile(r"\bmy (?:email|phone|address|birthday|anniversary)\b.{2,80}", re.IGNORECASE), "facts"),
+    (
+        re.compile(
+            r"\bmy (?:name|age|job|work|role|company|team|location|city|country)\b.{2,80}",
+            re.IGNORECASE,
+        ),
+        "facts",
+    ),
+    (
+        re.compile(
+            r"\bi (?:am|work as|live in|study|graduated)\b.{5,100}", re.IGNORECASE
+        ),
+        "facts",
+    ),
+    (
+        re.compile(
+            r"\bmy (?:email|phone|address|birthday|anniversary)\b.{2,80}", re.IGNORECASE
+        ),
+        "facts",
+    ),
 ]
 
 _GOAL_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\bi (?:want to|need to|plan to|am trying to|am working on)\b.{5,100}", re.IGNORECASE), "goals"),
+    (
+        re.compile(
+            r"\bi (?:want to|need to|plan to|am trying to|am working on)\b.{5,100}",
+            re.IGNORECASE,
+        ),
+        "goals",
+    ),
     (re.compile(r"\bmy goal is\b.{5,100}", re.IGNORECASE), "goals"),
-    (re.compile(r"\bi(?:'m| am) (?:building|creating|writing|developing)\b.{5,100}", re.IGNORECASE), "goals"),
+    (
+        re.compile(
+            r"\bi(?:'m| am) (?:building|creating|writing|developing)\b.{5,100}",
+            re.IGNORECASE,
+        ),
+        "goals",
+    ),
 ]
 
 _ALL_PATTERNS = _PREFERENCE_PATTERNS + _FACT_PATTERNS + _GOAL_PATTERNS

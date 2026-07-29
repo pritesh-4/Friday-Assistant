@@ -68,7 +68,9 @@ def test_settings_notes_and_tasks(client: TestClient):
     assert settings_response.json()["sidebarCollapsed"] is True
 
     # Notes CRUD
-    note = client.post("/notes", json={"title": "MVP", "content": "Ship the text path first."})
+    note = client.post(
+        "/notes", json={"title": "MVP", "content": "Ship the text path first."}
+    )
     assert note.status_code == 201
     note_id = note.json()["id"]
     assert client.get("/notes").json()[0]["id"] == note_id
@@ -80,12 +82,15 @@ def test_settings_notes_and_tasks(client: TestClient):
     # Tasks CRUD
     task = client.post("/tasks", json={"title": "Run tests", "priority": "high"})
     assert task.status_code == 201
-    completed = client.patch(f"/tasks/{task.json()['id']}", json={"status": "completed"})
+    completed = client.patch(
+        f"/tasks/{task.json()['id']}", json={"status": "completed"}
+    )
     assert completed.json()["status"] == "completed"
 
 
 def test_voice_status(client: TestClient, monkeypatch):
     from app.core.config import settings
+
     monkeypatch.setattr(settings, "voice_enabled", False)
 
     response = client.get("/voice")
@@ -95,11 +100,9 @@ def test_voice_status(client: TestClient, monkeypatch):
     # transcription expects a file, so a plain post without one is 422.
     # FastAPI validates the 'file' parameter BEFORE running the endpoint logic (which checks for 503).
     assert client.post("/voice/transcribe").status_code == 422
-    
+
     # speak is a valid request, so it passes validation, hits the 503 check, and returns 503.
     assert client.post("/voice/speak", json={"text": "Hello"}).status_code == 503
-
-
 
 
 @pytest.mark.parametrize(
@@ -110,34 +113,34 @@ def test_voice_status(client: TestClient, monkeypatch):
         ("test.ogg", "audio/ogg", True),
         ("test.wav", "audio/wav", True),
         ("test.mp4", "audio/mp4", True),
-        
         # Browser-specific with codec parameters (The core bug fix)
         ("chrome.webm", "audio/webm;codecs=opus", True),
         ("firefox.ogg", "audio/ogg; codecs=opus", True),
         ("safari.mp4", "audio/mp4; codecs=mp4a.40.2", True),
         ("android.m4a", "audio/mp4", True),
         ("ios.wav", "audio/x-wav", True),
-        
         # Invalid / Malicious MIME Types (Security)
         ("test.webm", "image/png", False),
         ("test.webm", "text/plain", False),
         ("script.sh", "application/x-sh", False),
-        
         # Spoofed Extensions (Security)
         ("malicious.exe", "audio/webm", False),
         ("script.php", "audio/ogg", False),
         ("installer.msi", "audio/wav", False),
-    ]
+    ],
 )
-def test_voice_upload_browser_compatibility(client: TestClient, monkeypatch, filename, content_type, should_pass):
+def test_voice_upload_browser_compatibility(
+    client: TestClient, monkeypatch, filename, content_type, should_pass
+):
     from app.core.config import settings
+
     monkeypatch.setattr(settings, "voice_enabled", True)
 
     res = client.post(
         "/voice/upload",
         files={"file": (filename, b"fake audio content", content_type)},
     )
-    
+
     if should_pass:
         assert res.status_code == 200
         data = res.json()
@@ -147,15 +150,23 @@ def test_voice_upload_browser_compatibility(client: TestClient, monkeypatch, fil
     else:
         assert res.status_code == 415
         detail = res.json()["error"]["message"]
-        if content_type not in ["audio/webm", "audio/ogg", "audio/wav", "audio/mp4", "audio/x-wav"]:
+        if content_type not in [
+            "audio/webm",
+            "audio/ogg",
+            "audio/wav",
+            "audio/mp4",
+            "audio/x-wav",
+        ]:
             assert "Normalized MIME" in detail or "Received MIME" in detail
         else:
             assert "Unsupported file extension" in detail
 
+
 def test_voice_upload_empty(client: TestClient, monkeypatch):
     from app.core.config import settings
+
     monkeypatch.setattr(settings, "voice_enabled", True)
-    
+
     # Empty file
     res3 = client.post(
         "/voice/upload",
@@ -219,7 +230,10 @@ def test_router_agent_vision_detection_and_sanitization():
             "role": "user",
             "content": [
                 {"type": "text", "text": "What is in this diagram?"},
-                {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo..."}},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,iVBORw0KGgo..."},
+                },
             ],
         }
     ]
@@ -227,5 +241,3 @@ def test_router_agent_vision_detection_and_sanitization():
 
     sanitized = agent._sanitize_for_text_only(multimodal_messages)
     assert "[Attached Image]" in sanitized[0]["content"]
-
-

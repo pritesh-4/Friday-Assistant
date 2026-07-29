@@ -22,12 +22,14 @@ from app.db.database import database
 
 router = APIRouter(tags=["health"])
 
+
 # Reference to the startup timestamp set in main.py lifespan.
 # Imported lazily to avoid circular import issues at module load time.
 def _get_uptime_seconds() -> float:
     """Return seconds since the API started, or -1 if startup hasn't completed."""
     try:
         from app.main import _startup_time
+
         if _startup_time is not None:
             return round(time.monotonic() - _startup_time, 1)
     except ImportError:
