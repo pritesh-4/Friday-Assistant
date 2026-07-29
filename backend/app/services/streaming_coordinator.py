@@ -97,6 +97,23 @@ class StreamingCoordinator:
             # Persist user message
             await self._create_message(conversation_id, "user", content_for_db)
 
+            # Cognitive gateway: Process message via Intent Engine
+            from app.intent.engine import IntentEngine
+
+            intent_engine = IntentEngine()
+            intent_res = await intent_engine.process(request.message, conversation_id)
+
+            if intent_res.clarification_required and intent_res.clarification_prompt:
+                yield f"data: {json.dumps({'type': 'chunk', 'content': intent_res.clarification_prompt})}\n\n"
+                await self._create_message(
+                    conversation_id, "assistant", intent_res.clarification_prompt
+                )
+                memory_manager.append_message(
+                    conversation_id, "assistant", intent_res.clarification_prompt
+                )
+                yield f"data: {json.dumps({'type': 'done', 'metrics': {'latency_ms': 0}})}\n\n"
+                return
+
             yield f"data: {json.dumps({'type': 'status', 'status': 'accessing_memory'})}\n\n"
             ctx = memory_manager.get_context(conversation_id)
 

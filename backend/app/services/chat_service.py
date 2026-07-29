@@ -108,6 +108,32 @@ class ChatService:
         )
 
         session_id = conversation.id
+
+        # Cognitive gateway: Process message via Intent Engine
+        from app.intent.engine import IntentEngine
+
+        intent_engine = IntentEngine()
+        intent_res = await intent_engine.process(request.message, session_id)
+
+        if intent_res.clarification_required and intent_res.clarification_prompt:
+            assistant_message = await self._create_message(
+                conversation.id, "assistant", intent_res.clarification_prompt
+            )
+            memory_manager.append_message(
+                session_id, "assistant", intent_res.clarification_prompt
+            )
+            conversation = await self._get_conversation(conversation.id)
+            return ChatResponse(
+                conversation=conversation,
+                user_message=user_message,
+                assistant_message=assistant_message,
+                provider="IntentEngine",
+                model="Cognitive Core V1",
+                latency_ms=int((time.time() - start_time) * 1000),
+                finish_reason="clarification",
+                memories_used=0,
+            )
+
         ctx = memory_manager.get_context(session_id)
 
         # 1. Manage Session Memory
