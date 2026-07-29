@@ -60,3 +60,5 @@ ENV/
 # Databases
 *.sqlite3
 *.db
+data/
+chroma_db/

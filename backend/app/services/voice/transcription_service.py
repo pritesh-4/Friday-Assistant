@@ -99,6 +99,7 @@ class TranscriptionService:
                 "-i", str(raw_file_path),
                 "-ar", "16000",
                 "-ac", "1",
+                "-filter:a", "dynaudnorm",
                 "-c:a", "pcm_s16le",
                 str(wav_file_path)
             ]

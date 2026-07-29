@@ -9,6 +9,7 @@ export function useChat(initialId = null) {
   const [activeConversationId, setActiveConversationId] = useState(initialId);
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [typingStatus, setTypingStatus] = useState("");
   const skipNextLoadRef = useRef(false);
 
   // Auto-load conversation messages when activeConversationId changes
@@ -86,6 +87,7 @@ export function useChat(initialId = null) {
     
     setMessages((prev) => [...prev, userMsg, emptyFridayMsg]);
     setIsTyping(true);
+    setTypingStatus("processing_intent");
 
     try {
       await chatService.streamMessage(
@@ -96,6 +98,10 @@ export function useChat(initialId = null) {
           if (metadata && metadata.conversationId && !activeConversationId) {
             skipNextLoadRef.current = true;
             setActiveConversationId(metadata.conversationId);
+          }
+          
+          if (metadata && metadata.status) {
+            setTypingStatus(metadata.status);
           }
           
           if (chunk) {
@@ -111,6 +117,7 @@ export function useChat(initialId = null) {
           
           if (isDone) {
             setIsTyping(false);
+            setTypingStatus("");
             setMessages((prev) => {
               const newMsgs = [...prev];
               const lastMsg = newMsgs[newMsgs.length - 1];
@@ -135,6 +142,7 @@ export function useChat(initialId = null) {
         return newMsgs;
       });
       setIsTyping(false);
+      setTypingStatus("");
     }
   };
 
@@ -173,6 +181,7 @@ export function useChat(initialId = null) {
     sendMessage,
     deleteMessage,
     regenerateMessage,
-    isTyping
+    isTyping,
+    typingStatus
   };
 }

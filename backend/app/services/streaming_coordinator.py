@@ -35,6 +35,7 @@ class StreamingCoordinator:
         Event types: 'metadata', 'chunk', 'done', 'error'.
         """
         try:
+            yield f'data: {json.dumps({"type": "status", "status": "processing_intent"})}\n\n'
             conversation_id, title = await self._get_or_create_conversation(request)
             
             # Send initial metadata to UI so it knows the conversation ID
@@ -79,6 +80,7 @@ class StreamingCoordinator:
             # Persist user message
             await self._create_message(conversation_id, "user", content_for_db)
             
+            yield f'data: {json.dumps({"type": "status", "status": "accessing_memory"})}\n\n'
             ctx = memory_manager.get_context(conversation_id)
             
             if not ctx.messages:
@@ -118,9 +120,11 @@ class StreamingCoordinator:
             punctuation_marks = {'.', '?', '!', '\n'}
 
             try:
+                yield f'data: {json.dumps({"type": "status", "status": "reasoning"})}\n\n'
                 log_memory("Before router stream")
                 async for chunk in self.router_agent.route_and_stream(messages, request.approved_permissions):
                     if ttft == 0.0:
+                        yield f'data: {json.dumps({"type": "status", "status": "building_response"})}\n\n'
                         ttft = time.time() - start_time
                         
                     total_tokens += 1

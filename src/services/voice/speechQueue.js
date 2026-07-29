@@ -5,6 +5,7 @@ import { API_BASE_URL } from "../api";
  *
  * Fetches audio from the backend TTS endpoint, plays it sequentially,
  * and supports interruption (cancel current + clear queue).
+ * Falls back to browser SpeechSynthesis if the backend TTS is unavailable.
  */
 export const speechQueue = {
   queue: [],
@@ -88,10 +89,50 @@ export const speechQueue = {
       });
 
     } catch (error) {
-      console.error("Failed to generate speech:", error);
-      if (item.onEnd) item.onEnd();
-      this.playNext(); // Proceed gracefully
+      console.warn("Backend TTS failed, falling back to browser SpeechSynthesis:", error);
+      this.playBrowserSpeech(item);
     }
+  },
+
+  /**
+   * Fallback to native browser SpeechSynthesis.
+   */
+  playBrowserSpeech(item) {
+    if (!window.speechSynthesis) {
+      console.warn("Browser SpeechSynthesis is not supported.");
+      if (item.onEnd) item.onEnd();
+      this.playNext();
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(item.text);
+    
+    // Find premium-sounding English voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => v.lang.startsWith("en-") && (v.name.includes("Google") || v.name.includes("Natural"))) || 
+                          voices.find(v => v.lang.startsWith("en-")) || 
+                          voices[0];
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+    
+    utterance.onstart = () => {
+      if (item.onStart) item.onStart();
+    };
+    
+    utterance.onend = () => {
+      if (item.onEnd) item.onEnd();
+      this.playNext();
+    };
+    
+    utterance.onerror = (e) => {
+      if (e.error === "interrupted") return; // Ignore intentional cancel/stop
+      console.error("Browser SpeechSynthesis error:", e);
+      if (item.onEnd) item.onEnd();
+      this.playNext();
+    };
+
+    window.speechSynthesis.speak(utterance);
   },
 
   /**
@@ -107,6 +148,15 @@ export const speechQueue = {
       this.audio.pause();
       this.audio.currentTime = 0;
       this.audio = null;
+    }
+
+    // Cancel browser speech synthesis
+    if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {
+        console.warn("Failed to cancel window.speechSynthesis:", e);
+      }
     }
 
     // Drain remaining queue — call their onEnd so state machine doesn't hang

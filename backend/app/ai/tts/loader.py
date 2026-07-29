@@ -105,14 +105,10 @@ def initialize_tts_model() -> bool:
         _log.debug("TTS engine is already initialized — skipping.")
         return True
 
-    # Resolve model paths from env or defaults.
-    default_model_dir = Path(os.environ.get("FRIDAY_DATA_DIR", "/tmp/friday"))
-    model_path = Path(
-        os.environ.get("KOKORO_MODEL_PATH", str(default_model_dir / "kokoro-v0_19.onnx"))
-    )
-    voices_path = Path(
-        os.environ.get("KOKORO_VOICES_PATH", str(default_model_dir / "voices.json"))
-    )
+    # Resolve model paths from settings.
+    from app.core.config import settings
+    model_path = settings.kokoro_model_path
+    voices_path = settings.kokoro_voices_path
 
     if not model_path.exists():
         _log.warning(

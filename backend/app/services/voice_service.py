@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import subprocess
@@ -143,10 +144,12 @@ class VoiceService:
                 "-i", str(raw_file_path),
                 "-ar", "16000",
                 "-ac", "1",
+                "-filter:a", "dynaudnorm",
                 "-c:a", "pcm_s16le",
                 str(wav_file_path)
             ]
-            ffmpeg_result = subprocess.run(
+            ffmpeg_result = await asyncio.to_thread(
+                subprocess.run,
                 ffmpeg_cmd,
                 capture_output=True,
                 text=True,

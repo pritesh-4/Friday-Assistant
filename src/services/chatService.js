@@ -111,6 +111,8 @@ export const chatService = {
               const data = JSON.parse(dataStr);
               if (data.type === "metadata") {
                 onProgress("", data, false);
+              } else if (data.type === "status") {
+                onProgress("", { status: data.status }, false);
               } else if (data.type === "chunk") {
                 onProgress(data.content, null, false);
               } else if (data.type === "done") {

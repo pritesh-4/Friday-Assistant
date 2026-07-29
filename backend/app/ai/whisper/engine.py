@@ -36,11 +36,12 @@ class WhisperEngine:
                     cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, model_name: str = "tiny", device: str = "auto", compute_type: str = "int8"):
+    def __init__(self, model_name: str | None = None, device: str = "auto", compute_type: str = "int8"):
         if self._initialized:
             return
             
-        self.model_name = model_name
+        from app.core.config import settings
+        self.model_name = model_name or settings.whisper_model
         self.device = device
         self.compute_type = compute_type
         self.model = None
@@ -75,13 +76,19 @@ class WhisperEngine:
             
             try:
                 from faster_whisper import WhisperModel
+                from app.core.config import settings
                 
                 _log.info("Downloading...")
                 _log.info("Initializing...")
+                
+                # Resolve download_root relative to settings.uploads_directory
+                download_root = str(settings.uploads_directory.parent / "models" / "whisper")
+                
                 self.model = WhisperModel(
                     self.model_name, 
                     device=self.device, 
-                    compute_type=self.compute_type
+                    compute_type=self.compute_type,
+                    download_root=download_root
                 )
                 _log.info("SUCCESS")
                 log_memory("After Whisper model load")
@@ -125,7 +132,7 @@ class WhisperEngine:
         try:
             segments_generator, info = await loop.run_in_executor(
                 None,
-                lambda: self.model.transcribe(audio_path, beam_size=5),
+                lambda: self.model.transcribe(audio_path, beam_size=3, vad_filter=True, language="en"),
             )
         except Exception as exc:
             _log.error("[VOICE] Failed during audio decoding or model inference", exc_info=True)

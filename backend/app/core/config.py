@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     # Defaults to False — safe for Render free tier where native libs may
     # not be present.
     voice_enabled: bool = False
+    whisper_model: str = "tiny"
+    kokoro_model_path: Path = Path("./data/models/kokoro/kokoro-v0_19.onnx")
+    kokoro_voices_path: Path = Path("./data/models/kokoro/voices.json")
 
     # ── Security ──────────────────────────────────────────────────────────────
     # Reserved for future authentication. Generate a random value (e.g. via
@@ -102,7 +105,7 @@ class Settings(BaseSettings):
                 return "sqlite:///tmp/friday/friday.db"
         return v
 
-    @field_validator("uploads_directory", "voice_uploads_directory", mode="before")
+    @field_validator("uploads_directory", "voice_uploads_directory", "kokoro_model_path", "kokoro_voices_path", mode="before")
     @classmethod
     def resolve_upload_dirs(cls, v: str | Path) -> Path:
         """

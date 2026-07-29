@@ -4,39 +4,39 @@ import Orb from "./Orb";
 
 // Dynamic thoughts message database
 const thoughtMessages = [
-  { text: "Thinking…", id: "wmq0rt" },
-  { text: "Analyzing…", id: "2v1m8z" },
-  { text: "Searching memories…", id: "oj7s0n" },
-  { text: "Connecting ideas…", id: "e1z6pt" },
-  { text: "Formulating a response…", id: "3eh4m7" },
-  { text: "Reflecting…", id: "wpq9mb" }
+  { text: "Understanding…", id: "wmq0rt" },
+  { text: "Processing Intent…", id: "2v1m8z" },
+  { text: "Accessing Memory…", id: "oj7s0n" },
+  { text: "Reasoning…", id: "e1z6pt" },
+  { text: "Building Response…", id: "3eh4m7" },
+  { text: "Synthesizing Knowledge…", id: "wpq9mb" }
 ];
 
 // Fallback default messages for individual states
 const getDefaultStateText = (currentState) => {
   switch (currentState) {
-    case "searching":
-      return "Searching memories…";
-    case "reading":
-      return "Reading repository telemetry…";
-    case "tools":
-      return "Executing analytical tools…";
-    case "generating":
-      return "Formulating a response…";
+    case "processing_intent":
+      return "Processing Intent…";
+    case "accessing_memory":
+      return "Accessing Memory…";
+    case "reasoning":
+      return "Reasoning…";
+    case "building_response":
+      return "Building Response…";
     case "speaking":
-      return "Reflecting…";
+      return "Speaking…";
     case "thinking":
     default:
-      return "Thinking…";
+      return "Understanding…";
   }
 };
 
-export default function TypingIndicator({ state = "thinking", dynamic = true }) {
+export default function TypingIndicator({ state = "thinking", dynamic = false }) {
   const shouldReduceMotion = useReducedMotion();
-  const [currentText, setCurrentText] = useState("Thinking…");
+  const [currentText, setCurrentText] = useState("Understanding…");
   const [, setTextIndex] = useState(0);
 
-  // Determine active text based on dynamic flag (avoiding synchronous setState in effect)
+  // Determine active text based on dynamic flag
   const activeText = dynamic ? currentText : getDefaultStateText(state);
 
   // Rotate thoughts text if dynamic mode is active
@@ -63,19 +63,24 @@ export default function TypingIndicator({ state = "thinking", dynamic = true }) 
   // Map indicator state to orb face state
   const getOrbState = () => {
     switch (state) {
-      case "searching":
-        return "listening";
-      case "generating":
+      case "accessing_memory":
+        return "creative";
+      case "building_response":
         return "speaking";
       case "speaking":
         return "speaking";
-      case "reading":
-      case "tools":
+      case "processing_intent":
+      case "reasoning":
       case "thinking":
       default:
         return "thinking";
     }
   };
+
+  const isThinkingState = state === "thinking" || state === "processing_intent" || state === "reasoning";
+  const isSearchingState = state === "accessing_memory";
+  const isGeneratingState = state === "building_response";
+  const isSpeakingState = state === "speaking";
 
   return (
     <motion.div
@@ -83,7 +88,7 @@ export default function TypingIndicator({ state = "thinking", dynamic = true }) 
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="flex items-center gap-3.5 py-3 px-4 rounded-2xl glass-panel border border-[#00f0ff]/10 bg-[#1c1b1b]/40 shadow-[0_0_20px_rgba(0,240,255,0.02)] max-w-fit pointer-events-none select-none"
+      className="flex items-center gap-3.5 py-3 px-4 rounded-2xl glass-panel border border-[#00f0ff]/10 bg-[#1c1b1b]/40 shadow-[0_0_20px_rgba(0,240,255,0.02)] max-w-fit pointer-events-none select-none animate-pulse-slow"
     >
       {/* Mini Orb Indicator Column */}
       <div className="relative shrink-0 flex items-center justify-center w-8 h-8">
@@ -91,8 +96,8 @@ export default function TypingIndicator({ state = "thinking", dynamic = true }) 
         {/* Animated intelligence signals based on state */}
         {!shouldReduceMotion && (
           <div className="absolute inset-[-6px] rounded-full pointer-events-none z-10">
-            {/* Thinking state: Subtle rotating telemetry circle */}
-            {state === "thinking" && (
+            {/* Thinking / Processing / Reasoning: Subtle rotating telemetry circle */}
+            {isThinkingState && (
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
@@ -100,8 +105,8 @@ export default function TypingIndicator({ state = "thinking", dynamic = true }) 
               />
             )}
 
-            {/* Searching state: Concentric sweep radar pulse */}
-            {state === "searching" && (
+            {/* Accessing Memory: Concentric sweep radar pulse */}
+            {isSearchingState && (
               <motion.div
                 animate={{
                   scale: [0.9, 1.4],
@@ -112,31 +117,8 @@ export default function TypingIndicator({ state = "thinking", dynamic = true }) 
               />
             )}
 
-            {/* Reading state: Horizontal scan line beam */}
-            {state === "reading" && (
-              <motion.div
-                animate={{
-                  y: ["10%", "90%", "10%"]
-                }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute left-[10%] right-[10%] h-[1px] bg-gradient-to-r from-transparent via-[#00f0ff] to-transparent shadow-[0_0_6px_#00f0ff]"
-              />
-            )}
-
-            {/* Tools state: Orbiting node satellite dot */}
-            {state === "tools" && (
-              <motion.svg
-                animate={{ rotate: -360 }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
-                className="w-full h-full"
-                viewBox="0 0 100 100"
-              >
-                <circle cx="50" cy="12" r="6" fill="#00f0ff" className="shadow-lg blur-[0.2px]" />
-              </motion.svg>
-            )}
-
-            {/* Generating state: Wave-like outward expanding energy ring */}
-            {state === "generating" && (
+            {/* Building Response: Wave-like outward expanding energy ring */}
+            {isGeneratingState && (
               <motion.div
                 animate={{
                   scale: [0.8, 1.25, 0.8],
@@ -148,7 +130,7 @@ export default function TypingIndicator({ state = "thinking", dynamic = true }) 
             )}
 
             {/* Speaking state: Vocal pulse expanding line */}
-            {state === "speaking" && (
+            {isSpeakingState && (
               <motion.div
                 animate={{
                   scale: [0.95, 1.15, 0.95],
@@ -180,14 +162,14 @@ export default function TypingIndicator({ state = "thinking", dynamic = true }) 
           </span>
         </div>
 
-        {/* Subtext state summary (Only visible on medium size screens/viewports) */}
+        {/* Subtext state summary */}
         <span className="font-body-md text-[9px] text-on-surface-variant/60 font-light mt-0.5 tracking-wide uppercase font-mono">
-          {state === "searching" && "Matrix Scan"}
-          {state === "reading" && "Database Stream"}
-          {state === "tools" && "Tool Execution"}
-          {state === "generating" && "Response Sync"}
+          {state === "processing_intent" && "Intent Analysis"}
+          {state === "accessing_memory" && "Memory Core"}
+          {state === "reasoning" && "Logic Core"}
+          {state === "building_response" && "Response Sync"}
           {state === "speaking" && "Vocal Sync"}
-          {state === "thinking" && "F.R.I.D.A.Y. Process"}
+          {state === "thinking" && "System Core"}
         </span>
       </div>
     </motion.div>

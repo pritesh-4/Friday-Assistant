@@ -13,6 +13,7 @@ import {
 import Orb from "./Orb";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
+import TypingIndicator from "./TypingIndicator";
 import { useTasks } from "../hooks/useTasks";
 import { sfx } from "../utils/sfx";
 import { fileService } from "../services/fileService";
@@ -23,6 +24,7 @@ export default React.memo(function ChatWindow({
   onClearHistory,
   orbState = "idle",
   isFridayTyping = false,
+  typingStatus = "",
   userName = "Pree",
   greetingTime = "Evening",
   rightPanelOpen = false,
@@ -177,18 +179,8 @@ export default React.memo(function ChatWindow({
 
                 {/* Deep Thinking indicator logs */}
                 {isFridayTyping && (
-                  <div className="flex items-center gap-3 py-3 border-t border-white/[0.01]">
-                    <div className="relative">
-                      <Orb state="thinking" size="small" />
-                    </div>
-                    <div className="flex flex-col text-[10px] font-mono text-on-surface-variant">
-                      <div className="flex items-center gap-2">
-                        <span className="w-1 h-1 rounded-full bg-[#00f0ff] animate-ping" />
-                        <span id="3lh6ct">Analyzing...</span>
-                      </div>
-                      <span id="h0ojys" className="opacity-60">Connecting ideas...</span>
-                      <span id="c4n8ko" className="opacity-40">Searching memories...</span>
-                    </div>
+                  <div className="py-2 border-t border-white/[0.01]">
+                    <TypingIndicator state={typingStatus || "thinking"} />
                   </div>
                 )}
               </motion.div>

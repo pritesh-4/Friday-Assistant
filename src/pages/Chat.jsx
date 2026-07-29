@@ -34,6 +34,7 @@ export default function Chat() {
     setMessages,
     sendMessage,
     isTyping: isFridayTyping,
+    typingStatus,
     activeConversationId,
     setActiveConversationId
   } = useChatContext();
@@ -169,6 +170,7 @@ export default function Chat() {
           orbState={orbState}
           setOrbState={setOrbState}
           isFridayTyping={isFridayTyping}
+          typingStatus={typingStatus}
           userName={userName}
           greetingTime={greetingTime}
           rightPanelOpen={rightPanelOpen}

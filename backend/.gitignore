@@ -48,7 +48,7 @@ Thumbs.db
 
 # Uploaded data (audio files, documents, etc.)
 # These are runtime artifacts and must never enter version control.
-data/voice_uploads/
-data/uploads/
+data/
+chroma_db/
 *.db
 *.sqlite
