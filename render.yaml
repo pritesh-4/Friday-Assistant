@@ -3,7 +3,7 @@ services:
     name: friday-backend
     runtime: python
     rootDir: backend
-    buildCommand: "pip install -r requirements.txt -r requirements-voice.txt && python scripts/download_models.py"
+    buildCommand: "pip install -r requirements.txt && (if [ \"$VOICE_ENABLED\" = \"true\" ]; then pip install -r requirements-voice.txt && python scripts/download_models.py; else echo 'Voice disabled, skipping voice dependencies and models'; fi)"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     # /health is the liveness probe — responds instantly, never queries DB.
     # DO NOT use /health/ready here — it queries SQLite and can fail during startup,
@@ -20,7 +20,7 @@ services:
       - key: DATABASE_URL
         value: sqlite:///tmp/friday/friday.db
       - key: VOICE_ENABLED
-        value: true
+        value: false
       - key: KOKORO_MODEL_PATH
         value: /opt/render/project/src/backend/data/models/kokoro/kokoro-v0_19.onnx
       - key: KOKORO_VOICES_PATH

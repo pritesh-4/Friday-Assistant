@@ -1,6 +1,7 @@
 """Vector database integration using ChromaDB for cognitive memory."""
 
 import asyncio
+import threading
 from pathlib import Path
 
 import chromadb
@@ -11,9 +12,6 @@ from app.core.logging import get_logger
 from app.db.database import database
 
 _log = get_logger("db.vector_store")
-
-
-import threading
 
 class VectorStore:
     """Manages the ChromaDB client and memory collections."""
