@@ -153,7 +153,11 @@ export class VoiceSessionManager {
             this._onStreamEvent("sentence", { text });
           },
           onDone: (metrics) => {
-            if (this._stateMachine.state === "STREAMING_RESPONSE" || this._stateMachine.state === "THINKING" || this._stateMachine.state === "TRANSCRIBING") {
+            if (
+              this._stateMachine.state === "STREAMING_RESPONSE" ||
+              this._stateMachine.state === "THINKING" ||
+              this._stateMachine.state === "TRANSCRIBING"
+            ) {
               this._stateMachine.transition("COMPLETE");
             }
             this._onStreamEvent("done", metrics);
@@ -167,7 +171,13 @@ export class VoiceSessionManager {
               this._stateMachine.transition("RECORDING");
             }
             this._onVolumeChange(vol);
-          }
+          },
+          onVADStop: () => {
+            // VAD detected silence and sent "stop" to backend.
+            // Start the watchdog immediately so a slow/failed backend
+            // response doesn't leave the session hung indefinitely.
+            this._startWatchdogTimer();
+          },
         });
       }
 

@@ -13,6 +13,7 @@ from app.db.database import database
 
 _log = get_logger("db.vector_store")
 
+
 class VectorStore:
     """Manages the ChromaDB client and memory collections."""
 
@@ -41,7 +42,12 @@ class VectorStore:
             self._embedding_fn = embedding_functions.DefaultEmbeddingFunction()
 
             # Initialize collections
-            for name in ["semantic_memories", "episodic_memories", "procedural_memories", "project_memories"]:
+            for name in [
+                "semantic_memories",
+                "episodic_memories",
+                "procedural_memories",
+                "project_memories",
+            ]:
                 self._collections[name] = self._client.get_or_create_collection(
                     name=name, embedding_function=self._embedding_fn
                 )

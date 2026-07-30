@@ -37,6 +37,7 @@ from app.api.dependencies import (
     get_transcription_service,
     get_voice_service,
     get_voice_orchestrator,
+    get_streaming_coordinator,
 )
 from app.core.config import settings
 from app.core.rate_limit import limiter
@@ -374,6 +375,7 @@ async def speak_voice(
 async def websocket_voice_stream(
     websocket: WebSocket,
     transcription_service: TranscriptionService = Depends(get_transcription_service),
+    streaming_coordinator=Depends(get_streaming_coordinator),
 ):
     """
     WebSocket endpoint for real-time binary audio streaming.
@@ -382,16 +384,58 @@ async def websocket_voice_stream(
     """
     import json
     import numpy as np
+    from datetime import datetime, timezone
 
+    # Stage 1: Client starts connection & Stage 2: Server receives connection
+    _log.info(
+        f"[TRACE] [Stage 1 & 2] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] WebSocket connection request received by server"
+    )
+
+    # Stage 3: websocket.accept()
+    _log.info(
+        f"[TRACE] [Stage 3] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Initiating websocket.accept()..."
+    )
     await websocket.accept()
-    _log.info("[VOICE-WS] WebSocket voice connection accepted")
+    _log.info(
+        f"[TRACE] [Stage 3] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] websocket.accept() complete"
+    )
+
+    # Stage 4: Authentication
+    # When SECRET_KEY is configured, the client must pass ?token=<SECRET_KEY>.
+    # If not configured, auth is skipped (open MVP mode).
+    if settings.secret_key:
+        client_token = websocket.query_params.get("token", "")
+        if client_token != settings.secret_key:
+            _log.warning(
+                f"[TRACE] [Stage 4] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] "
+                "Authentication FAILED — invalid or missing token. Closing connection (4003)."
+            )
+            await websocket.close(code=4003, reason="Unauthorized")
+            return
+        _log.info(
+            f"[TRACE] [Stage 4] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] "
+            "Authentication passed (token validated)."
+        )
+    else:
+        _log.info(
+            f"[TRACE] [Stage 4] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] "
+            "Authentication skipped (SECRET_KEY not configured — open MVP mode)."
+        )
 
     audio_chunks = []
     active_conversation_id = None
+    first_message_received = False
 
     try:
         while True:
             message = await websocket.receive()
+
+            if not first_message_received:
+                # Stage 7: First message received
+                _log.info(
+                    f"[TRACE] [Stage 7] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] First message received from client"
+                )
+                first_message_received = True
 
             if "bytes" in message:
                 data = message["bytes"]
@@ -425,18 +469,26 @@ async def websocket_voice_stream(
                             )
                             continue
 
-                        # Concatenate all chunks to a single numpy array
+                        # Concatenate all chunks to a single numpy array, then reset
+                        # the buffer immediately so the next turn starts clean.
                         full_audio = np.concatenate(audio_chunks)
+                        audio_chunks = []
 
                         await websocket.send_json(
                             {"type": "status", "state": "transcribing"}
                         )
 
-                        # Transcribe array in memory
+                        # Stage 8: Transcription starts
+                        _log.info(
+                            f"[TRACE] [Stage 8] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Transcription starts on buffered audio array"
+                        )
                         stt_result = await transcription_service.transcribe_array(
                             full_audio
                         )
                         transcript = stt_result["transcript"]
+                        _log.info(
+                            f"[TRACE] [Stage 8] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Transcription complete: '{transcript}'"
+                        )
 
                         _log.info(f"[VOICE-WS] Final transcript: '{transcript}'")
                         await websocket.send_json(
@@ -454,16 +506,14 @@ async def websocket_voice_stream(
                         )
 
                         from app.schemas.chat import ChatRequest
-                        from app.services.streaming_coordinator import (
-                            StreamingCoordinator,
-                        )
 
                         chat_request = ChatRequest(
                             message=transcript, conversation_id=active_conversation_id
                         )
-                        coordinator = StreamingCoordinator()
 
-                        async for event in coordinator.stream_chat(chat_request):
+                        async for event in streaming_coordinator.stream_chat(
+                            chat_request
+                        ):
                             if event.startswith("data: "):
                                 payload_str = event[6:].strip()
                                 if payload_str:
@@ -477,8 +527,16 @@ async def websocket_voice_stream(
                     await websocket.send_json({"type": "error", "message": str(exc)})
 
     except WebSocketDisconnect:
-        _log.info("[VOICE-WS] WebSocket voice stream disconnected by client")
+        # Stage 11: Socket closed
+        _log.info(
+            f"[TRACE] [Stage 11] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Socket closed: WebSocket voice stream disconnected by client"
+        )
     except Exception as exc:
-        _log.error(f"[VOICE-WS] Error in websocket handler: {exc}", exc_info=True)
+        _log.error(
+            f"[TRACE] [Stage 11] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Socket closed with error in handler: {exc}",
+            exc_info=True,
+        )
     finally:
-        _log.info("[VOICE-WS] WebSocket connection clean up complete")
+        _log.info(
+            f"[TRACE] [Stage 11] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] WebSocket connection clean up complete"
+        )

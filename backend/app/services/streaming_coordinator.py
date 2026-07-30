@@ -17,6 +17,10 @@ from app.services.memory_service import CognitiveMemoryService
 from app.tools.executor import PermissionRequiredError
 from app.utils.helpers import generate_uuid, get_utc_now
 from app.core.memory import log_memory
+from app.core.logging import get_logger
+from datetime import datetime, timezone
+
+_log = get_logger("streaming_coordinator")
 
 
 class StreamingCoordinator:
@@ -100,8 +104,15 @@ class StreamingCoordinator:
             # Cognitive gateway: Process message via Intent Engine
             from app.intent.engine import IntentEngine
 
+            # Stage 5: Intent Engine initialized
+            _log.info(
+                f"[TRACE] [Stage 5] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Initializing Intent Engine..."
+            )
             intent_engine = IntentEngine()
             intent_res = await intent_engine.process(request.message, conversation_id)
+            _log.info(
+                f"[TRACE] [Stage 5] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Intent Engine processed successfully"
+            )
 
             if intent_res.clarification_required and intent_res.clarification_prompt:
                 yield f"data: {json.dumps({'type': 'chunk', 'content': intent_res.clarification_prompt})}\n\n"
@@ -115,7 +126,15 @@ class StreamingCoordinator:
                 return
 
             yield f"data: {json.dumps({'type': 'status', 'status': 'accessing_memory'})}\n\n"
+
+            # Stage 6: Memory initialized
+            _log.info(
+                f"[TRACE] [Stage 6] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Accessing and initializing Memory Context for conversation: {conversation_id}..."
+            )
             ctx = memory_manager.get_context(conversation_id)
+            _log.info(
+                f"[TRACE] [Stage 6] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Memory Context initialized successfully"
+            )
 
             if not ctx.messages:
                 # Load history if memory context is empty
@@ -167,6 +186,11 @@ class StreamingCoordinator:
             try:
                 yield f"data: {json.dumps({'type': 'status', 'status': 'reasoning'})}\n\n"
                 log_memory("Before router stream")
+
+                # Stage 9: Provider called
+                _log.info(
+                    f"[TRACE] [Stage 9] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] LLM Provider stream router called"
+                )
                 async for chunk in self.router_agent.route_and_stream(
                     messages, request.approved_permissions
                 ):
@@ -222,6 +246,10 @@ class StreamingCoordinator:
                 "tps": round(tps, 1),
                 "total_time_ms": round(total_time * 1000),
             }
+            # Stage 10: Response sent
+            _log.info(
+                f"[TRACE] [Stage 10] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] LLM Response stream completed and sent to client"
+            )
             yield f"data: {json.dumps({'type': 'done', 'metrics': metrics})}\n\n"
 
             # Background tasks post-stream

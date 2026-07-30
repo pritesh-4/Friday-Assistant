@@ -247,6 +247,24 @@ app.include_router(planning.router)
 app.include_router(background.router)
 
 
+# WebSocket legacy path compatibility mapping
+from fastapi import WebSocket, Depends
+from app.api.routes.voice import websocket_voice_stream
+from app.api.dependencies import get_transcription_service, get_streaming_coordinator
+
+
+@app.websocket("/api/voice/stream")
+async def websocket_voice_stream_alias(
+    websocket: WebSocket,
+    transcription_service=Depends(get_transcription_service),
+    streaming_coordinator=Depends(get_streaming_coordinator),
+):
+    """WebSocket route alias to support legacy frontend connection paths."""
+    await websocket_voice_stream(
+        websocket, transcription_service, streaming_coordinator
+    )
+
+
 # ── Root endpoint ─────────────────────────────────────────────────────────────
 
 

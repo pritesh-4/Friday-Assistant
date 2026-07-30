@@ -24,5 +24,11 @@ export default defineConfig({
         }
       }
     }
-  }
+  },
+  test: {
+    // Vitest configuration
+    environment: 'node',
+    include: ['tests/**/*.test.js'],
+    reporter: 'verbose',
+  },
 })
