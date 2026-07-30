@@ -66,7 +66,7 @@ export class VoiceStreamService {
       this.processorNode.connect(this.audioContext.destination);
 
       // 3. Connect to WebSocket
-      const wsUrl = API_BASE_URL.replace(/^http/, "ws") + "/api/voice/stream";
+      const wsUrl = API_BASE_URL.replace(/^http/, "ws") + "/voice/stream";
       console.log(`[VOICE-WS] Connecting to ${wsUrl}`);
       this.socket = new WebSocket(wsUrl);
       this.socket.binaryType = "arraybuffer";
