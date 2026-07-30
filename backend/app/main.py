@@ -3,7 +3,7 @@
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, WebSocket, Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -21,6 +21,7 @@ from app.api.routes import (
     planning,
     background,
 )
+from app.api.routes.voice import websocket_voice_stream
 from app.api.routes import (
     settings as settings_route,
 )
@@ -32,7 +33,12 @@ from app.core.rate_limit import configure_rate_limiting
 from app.db.database import database
 from app.schemas.errors import ErrorResponse, ErrorDetail
 from app.services.worker import BackgroundWorker
-from app.api.dependencies import get_agent_manager, get_scheduler
+from app.api.dependencies import (
+    get_agent_manager,
+    get_scheduler,
+    get_transcription_service,
+    get_streaming_coordinator,
+)
 
 _log = get_logger("main")
 
@@ -248,11 +254,6 @@ app.include_router(background.router)
 
 
 # WebSocket legacy path compatibility mapping
-from fastapi import WebSocket, Depends
-from app.api.routes.voice import websocket_voice_stream
-from app.api.dependencies import get_transcription_service, get_streaming_coordinator
-
-
 @app.websocket("/api/voice/stream")
 async def websocket_voice_stream_alias(
     websocket: WebSocket,
