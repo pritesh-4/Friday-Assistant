@@ -1,18 +1,16 @@
 import { API_BASE_URL } from "../api";
 
 /**
- * VoiceStreamService — Real-time PCM audio capture and WebSocket streaming.
+ * VoiceStreamService — Real-time persistent PCM audio capture and WebSocket streaming.
  *
- * Audio pipeline:
- *   getUserMedia → AudioContext → AudioWorkletNode (pcm-processor.js)
- *               → [downsample to 16kHz] → [Int16 encode] → WebSocket binary
+ * Keeps a single persistent WebSocket connection and microphone stream active
+ * throughout the entire conversational session. Controls audio streaming to the
+ * backend using the `isStreaming` flag.
  *
- * Falls back to the deprecated ScriptProcessorNode when AudioWorklet is
- * unavailable (e.g. HTTP context without secure origin, old browsers).
- *
- * VAD (Voice Activity Detection) is performed on each audio chunk by computing
- * the RMS amplitude. When silence exceeds SILENCE_TIMEOUT_MS after speech,
- * `triggerStop()` is called to finalize the turn.
+ * Runs local VAD (Voice Activity Detection) continuously:
+ *   - When streaming: detects silence to trigger the stop command.
+ *   - When not streaming (assistant is speaking/thinking): detects user speech
+ *     to trigger the client-side barge-in interruption.
  */
 export class VoiceStreamService {
   constructor({
@@ -23,14 +21,16 @@ export class VoiceStreamService {
     onDone,
     onError,
     onVolumeChange,
-    onVADStop,        // Called when VAD-triggered silence stop fires
+    onVADStop,
+    onBargeIn,        // Called when user speaks during assistant playback
   } = {}) {
     this.socket = null;
     this.audioContext = null;
     this.microphoneSource = null;
     this.processorNode = null;
     this.mediaStream = null;
-    this.isRecording = false;
+    this.isRecording = false; // Tracks if the service is initialized/running
+    this.isStreaming = false; // Tracks if we are sending audio chunks to the backend
 
     // Callbacks
     this.onTranscript   = onTranscript   || (() => {});
@@ -41,12 +41,20 @@ export class VoiceStreamService {
     this.onError        = onError        || (() => {});
     this.onVolumeChange = onVolumeChange || (() => {});
     this.onVADStop      = onVADStop      || (() => {});
+    this.onBargeIn      = onBargeIn      || (() => {});
 
     // VAD configuration
     this.VOICE_THRESHOLD    = 0.02;
     this.SILENCE_TIMEOUT_MS = 1500;
     this.isVoiceActive      = false;
     this.silenceStart       = null;
+
+    // Tracker for barge-in eligibility (is the assistant currently active?)
+    this.assistantIsActive  = false;
+  }
+
+  setAssistantActive(active) {
+    this.assistantIsActive = active;
   }
 
   async start(conversationId = null) {
@@ -56,9 +64,16 @@ export class VoiceStreamService {
         new Date().toISOString()
     );
 
-    // Unconditionally clean up any previous resources (socket, tracks, AudioContext)
-    // before starting a new recording session or turn. This prevents connection leaks
-    // during multi-turn conversations and user interruptions.
+    // If already initialized and WebSocket is connected, just resume streaming
+    if (this.isRecording && this.socket && this.socket.readyState === WebSocket.OPEN) {
+      console.log("[VOICE-WS] Reusing existing WebSocket connection. Resuming stream.");
+      this.isStreaming = true;
+      this.isVoiceActive = false;
+      this.silenceStart = null;
+      return;
+    }
+
+    // Clean up any stale state before opening a fresh connection
     this.cleanup();
 
     try {
@@ -122,8 +137,6 @@ export class VoiceStreamService {
               this.onContent(message.content);
               break;
             case "sentence":
-              // Backend sends { type: "sentence", content: "..." }.
-              // Fallback to message.text for legacy compatibility.
               this.onSentence(message.content || message.text || "");
               break;
             case "done":
@@ -131,6 +144,9 @@ export class VoiceStreamService {
               break;
             case "error":
               this.onError(new Error(message.message));
+              break;
+            case "interrupted":
+              console.log("[VOICE-WS] Generation interrupted successfully on backend.");
               break;
             default:
               console.log("[VOICE-WS] Unhandled WebSocket message:", message);
@@ -150,7 +166,8 @@ export class VoiceStreamService {
       };
 
       // ── 5. Start capturing ──────────────────────────────────────────────
-      this.isRecording  = true;
+      this.isRecording   = true;
+      this.isStreaming   = true;
       this.isVoiceActive = false;
       this.silenceStart  = null;
 
@@ -170,35 +187,44 @@ export class VoiceStreamService {
         const rms = Math.sqrt(sumSquares / float32Samples.length);
         this.onVolumeChange(Math.min(1, rms * 10));
 
-        // VAD State Machine
-        if (rms > this.VOICE_THRESHOLD) {
-          this.isVoiceActive = true;
-          this.silenceStart  = null;
-        } else if (this.isVoiceActive) {
-          if (this.silenceStart === null) {
-            this.silenceStart = performance.now();
-          } else {
-            const silenceDuration = performance.now() - this.silenceStart;
-            if (silenceDuration > this.SILENCE_TIMEOUT_MS) {
-              console.log("[VOICE-WS] VAD triggered silence stop");
-              this.isVoiceActive = false;
-              this.silenceStart  = null;
-              this.triggerStop();
-              return; // Don't send more audio after triggering stop
+        // Speculative VAD checks
+        if (this.isStreaming) {
+          // User is speaking: monitor for silence to trigger stop
+          if (rms > this.VOICE_THRESHOLD) {
+            this.isVoiceActive = true;
+            this.silenceStart  = null;
+          } else if (this.isVoiceActive) {
+            if (this.silenceStart === null) {
+              this.silenceStart = performance.now();
+            } else {
+              const silenceDuration = performance.now() - this.silenceStart;
+              if (silenceDuration > this.SILENCE_TIMEOUT_MS) {
+                console.log("[VOICE-WS] VAD triggered silence stop");
+                this.isVoiceActive = false;
+                this.silenceStart  = null;
+                this.triggerStop();
+                return;
+              }
             }
           }
-        }
 
-        // Downsample from mic sample rate to 16 kHz and encode as Int16
-        const downsampled = this.downsampleBuffer(
-          float32Samples,
-          inputSampleRate,
-          targetSampleRate
-        );
-        const pcmBuffer = this.convertFloat32ToInt16(downsampled);
+          // Downsample and stream chunks to backend
+          const downsampled = this.downsampleBuffer(
+            float32Samples,
+            inputSampleRate,
+            targetSampleRate
+          );
+          const pcmBuffer = this.convertFloat32ToInt16(downsampled);
 
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-          this.socket.send(pcmBuffer);
+          if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(pcmBuffer);
+          }
+        } else if (this.assistantIsActive) {
+          // Assistant is responding/speaking: check for user barge-in
+          if (rms > this.VOICE_THRESHOLD) {
+            console.log("[VOICE-WS] VAD detected user barge-in speaking.");
+            this.onBargeIn();
+          }
         }
       };
 
@@ -206,7 +232,6 @@ export class VoiceStreamService {
         // ── AudioWorklet path (off-main-thread) ──────────────────────────
         this.processorNode = new AudioWorkletNode(this.audioContext, "pcm-processor");
         this.microphoneSource.connect(this.processorNode);
-        // No need to connect to destination for capture-only worklets.
 
         this.processorNode.port.onmessage = (event) => {
           if (event.data && event.data.type === "chunk") {
@@ -219,7 +244,7 @@ export class VoiceStreamService {
         // ── ScriptProcessorNode fallback (main thread, deprecated) ────────
         this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
         this.microphoneSource.connect(this.processorNode);
-        this.processorNode.connect(this.audioContext.destination); // Required to keep node alive
+        this.processorNode.connect(this.audioContext.destination);
 
         this.processorNode.onaudioprocess = (e) => {
           handleAudioChunk(e.inputBuffer.getChannelData(0));
@@ -243,23 +268,34 @@ export class VoiceStreamService {
   }
 
   /**
-   * Send stop signal to backend and halt local recording.
-   * Called either by VAD silence detection or by the UI stop button.
+   * Send stop signal to backend and pause local streaming.
+   * Keeps WebSocket and microphone active.
    */
   triggerStop() {
-    if (!this.isRecording) return;
+    if (!this.isStreaming) return;
 
     console.log("[VOICE-WS] Sending stop signal to backend");
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: "stop" }));
     }
 
-    // Halt local recording so no more audio chunks are sent.
-    this.isRecording = false;
+    // Pause audio streaming to backend, but keep the connection open for responses
+    this.isStreaming = false;
 
     // Notify the session manager so it can start the watchdog timer
-    // and prevent the pipeline from hanging if the backend is slow to respond.
     this.onVADStop();
+  }
+
+  /**
+   * Send interrupt signal to backend to cancel active generation.
+   */
+  interrupt() {
+    console.log("[VOICE-WS] Sending interrupt signal to backend");
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify({ type: "interrupt" }));
+    }
+    this.isStreaming = false;
+    this.assistantIsActive = false;
   }
 
   /**
@@ -271,13 +307,14 @@ export class VoiceStreamService {
   }
 
   /**
-   * Release all held resources: processor, audio context, mic stream, socket.
+   * Release all held resources.
    */
   cleanup() {
     this.isRecording = false;
+    this.isStreaming = false;
+    this.assistantIsActive = false;
 
     if (this.processorNode) {
-      // Signal the worklet to terminate before disconnecting.
       if (this.processorNode.port) {
         try { this.processorNode.port.postMessage({ type: "stop" }); } catch { /* ignore */ }
         try { this.processorNode.port.close(); } catch { /* ignore */ }
@@ -308,10 +345,6 @@ export class VoiceStreamService {
 
   // ── Audio utilities ──────────────────────────────────────────────────────
 
-  /**
-   * Downsample a Float32 buffer from `inputSampleRate` to `outputSampleRate`
-   * using simple averaging (sufficient quality for STT input).
-   */
   downsampleBuffer(buffer, inputSampleRate, outputSampleRate) {
     if (inputSampleRate === outputSampleRate) return buffer;
 
@@ -336,9 +369,6 @@ export class VoiceStreamService {
     return result;
   }
 
-  /**
-   * Convert Float32 [-1, 1] samples to Int16 PCM, returned as an ArrayBuffer.
-   */
   convertFloat32ToInt16(buffer) {
     const l   = buffer.length;
     const buf = new Int16Array(l);

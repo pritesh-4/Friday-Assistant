@@ -123,9 +123,33 @@ export const speechQueue = {
       return;
     }
 
-    this.queue.push({ text, onStart, onEnd });
+    // Speculatively pre-fetch the TTS audio in the background immediately
+    // so it's ready by the time this item gets played.
+    const prefetchPromise = this.prefetchAudio(text);
+
+    this.queue.push({ text, onStart, onEnd, prefetchPromise });
     if (!this.isPlaying) {
       this.playNext();
+    }
+  },
+
+  async prefetchAudio(text) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/voice/speak`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS synthesis failed with status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      console.warn("Background TTS prefetch failed, will fallback to browser SpeechSynthesis:", error);
+      return null;
     }
   },
 
@@ -137,23 +161,21 @@ export const speechQueue = {
     this.isPlaying = true;
     const item = this.queue.shift();
 
+    let url = null;
     try {
-      console.time("[VOICE_TIME] Backend TTS Fetch");
-      const response = await fetch(`${API_BASE_URL}/voice/speak`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: item.text })
-      });
+      console.time("[VOICE_TIME] Await Prefetched Audio");
+      url = await item.prefetchPromise;
+      console.timeEnd("[VOICE_TIME] Await Prefetched Audio");
+    } catch (error) {
+      console.warn("Failed to resolve prefetch promise:", error);
+    }
 
-      console.timeEnd("[VOICE_TIME] Backend TTS Fetch");
+    if (!url) {
+      this.playBrowserSpeech(item);
+      return;
+    }
 
-      if (!response.ok) {
-        throw new Error(`TTS synthesis failed with status: ${response.status}`);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-
+    try {
       this.audio = new Audio(url);
 
       if (item.onStart) {
@@ -184,7 +206,7 @@ export const speechQueue = {
       });
 
     } catch (error) {
-      console.warn("Backend TTS failed, falling back to browser SpeechSynthesis:", error);
+      console.warn("Playback exception, falling back to browser SpeechSynthesis:", error);
       this.playBrowserSpeech(item);
     }
   },

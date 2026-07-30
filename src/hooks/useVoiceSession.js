@@ -63,6 +63,8 @@ export function useVoiceSession() {
             ) {
               setActiveConversationId(payload.conversationId);
             }
+          } else if (eventType === "partial_transcript") {
+            setLastTranscript(payload.text);
           } else if (eventType === "transcript") {
             setLastTranscript(payload.text);
 

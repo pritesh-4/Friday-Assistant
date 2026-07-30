@@ -5,6 +5,11 @@ import { speechQueue } from "./speechQueue";
 export class VoiceSessionManager {
   constructor({ onStateChange, onStreamEvent, onError, onVolumeChange } = {}) {
     this._stateMachine = new VoiceStateMachine((newState, prevState) => {
+      // Sync assistant active status to the recorder for local VAD barge-in checks
+      if (this._recorder) {
+        const assistantActive = ["TRANSCRIBING", "THINKING", "STREAMING_RESPONSE", "RESPONDING"].includes(newState);
+        this._recorder.setAssistantActive(assistantActive);
+      }
       if (onStateChange) onStateChange(newState, prevState);
     });
 
@@ -59,10 +64,44 @@ export class VoiceSessionManager {
     if (this._stateMachine.state === "RESPONDING" || this._stateMachine.state === "THINKING" || this._stateMachine.state === "STREAMING_RESPONSE") {
       speechQueue.stop();
       this._clearWatchdogTimer();
+      if (this._recorder) {
+        this._recorder.interrupt();
+      }
       const ok = this._stateMachine.transition("LISTENING");
       if (ok) {
         await this._startRecording();
       }
+    }
+  }
+
+  /**
+   * Called externally when the VAD or manual barge-in triggers.
+   */
+  handleBargeIn() {
+    if (this._stateMachine.state === "RESPONDING" || this._stateMachine.state === "THINKING" || this._stateMachine.state === "STREAMING_RESPONSE") {
+      console.log("[VOICE] Barge-in triggered. Interrupting playback and generation...");
+      speechQueue.stop();
+      this._clearWatchdogTimer();
+
+      if (this._recorder) {
+        this._recorder.interrupt();
+      }
+
+      const ok = this._stateMachine.transition("LISTENING");
+      if (ok) {
+        this._resumeRecordingAfterBargeIn();
+      }
+    }
+  }
+
+  async _resumeRecordingAfterBargeIn() {
+    try {
+      if (this._recorder) {
+        await this._recorder.start(this._activeConversationId);
+        this._stateMachine.transition("RECORDING");
+      }
+    } catch (err) {
+      this._handleError(err.message || "Failed to resume recording after barge-in.");
     }
   }
 
@@ -132,6 +171,9 @@ export class VoiceSessionManager {
               }
               this._stateMachine.transition("THINKING");
               this._onStreamEvent("transcript", { text: cleanText });
+            } else {
+              // Real-time partial transcript update for UI
+              this._onStreamEvent("partial_transcript", { text });
             }
           },
           onStatus: (state) => {
@@ -177,6 +219,9 @@ export class VoiceSessionManager {
             // Start the watchdog immediately so a slow/failed backend
             // response doesn't leave the session hung indefinitely.
             this._startWatchdogTimer();
+          },
+          onBargeIn: () => {
+            this.handleBargeIn();
           },
         });
       }

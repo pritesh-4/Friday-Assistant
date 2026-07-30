@@ -12,6 +12,7 @@ message if voice features are disabled. This prevents confusing 500 errors
 when faster-whisper / kokoro-onnx are not installed.
 """
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -371,6 +372,19 @@ async def speak_voice(
         )
 
 
+class VoiceSessionState:
+    """Connection-scoped state tracker for full-duplex WebSocket conversations."""
+
+    def __init__(self):
+        self.audio_chunks = []
+        self.active_conversation_id = None
+        self.interrupted = False
+        self.stop_event = asyncio.Event()
+        self.lock = asyncio.Lock()
+        self.prefetched_memories = None
+        self.active_generation_task = None
+
+
 @router.websocket("/stream")
 async def websocket_voice_stream(
     websocket: WebSocket,
@@ -378,20 +392,24 @@ async def websocket_voice_stream(
     streaming_coordinator=Depends(get_streaming_coordinator),
 ):
     """
-    WebSocket endpoint for real-time binary audio streaming.
-    Receives raw 16kHz Int16 mono PCM chunks from client,
-    buffers in memory, transcribes, and streams response events.
+    Full-duplex WebSocket endpoint for real-time conversational voice mode.
+    Runs concurrent loops for audio streaming, speculative rolling speech-to-text,
+    background memory prefetching, and LLM text generation with barge-in support.
     """
     import json
     import numpy as np
     from datetime import datetime, timezone
+    from app.schemas.chat import ChatRequest
+    from app.intent.engine import IntentEngine
+    from app.intent.utils import match_heuristics
+    from app.api.dependencies import get_memory_service
 
-    # Stage 1: Client starts connection & Stage 2: Server receives connection
+    # Stage 1 & 2: Connection request received
     _log.info(
         f"[TRACE] [Stage 1 & 2] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] WebSocket connection request received by server"
     )
 
-    # Stage 3: websocket.accept()
+    # Stage 3: Accept connection
     _log.info(
         f"[TRACE] [Stage 3] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Initiating websocket.accept()..."
     )
@@ -401,8 +419,6 @@ async def websocket_voice_stream(
     )
 
     # Stage 4: Authentication
-    # When SECRET_KEY is configured, the client must pass ?token=<SECRET_KEY>.
-    # If not configured, auth is skipped (open MVP mode).
     if settings.secret_key:
         client_token = websocket.query_params.get("token", "")
         if client_token != settings.secret_key:
@@ -422,112 +438,212 @@ async def websocket_voice_stream(
             "Authentication skipped (SECRET_KEY not configured — open MVP mode)."
         )
 
-    audio_chunks = []
-    active_conversation_id = None
-    first_message_received = False
+    session_state = VoiceSessionState()
+    intent_engine = IntentEngine()
+    memory_service = get_memory_service()
 
-    try:
-        while True:
-            message = await websocket.receive()
-
-            if not first_message_received:
-                # Stage 7: First message received
-                _log.info(
-                    f"[TRACE] [Stage 7] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] First message received from client"
-                )
-                first_message_received = True
-
-            if "bytes" in message:
-                data = message["bytes"]
-                if len(data) > 0:
-                    # Convert bytes to Int16 numpy array, then normalize to float32
-                    chunk = (
-                        np.frombuffer(data, dtype=np.int16).astype(np.float32) / 32768.0
+    # Define the reader loop (reads incoming packages from the client)
+    async def reader_loop():
+        first_msg = True
+        try:
+            while True:
+                message = await websocket.receive()
+                if first_msg:
+                    _log.info(
+                        f"[TRACE] [Stage 7] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] First message received from client"
                     )
-                    audio_chunks.append(chunk)
+                    first_msg = False
 
-            elif "text" in message:
-                try:
+                if "bytes" in message:
+                    data = message["bytes"]
+                    if len(data) > 0:
+                        chunk = (
+                            np.frombuffer(data, dtype=np.int16).astype(np.float32)
+                            / 32768.0
+                        )
+                        async with session_state.lock:
+                            session_state.audio_chunks.append(chunk)
+
+                elif "text" in message:
                     command = json.loads(message["text"])
                     cmd_type = command.get("type")
 
                     if cmd_type == "start":
-                        active_conversation_id = command.get("conversation_id")
-                        audio_chunks = []
+                        async with session_state.lock:
+                            session_state.active_conversation_id = command.get(
+                                "conversation_id"
+                            )
+                            session_state.audio_chunks = []
+                            session_state.prefetched_memories = None
+                            session_state.interrupted = False
                         _log.info(
-                            f"[VOICE-WS] Session started for conversation: {active_conversation_id}"
+                            f"[VOICE-WS] Session started for conversation: {session_state.active_conversation_id}"
                         )
                         await websocket.send_json({"type": "session_started"})
 
                     elif cmd_type == "stop":
+                        _log.info("[VOICE-WS] Stop frame received. Finalizing turn...")
+                        session_state.stop_event.set()
+
+                    elif cmd_type == "interrupt":
                         _log.info(
-                            "[VOICE-WS] Silence detected or user stopped speaking. Finalizing turn..."
+                            "[VOICE-WS] Interrupt frame received (barge-in requested)."
                         )
-                        if not audio_chunks:
-                            await websocket.send_json(
-                                {"type": "transcript", "text": "", "final": True}
-                            )
-                            continue
-
-                        # Concatenate all chunks to a single numpy array, then reset
-                        # the buffer immediately so the next turn starts clean.
-                        full_audio = np.concatenate(audio_chunks)
-                        audio_chunks = []
-
-                        await websocket.send_json(
-                            {"type": "status", "state": "transcribing"}
-                        )
-
-                        # Stage 8: Transcription starts
-                        _log.info(
-                            f"[TRACE] [Stage 8] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Transcription starts on buffered audio array"
-                        )
-                        stt_result = await transcription_service.transcribe_array(
-                            full_audio
-                        )
-                        transcript = stt_result["transcript"]
-                        _log.info(
-                            f"[TRACE] [Stage 8] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Transcription complete: '{transcript}'"
-                        )
-
-                        _log.info(f"[VOICE-WS] Final transcript: '{transcript}'")
-                        await websocket.send_json(
-                            {"type": "transcript", "text": transcript, "final": True}
-                        )
-
-                        # If transcript is empty, stop
-                        if not transcript.strip():
-                            await websocket.send_json({"type": "done"})
-                            continue
-
-                        # Trigger LLM and stream response
-                        await websocket.send_json(
-                            {"type": "status", "state": "processing_intent"}
-                        )
-
-                        from app.schemas.chat import ChatRequest
-
-                        chat_request = ChatRequest(
-                            message=transcript, conversation_id=active_conversation_id
-                        )
-
-                        async for event in streaming_coordinator.stream_chat(
-                            chat_request
+                        session_state.interrupted = True
+                        if (
+                            session_state.active_generation_task
+                            and not session_state.active_generation_task.done()
                         ):
-                            if event.startswith("data: "):
-                                payload_str = event[6:].strip()
-                                if payload_str:
-                                    payload = json.loads(payload_str)
-                                    await websocket.send_json(payload)
+                            _log.info(
+                                "[VOICE-WS] Canceling current active response generation task..."
+                            )
+                            session_state.active_generation_task.cancel()
 
-                except Exception as exc:
-                    _log.error(
-                        f"[VOICE-WS] Error processing text frame: {exc}", exc_info=True
+        except WebSocketDisconnect:
+            raise
+        except Exception as e:
+            _log.error(f"[VOICE-WS] Error in reader loop: {e}", exc_info=True)
+            raise
+
+    # Define speculative rolling STT + Memory prefetch loop
+    async def rolling_stt_loop():
+        last_transcribed_len = 0
+        while True:
+            await asyncio.sleep(0.8)
+            # Skip rolling STT if we are processing a final turn or if generation is active
+            if (
+                session_state.stop_event.is_set()
+                or session_state.active_generation_task
+            ):
+                continue
+
+            async with session_state.lock:
+                chunks_count = len(session_state.audio_chunks)
+                if chunks_count == last_transcribed_len:
+                    continue
+                audio_data = list(session_state.audio_chunks)
+                last_transcribed_len = chunks_count
+
+            if not audio_data:
+                continue
+
+            try:
+                full_audio = np.concatenate(audio_data)
+                # Call transcription_service.transcribe_array non-blockingly
+                stt_result = await transcription_service.transcribe_array(full_audio)
+                transcript = stt_result["transcript"]
+
+                if transcript.strip():
+                    # Send partial transcript to UI
+                    await websocket.send_json(
+                        {"type": "transcript", "text": transcript, "final": False}
                     )
-                    await websocket.send_json({"type": "error", "message": str(exc)})
 
+                    # speculatively run heuristics to find intent and pre-fetch memories
+                    cleaned_message = intent_engine.gateway.validate_and_preprocess(
+                        transcript
+                    )
+                    heuristic_res = match_heuristics(cleaned_message)
+
+                    # If heuristics match (high confidence) or query has at least 3 words, prefetch
+                    if heuristic_res or len(transcript.split()) >= 3:
+                        session_state.prefetched_memories = (
+                            await memory_service.retrieve_relevant_memories(
+                                transcript, limit_per_type=2
+                            )
+                        )
+                        _log.info(
+                            f"[VOICE-WS] Speculatively prefetched memory context for: '{transcript[:30]}...'"
+                        )
+            except Exception as e:
+                _log.warning(f"[VOICE-WS] Speculative rolling STT error: {e}")
+
+    # Define the writer/processor loop
+    async def writer_loop():
+        while True:
+            await session_state.stop_event.wait()
+            session_state.stop_event.clear()
+
+            # Set interrupted flag to false for the new generation run
+            session_state.interrupted = False
+
+            # Create non-blocking generation task
+            session_state.active_generation_task = asyncio.create_task(
+                process_turn_generation()
+            )
+            try:
+                await session_state.active_generation_task
+            except asyncio.CancelledError:
+                _log.info(
+                    "[VOICE-WS] Generation task was cancelled (barge-in interruption succeeded)."
+                )
+                await websocket.send_json({"type": "interrupted"})
+            except Exception as exc:
+                _log.error(f"[VOICE-WS] Generation task error: {exc}", exc_info=True)
+                await websocket.send_json({"type": "error", "message": str(exc)})
+            finally:
+                session_state.active_generation_task = None
+
+    async def process_turn_generation():
+        async with session_state.lock:
+            if not session_state.audio_chunks:
+                await websocket.send_json(
+                    {"type": "transcript", "text": "", "final": True}
+                )
+                await websocket.send_json({"type": "done"})
+                return
+            full_audio = np.concatenate(session_state.audio_chunks)
+            session_state.audio_chunks = []
+
+        await websocket.send_json({"type": "status", "state": "transcribing"})
+
+        # Stage 8: Transcription starts
+        _log.info(
+            f"[TRACE] [Stage 8] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Final transcription starts"
+        )
+        stt_result = await transcription_service.transcribe_array(full_audio)
+        transcript = stt_result["transcript"]
+        _log.info(
+            f"[TRACE] [Stage 8] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Final transcription complete: '{transcript}'"
+        )
+
+        await websocket.send_json(
+            {"type": "transcript", "text": transcript, "final": True}
+        )
+
+        if not transcript.strip():
+            await websocket.send_json({"type": "done"})
+            return
+
+        # Trigger LLM and stream response
+        await websocket.send_json({"type": "status", "state": "processing_intent"})
+
+        chat_request = ChatRequest(
+            message=transcript, conversation_id=session_state.active_conversation_id
+        )
+
+        # Retrieve prefetched memories
+        prefetched = session_state.prefetched_memories
+        session_state.prefetched_memories = None  # consume
+
+        async for event in streaming_coordinator.stream_chat(
+            chat_request, prefetched_memories=prefetched
+        ):
+            # Check for early exit/barge-in interruption
+            if session_state.interrupted:
+                raise asyncio.CancelledError()
+
+            if event.startswith("data: "):
+                payload_str = event[6:].strip()
+                if payload_str:
+                    payload = json.loads(payload_str)
+                    await websocket.send_json(payload)
+
+    # Gather reader, rolling STT, and writer tasks
+    group = asyncio.gather(reader_loop(), rolling_stt_loop(), writer_loop())
+    try:
+        await group
     except WebSocketDisconnect:
-        # Stage 11: Socket closed
         _log.info(
             f"[TRACE] [Stage 11] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Socket closed: WebSocket voice stream disconnected by client"
         )
@@ -537,6 +653,8 @@ async def websocket_voice_stream(
             exc_info=True,
         )
     finally:
+        # Cancel tasks in group
+        group.cancel()
         _log.info(
             f"[TRACE] [Stage 11] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] WebSocket connection clean up complete"
         )

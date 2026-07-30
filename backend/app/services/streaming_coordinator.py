@@ -34,7 +34,11 @@ class StreamingCoordinator:
 
         self.memory_extractor = MemoryExtractor(LLMService())
 
-    async def stream_chat(self, request: ChatRequest):
+    async def stream_chat(
+        self,
+        request: ChatRequest,
+        prefetched_memories: dict[str, list[dict]] | None = None,
+    ):
         """
         Yields SSE formatted strings.
         Event types: 'metadata', 'chunk', 'done', 'error'.
@@ -166,9 +170,16 @@ class StreamingCoordinator:
                 )
 
             # Retrieve long-term memories
-            memories = await self.memory_service.retrieve_relevant_memories(
-                request.message, limit_per_type=2
-            )
+            if prefetched_memories is not None:
+                memories = prefetched_memories
+                _log.info(
+                    f"[TRACE] [Stage 6] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] "
+                    "Bypassed memory retrieval using cached prefetch result"
+                )
+            else:
+                memories = await self.memory_service.retrieve_relevant_memories(
+                    request.message, limit_per_type=2
+                )
             messages = self.context_builder.build_messages(ctx.messages, memories)
 
             # Stream response
