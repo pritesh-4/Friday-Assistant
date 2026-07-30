@@ -18,7 +18,13 @@ class ExecutionScheduler:
     def __init__(self, agent_manager: AgentManager):
         self.agent_manager = agent_manager
         self._running = False
-        self._task_queue: asyncio.Queue[str] = asyncio.Queue()
+        self._task_queue_instance: asyncio.Queue[str] | None = None
+
+    @property
+    def task_queue(self) -> asyncio.Queue[str]:
+        if self._task_queue_instance is None:
+            self._task_queue_instance = asyncio.Queue()
+        return self._task_queue_instance
 
     async def start(self):
         """Starts the background scheduler loop."""
@@ -35,16 +41,16 @@ class ExecutionScheduler:
 
     async def trigger_evaluation(self, goal_id: str):
         """Triggers a re-evaluation of a specific goal's DAG."""
-        await self._task_queue.put(goal_id)
+        await self.task_queue.put(goal_id)
 
     async def _loop(self):
         while self._running:
             try:
                 # Wait for a goal to evaluate, or evaluate all periodically
                 # For now, we wait on explicit triggers
-                goal_id = await self._task_queue.get()
+                goal_id = await self.task_queue.get()
                 await self._evaluate_goal(goal_id)
-                self._task_queue.task_done()
+                self.task_queue.task_done()
             except asyncio.CancelledError:
                 break
             except Exception as e:

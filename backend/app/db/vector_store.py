@@ -13,35 +13,40 @@ from app.db.database import database
 _log = get_logger("db.vector_store")
 
 
+import threading
+
 class VectorStore:
     """Manages the ChromaDB client and memory collections."""
 
     def __init__(self, db_path: str):
         self.db_path = Path(db_path).parent / "chroma_db"
-        self.db_path.mkdir(parents=True, exist_ok=True)
+        self._client = None
+        self._embedding_fn = None
+        self._collections = {}
+        self._lock = threading.Lock()
 
-        _log.info(f"Initializing ChromaDB at {self.db_path}")
+    def _ensure_initialized(self):
+        if self._client is not None:
+            return
+        with self._lock:
+            if self._client is not None:
+                return
+            self.db_path.mkdir(parents=True, exist_ok=True)
 
-        self.client = chromadb.PersistentClient(
-            path=str(self.db_path), settings=Settings(anonymized_telemetry=False)
-        )
+            _log.info(f"Initializing ChromaDB at {self.db_path}")
 
-        # Use default MiniLM embedding function (runs locally)
-        self.embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+            self._client = chromadb.PersistentClient(
+                path=str(self.db_path), settings=Settings(anonymized_telemetry=False)
+            )
 
-        # Initialize collections
-        self.semantic = self.client.get_or_create_collection(
-            name="semantic_memories", embedding_function=self.embedding_fn
-        )
-        self.episodic = self.client.get_or_create_collection(
-            name="episodic_memories", embedding_function=self.embedding_fn
-        )
-        self.procedural = self.client.get_or_create_collection(
-            name="procedural_memories", embedding_function=self.embedding_fn
-        )
-        self.project = self.client.get_or_create_collection(
-            name="project_memories", embedding_function=self.embedding_fn
-        )
+            # Use default MiniLM embedding function (runs locally)
+            self._embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+
+            # Initialize collections
+            for name in ["semantic_memories", "episodic_memories", "procedural_memories", "project_memories"]:
+                self._collections[name] = self._client.get_or_create_collection(
+                    name=name, embedding_function=self._embedding_fn
+                )
 
     async def add_memory(
         self,
@@ -53,7 +58,8 @@ class VectorStore:
         """Add a memory to the vector store asynchronously."""
 
         def operation():
-            collection = self.client.get_collection(collection_name)
+            self._ensure_initialized()
+            collection = self._collections[collection_name]
             collection.add(
                 documents=[text],
                 metadatas=[metadata] if metadata else None,
@@ -72,7 +78,8 @@ class VectorStore:
         """Update an existing memory in the vector store."""
 
         def operation():
-            collection = self.client.get_collection(collection_name)
+            self._ensure_initialized()
+            collection = self._collections[collection_name]
             collection.update(
                 documents=[text],
                 metadatas=[metadata] if metadata else None,
@@ -85,7 +92,8 @@ class VectorStore:
         """Delete a memory from the vector store."""
 
         def operation():
-            collection = self.client.get_collection(collection_name)
+            self._ensure_initialized()
+            collection = self._collections[collection_name]
             collection.delete(ids=[memory_id])
 
         await asyncio.to_thread(operation)
@@ -100,7 +108,8 @@ class VectorStore:
         """Search for relevant memories in a specific collection."""
 
         def operation():
-            collection = self.client.get_collection(collection_name)
+            self._ensure_initialized()
+            collection = self._collections[collection_name]
             # collection.count() checks if we have any data to avoid errors on empty search
             if collection.count() == 0:
                 return []
