@@ -14,6 +14,32 @@ from app.identity.relationship_manager import RelationshipManager
 from app.identity.profile_builder import ProfileBuilder
 from app.identity.resolver import IdentityResolver
 from app.identity.recognizer import IdentityRecognizer
+from app.utils.helpers import get_utc_now
+
+
+class IdentityEntityList(list):
+    """Subclass of list with fallback attributes mapping for backward compatibility."""
+
+    @property
+    def id(self) -> str:
+        return self[0].id if self else None
+
+    @property
+    def canonical_name(self) -> str:
+        return self[0].canonical_name if self else None
+
+    @property
+    def name(self) -> str:
+        return self[0].name if self else None
+
+    @property
+    def type(self) -> Any:
+        return self[0].type if self else None
+
+    @property
+    def display_name(self) -> str:
+        return self[0].display_name if self else None
+
 
 logger = get_logger("identity.service")
 
@@ -38,17 +64,37 @@ class IdentityService:
         """Fetch entity by unique canonical ID."""
         return await self.repository.get_entity(entity_id)
 
-    async def find_entity(self, name: str) -> IdentityEntity | None:
-        """Find entity by exact primary canonical name match."""
+    async def find_entity(
+        self, name: str, entity_type: IdentityType | None = None
+    ) -> IdentityEntity | None:
+        """Find entity by exact primary name or alias match, incrementing visit count."""
         cleaned = self.validators.validate_name(name)
         row = await self.repository.db.fetch_one(
-            "SELECT * FROM entities WHERE lower(name) = ?", (cleaned.lower(),)
+            "SELECT id FROM entities WHERE lower(name) = ?", (cleaned.lower(),)
         )
-        return self.repository._map_entity_row(row) if row else None
+        if row:
+            entity = await self.repository.get_entity(row["id"])
+            if entity:
+                if entity_type and entity.type != entity_type:
+                    return None
+                return entity
 
-    async def find_by_alias(self, alias: str) -> IdentityEntity | None:
-        """Find entity by matching alias."""
-        row = await self.repository.db.fetch_one(
+        alias_row = await self.repository.db.fetch_one(
+            "SELECT entity_id FROM entity_aliases WHERE lower(alias) = ?",
+            (cleaned.lower(),),
+        )
+        if alias_row:
+            entity = await self.repository.get_entity(alias_row["entity_id"])
+            if entity:
+                if entity_type and entity.type != entity_type:
+                    return None
+                return entity
+
+        return None
+
+    async def find_by_alias(self, alias: str) -> IdentityEntityList:
+        """Find entities matching alias, returning a list with proxy properties for backward compatibility."""
+        rows = await self.repository.db.fetch_all(
             """
             SELECT e.* FROM entities e
             JOIN entity_aliases a ON e.id = a.entity_id
@@ -56,7 +102,12 @@ class IdentityService:
             """,
             (alias.strip().lower(),),
         )
-        return self.repository._map_entity_row(row) if row else None
+        entities = []
+        for row in rows:
+            entity = await self.repository.get_entity(row["id"])
+            if entity:
+                entities.append(entity)
+        return IdentityEntityList(entities)
 
     async def resolve_entity(
         self, name: str, entity_type: IdentityType, confidence: float = 1.0
@@ -72,8 +123,11 @@ class IdentityService:
         display_name: str | None = None,
         description: str | None = None,
         metadata: dict | None = None,
+        tags: list[str] | None = None,
+        editor: str = "system",
+        reason: str = "Initial creation",
     ) -> IdentityEntity:
-        """Create and register a new entity profile directly."""
+        """Create and register a new entity profile directly with initial audit history."""
         return await self.registry.register_entity(
             name=name,
             entity_type=entity_type,
@@ -82,31 +136,64 @@ class IdentityService:
             description=description,
             metadata=metadata,
             source="explicit_command",
+            tags=tags,
+            editor=editor,
+            reason=reason,
         )
 
     async def update_entity(
-        self, entity_id: str, updates: dict[str, Any]
+        self,
+        entity_id: str,
+        updates: dict[str, Any],
+        editor: str = "system",
+        reason: str = "Entity update",
     ) -> IdentityEntity | None:
-        """Update properties directly (display_name, description, status)."""
+        """Update properties directly, incrementing version and writing to change history."""
         entity = await self.repository.get_entity(entity_id)
         if not entity:
             return None
 
         if "display_name" in updates:
             entity.display_name = updates["display_name"].strip()
+        if "canonical_name" in updates:
+            entity.canonical_name = self.validators.validate_name(
+                updates["canonical_name"]
+            )
         if "description" in updates:
-            entity.description = updates["description"].strip()
+            entity.description = (
+                updates["description"].strip() if updates["description"] else None
+            )
         if "status" in updates:
             entity.status = updates["status"].strip()
+        if "metadata" in updates:
+            entity.metadata = updates["metadata"]
+        if "tags" in updates:
+            entity.tags = updates["tags"]
+        if "confidence" in updates:
+            entity.confidence = float(updates["confidence"])
+        if "entity_type" in updates:
+            entity.type = self.validators.validate_type(updates["entity_type"])
 
         entity.version += 1
-        entity.source_history.append("Updated fields directly via API call.")
+        now_str = get_utc_now().isoformat()
+        entity.source_history.append(f"Updated by {editor} at {now_str}: {reason}")
+
         await self.repository.save_entity(entity)
+
+        # Save snapshot log for this new version
+        await self.repository.save_history(entity_id, entity.version, editor, reason)
+
         return entity
 
-    async def merge_entities(self, primary_id: str, secondary_id: str) -> None:
-        """Merge a duplicate profile into a canonical canonical ID."""
-        await self.resolver.merge_entities(primary_id, secondary_id)
+    async def merge_entities(
+        self,
+        primary_id: str,
+        secondary_id: str,
+        editor: str = "system",
+        reason: str = "Entity merge",
+    ) -> None:
+        """Merge a duplicate profile into a canonical canonical ID, logging changes."""
+        await self.resolver.merge_entities(primary_id, secondary_id, editor, reason)
 
     async def delete_entity(self, entity_id: str) -> None:
         """Delete entity and its aliases, attributes, and relationships."""
@@ -119,6 +206,69 @@ class IdentityService:
     async def search_entities(self, query: str) -> list[IdentityEntity]:
         """Search entities by matching text."""
         return await self.repository.search_entities(query)
+
+    async def search(
+        self,
+        query: str | None = None,
+        entity_type: IdentityType | None = None,
+        tag: str | None = None,
+        metadata_filters: dict[str, Any] | None = None,
+        hybrid_semantic: bool = False,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[IdentityEntity]:
+        """Perform search queries on entities using name, type, tags, and metadata filters."""
+        return await self.repository.search_registry(
+            query=query,
+            entity_type=entity_type,
+            tag=tag,
+            metadata_filters=metadata_filters,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def get_all(self, limit: int = 100, offset: int = 0) -> list[IdentityEntity]:
+        """Fetch all entities using pagination."""
+        rows = await self.repository.db.fetch_all(
+            "SELECT * FROM entities LIMIT ? OFFSET ?", (limit, offset)
+        )
+        entities = []
+        for r in rows:
+            entity = await self.repository.get_entity(r["id"])
+            if entity:
+                entities.append(entity)
+        return entities
+
+    async def get_history(self, entity_id: str) -> list[dict[str, Any]]:
+        """Fetch audit trail changes of an entity."""
+        return await self.repository.get_entity_history(entity_id)
+
+    async def rollback(
+        self,
+        entity_id: str,
+        target_version: int,
+        editor: str = "system",
+        reason: str = "Rollback",
+    ) -> IdentityEntity | None:
+        """Roll back an entity to a target version state, recording history."""
+        rolled_entity = await self.repository.rollback_entity(entity_id, target_version)
+        if not rolled_entity:
+            return None
+
+        rolled_entity.version += 1
+        now_str = get_utc_now().isoformat()
+        rolled_entity.source_history.append(
+            f"Rolled back to version {target_version} by {editor} at {now_str}: {reason}"
+        )
+
+        await self.repository.save_entity(rolled_entity)
+
+        # Save snapshot log for this new version
+        await self.repository.save_history(
+            entity_id, rolled_entity.version, editor, reason
+        )
+
+        return rolled_entity
 
     async def get_entity_profile(self, entity_id: str) -> dict[str, Any] | None:
         """Fetch canonical profile including display values, aliases, and traits."""

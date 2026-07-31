@@ -58,8 +58,11 @@ class IdentityRegistry:
         description: str | None = None,
         metadata: dict | None = None,
         source: str = "user_statement",
+        tags: list[str] | None = None,
+        editor: str = "system",
+        reason: str = "Initial creation",
     ) -> IdentityEntity:
-        """Validate, construct, and save a new canonical profile node."""
+        """Validate, construct, and save a new canonical profile node with history log."""
         cleaned_name = IdentityValidator.validate_name(name)
         val_type = IdentityValidator.validate_type(entity_type)
 
@@ -86,11 +89,20 @@ class IdentityRegistry:
             status="active",
             version=1,
             source_history=[f"Registered via {source} at {now.isoformat()}"],
+            tags=tags or [],
+            visit_count=1,
+            last_accessed=now,
         )
 
         await self.repository.save_entity(entity)
         # Register the primary name as the first alias for resolving searches
         await self.repository.add_entity_alias(entity_id, cleaned_name)
+
+        # Log initial creation version history snapshot
+        if hasattr(self.repository, "save_history"):
+            await self.repository.save_history(
+                entity_id, entity.version, editor, reason
+            )
 
         logger.info(
             f"Registered new identity: {entity_id} for '{cleaned_name}' ({val_type.value})"

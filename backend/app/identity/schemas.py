@@ -50,6 +50,10 @@ class IdentityEntity(ApiModel):
     version: int = 1
     embedding: list[float] | None = None
     source_history: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    visit_count: int = 0
+    last_accessed: datetime | None = None
+    relationship_references: list["IdentityRelationship"] = Field(default_factory=list)
 
     @property
     def name(self) -> str:

@@ -20,28 +20,48 @@ class IdentityRepository:
     # ── Entities ──────────────────────────────────────────────────────────────
 
     async def get_entity(self, entity_id: str) -> IdentityEntity | None:
-        """Fetch entity by ID."""
+        """Fetch entity by ID, incrementing visit count and updating last accessed timestamp."""
         row = await self.db.fetch_one(
             "SELECT * FROM entities WHERE id = ?", (entity_id,)
         )
         if not row:
             return None
-        return self._map_entity_row(row)
+
+        # Increment visit count & last accessed
+        now = get_utc_now().isoformat()
+        new_count = (row.get("visit_count") or 0) + 1
+        await self.db.execute(
+            "UPDATE entities SET visit_count = ?, last_accessed = ? WHERE id = ?",
+            (new_count, now, entity_id),
+        )
+
+        entity = self._map_entity_row(row)
+        entity.visit_count = new_count
+        entity.last_accessed = datetime.fromisoformat(now)
+        return entity
 
     async def save_entity(self, entity: IdentityEntity) -> None:
         """Insert or update an entity profile."""
         now = get_utc_now().isoformat()
-        existing = await self.get_entity(entity.id)
+        existing = await self.db.fetch_one(
+            "SELECT id FROM entities WHERE id = ?", (entity.id,)
+        )
 
         meta_str = json.dumps(entity.metadata)
         src_hist_str = json.dumps(entity.source_history)
+        tags_str = json.dumps(entity.tags)
+        embed_str = json.dumps(entity.embedding) if entity.embedding else None
+        last_acc_str = (
+            entity.last_accessed.isoformat() if entity.last_accessed else None
+        )
 
         if existing:
             await self.db.execute(
                 """
                 UPDATE entities
                 SET type = ?, name = ?, confidence = ?, updated_at = ?, display_name = ?,
-                    description = ?, status = ?, version = ?, source_history = ?, metadata = ?
+                    description = ?, status = ?, version = ?, source_history = ?, metadata = ?,
+                    tags = ?, visit_count = ?, last_accessed = ?, embedding = ?
                 WHERE id = ?
                 """,
                 (
@@ -55,6 +75,10 @@ class IdentityRepository:
                     entity.version,
                     src_hist_str,
                     meta_str,
+                    tags_str,
+                    entity.visit_count,
+                    last_acc_str,
+                    embed_str,
                     entity.id,
                 ),
             )
@@ -63,9 +87,9 @@ class IdentityRepository:
                 """
                 INSERT INTO entities (
                     id, type, name, confidence, created_at, updated_at, display_name,
-                    description, status, version, source_history, metadata
+                    description, status, version, source_history, metadata, tags, visit_count, last_accessed, embedding
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     entity.id,
@@ -80,8 +104,24 @@ class IdentityRepository:
                     entity.version,
                     src_hist_str,
                     meta_str,
+                    tags_str,
+                    entity.visit_count,
+                    last_acc_str,
+                    embed_str,
                 ),
             )
+
+        # Synchronize entity_tags junction table
+        await self.db.execute(
+            "DELETE FROM entity_tags WHERE entity_id = ?", (entity.id,)
+        )
+        for tag in entity.tags:
+            tag_clean = tag.strip().lower()
+            if tag_clean:
+                await self.db.execute(
+                    "INSERT OR IGNORE INTO entity_tags (entity_id, tag) VALUES (?, ?)",
+                    (entity.id, tag_clean),
+                )
 
     async def delete_entity(self, entity_id: str) -> None:
         """Remove entity and cascading links."""
@@ -92,22 +132,21 @@ class IdentityRepository:
         lower_name = name.lower().strip()
         # 1. Primary Name check
         row = await self.db.fetch_one(
-            "SELECT * FROM entities WHERE lower(name) = ?", (lower_name,)
+            "SELECT id FROM entities WHERE lower(name) = ?", (lower_name,)
         )
         if row:
-            return self._map_entity_row(row)
+            return await self.get_entity(row["id"])
 
         # 2. Alias check
         alias_row = await self.db.fetch_one(
             """
-            SELECT e.* FROM entities e
-            JOIN entity_aliases a ON e.id = a.entity_id
-            WHERE lower(a.alias) = ?
+            SELECT entity_id FROM entity_aliases
+            WHERE lower(alias) = ?
             """,
             (lower_name,),
         )
         if alias_row:
-            return self._map_entity_row(alias_row)
+            return await self.get_entity(alias_row["entity_id"])
         return None
 
     async def search_entities(self, query: str) -> list[IdentityEntity]:
@@ -119,9 +158,60 @@ class IdentityRepository:
             LEFT JOIN entity_aliases a ON e.id = a.entity_id
             WHERE lower(e.name) LIKE ? OR lower(e.display_name) LIKE ?
                OR lower(e.description) LIKE ? OR lower(a.alias) LIKE ?
+            ORDER BY e.visit_count DESC
             """,
             (lower_q, lower_q, lower_q, lower_q),
         )
+        return [self._map_entity_row(row) for row in rows]
+
+    async def search_registry(
+        self,
+        query: str | None = None,
+        entity_type: IdentityType | None = None,
+        tag: str | None = None,
+        metadata_filters: dict[str, Any] | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[IdentityEntity]:
+        """Perform query matching using SQL filters on names, aliases, type, tags, and metadata json extraction."""
+        sql = ["SELECT DISTINCT e.* FROM entities e"]
+        joins = []
+        where = []
+        params = []
+
+        if query:
+            joins.append("LEFT JOIN entity_aliases a ON e.id = a.entity_id")
+            where.append(
+                "(lower(e.name) LIKE ? OR lower(e.display_name) LIKE ? OR lower(e.description) LIKE ? OR lower(a.alias) LIKE ?)"
+            )
+            lower_q = f"%{query.lower().strip()}%"
+            params.extend([lower_q, lower_q, lower_q, lower_q])
+
+        if tag:
+            joins.append("JOIN entity_tags t ON e.id = t.entity_id")
+            where.append("lower(t.tag) = ?")
+            params.append(tag.strip().lower())
+
+        if entity_type:
+            where.append("e.type = ?")
+            params.append(entity_type.value)
+
+        if metadata_filters:
+            for k, v in metadata_filters.items():
+                where.append("json_extract(e.metadata, ?) = ?")
+                params.extend([f"$.{k}", str(v)])
+
+        sql_str = " ".join(sql)
+        if joins:
+            sql_str += " " + " ".join(joins)
+        if where:
+            sql_str += " WHERE " + " AND ".join(where)
+
+        # Order by visit_count DESC (Frequently accessed entities first)
+        sql_str += " ORDER BY e.visit_count DESC, e.name ASC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        rows = await self.db.fetch_all(sql_str, params)
         return [self._map_entity_row(row) for row in rows]
 
     async def get_all_entities(self) -> list[IdentityEntity]:
@@ -277,6 +367,27 @@ class IdentityRepository:
             except Exception:
                 pass
 
+        tags_list = []
+        if row.get("tags"):
+            try:
+                tags_list = json.loads(row["tags"])
+            except Exception:
+                pass
+
+        last_acc = None
+        if row.get("last_accessed"):
+            try:
+                last_acc = datetime.fromisoformat(row["last_accessed"])
+            except Exception:
+                pass
+
+        embed_list = None
+        if row.get("embedding"):
+            try:
+                embed_list = json.loads(row["embedding"])
+            except Exception:
+                pass
+
         return IdentityEntity(
             id=row["id"],
             type=IdentityType(row["type"]),
@@ -291,7 +402,130 @@ class IdentityRepository:
             status=row["status"] or "active",
             version=row["version"] or 1,
             source_history=src_hist,
+            tags=tags_list,
+            visit_count=row.get("visit_count") or 0,
+            last_accessed=last_acc,
+            embedding=embed_list,
         )
+
+    async def save_history(
+        self, entity_id: str, version: int, editor: str, reason: str
+    ) -> None:
+        """Create a snapshot record of the entity's current state inside entity_history."""
+        entity = await self.get_entity(entity_id)
+        if not entity:
+            return
+
+        now = get_utc_now().isoformat()
+        history_id = generate_uuid()
+        meta_str = json.dumps(entity.metadata)
+        tags_str = json.dumps(entity.tags)
+
+        await self.db.execute(
+            """
+            INSERT INTO entity_history (
+                id, entity_id, version, canonical_name, display_name, entity_type,
+                description, metadata, tags, confidence, status, editor, reason, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                history_id,
+                entity.id,
+                version,
+                entity.canonical_name,
+                entity.display_name,
+                entity.type.value,
+                entity.description,
+                meta_str,
+                tags_str,
+                entity.confidence,
+                entity.status,
+                editor,
+                reason,
+                now,
+            ),
+        )
+
+    async def get_entity_history(self, entity_id: str) -> list[dict[str, Any]]:
+        """Fetch version change history logs for an entity."""
+        rows = await self.db.fetch_all(
+            "SELECT * FROM entity_history WHERE entity_id = ? ORDER BY version DESC",
+            (entity_id,),
+        )
+        result = []
+        for r in rows:
+            meta = {}
+            if r.get("metadata"):
+                try:
+                    meta = json.loads(r["metadata"])
+                except Exception:
+                    pass
+            tags = []
+            if r.get("tags"):
+                try:
+                    tags = json.loads(r["tags"])
+                except Exception:
+                    pass
+            result.append(
+                {
+                    "id": r["id"],
+                    "entity_id": r["entity_id"],
+                    "version": r["version"],
+                    "canonical_name": r["canonical_name"],
+                    "display_name": r["display_name"],
+                    "entity_type": r["entity_type"],
+                    "description": r["description"],
+                    "metadata": meta,
+                    "tags": tags,
+                    "confidence": r["confidence"],
+                    "status": r["status"],
+                    "editor": r["editor"],
+                    "reason": r["reason"],
+                    "updated_at": r["updated_at"],
+                }
+            )
+        return result
+
+    async def rollback_entity(
+        self, entity_id: str, target_version: int
+    ) -> IdentityEntity | None:
+        """Restore an entity profile to a previous version's canonical values."""
+        hist_row = await self.db.fetch_one(
+            "SELECT * FROM entity_history WHERE entity_id = ? AND version = ?",
+            (entity_id, target_version),
+        )
+        if not hist_row:
+            return None
+
+        meta = {}
+        if hist_row.get("metadata"):
+            try:
+                meta = json.loads(hist_row["metadata"])
+            except Exception:
+                pass
+        tags = []
+        if hist_row.get("tags"):
+            try:
+                tags = json.loads(hist_row["tags"])
+            except Exception:
+                pass
+
+        entity = await self.get_entity(entity_id)
+        if not entity:
+            return None
+
+        # Restore properties
+        entity.canonical_name = hist_row["canonical_name"]
+        entity.display_name = hist_row["display_name"]
+        entity.type = IdentityType(hist_row["entity_type"])
+        entity.description = hist_row["description"]
+        entity.metadata = meta
+        entity.tags = tags
+        entity.confidence = hist_row["confidence"]
+        entity.status = hist_row["status"] or "active"
+
+        return entity
 
     def _map_relationship_row(self, row: dict[str, Any]) -> IdentityRelationship:
         """Helper to map a database row to an IdentityRelationship model."""

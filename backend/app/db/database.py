@@ -384,6 +384,44 @@ class Database:
                     "ALTER TABLE relationships ADD COLUMN evidence TEXT",
                 ],
             ),
+            (
+                8,
+                [
+                    "ALTER TABLE entities ADD COLUMN tags TEXT DEFAULT '[]'",
+                    "ALTER TABLE entities ADD COLUMN visit_count INTEGER DEFAULT 0",
+                    "ALTER TABLE entities ADD COLUMN last_accessed TEXT",
+                    "ALTER TABLE entities ADD COLUMN embedding TEXT",
+                    """
+                    CREATE TABLE IF NOT EXISTS entity_tags (
+                        entity_id TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+                        tag TEXT NOT NULL,
+                        PRIMARY KEY (entity_id, tag)
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS entity_history (
+                        id TEXT PRIMARY KEY,
+                        entity_id TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+                        version INTEGER NOT NULL,
+                        canonical_name TEXT NOT NULL,
+                        display_name TEXT,
+                        entity_type TEXT NOT NULL,
+                        description TEXT,
+                        metadata TEXT,
+                        tags TEXT,
+                        confidence REAL,
+                        status TEXT,
+                        editor TEXT,
+                        reason TEXT,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    "CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(type)",
+                    "CREATE INDEX IF NOT EXISTS idx_entity_tags_tag ON entity_tags(tag)",
+                    "CREATE INDEX IF NOT EXISTS idx_entities_visit ON entities(visit_count)",
+                    "CREATE INDEX IF NOT EXISTS idx_entity_history_lookup ON entity_history(entity_id, version)",
+                ],
+            ),
         ]
 
         with self._connect() as connection:

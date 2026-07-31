@@ -81,7 +81,13 @@ class IdentityResolver:
             confidence=confidence,
         )
 
-    async def merge_entities(self, primary_id: str, secondary_id: str) -> None:
+    async def merge_entities(
+        self,
+        primary_id: str,
+        secondary_id: str,
+        editor: str = "system",
+        reason: str = "Entity merge",
+    ) -> None:
         """Merge secondary duplicate entity into canonical primary entity, redirecting relationships."""
         if primary_id == secondary_id:
             return
@@ -164,6 +170,13 @@ class IdentityResolver:
         if hasattr(primary, "version"):
             primary.version += 1
         await self.repository.save_entity(primary)
+
+        # Save snapshot log for this new version
+        if hasattr(self.repository, "save_history"):
+            await self.repository.save_history(
+                primary.id, primary.version, editor, reason
+            )
+
         await self.repository.delete_entity(secondary_id)
 
     async def resolve_canonical(
