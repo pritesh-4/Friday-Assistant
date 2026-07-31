@@ -1,33 +1,37 @@
 import pytest
 from unittest.mock import patch, AsyncMock
 from app.memory.memory_service import CognitiveMemoryService
-from app.memory.schemas import (
-    AMISExtraction,
-    ExtractedEntity,
-    ExtractedRelationship,
-    ExtractedMemoryV2,
-    EntityType,
+from app.schemas.cme import (
+    CMEExtraction,
+    CMEExtractedEntity,
+    CMEExtractedRelationship,
+    CMEExtractedMemory,
+    CMEEntityType,
 )
 from app.schemas.memory import MemoryType
 
 
 @pytest.mark.asyncio
-async def test_process_interaction_with_extracted_data():
+async def test_process_interaction_cme_v2():
     service = CognitiveMemoryService()
 
-    # Mock the LLM extractor output
-    mock_extraction = AMISExtraction(
+    # Mock the V2 extraction containing the answers to the four questions
+    mock_extraction = CMEExtraction(
         should_remember=True,
+        what_happened="Bruce defends Gotham from villains.",
+        who_involved=["Bruce", "Gotham"],
+        what_changed="Entity status active",
+        what_remember="Bruce protects Gotham City",
         entities=[
-            ExtractedEntity(
+            CMEExtractedEntity(
                 name="Bruce",
-                type=EntityType.PERSON,
+                type=CMEEntityType.PERSON,
                 aliases=["Batman"],
                 attributes={"city": "Gotham"},
             )
         ],
         relationships=[
-            ExtractedRelationship(
+            CMEExtractedRelationship(
                 source_entity_name="Bruce",
                 target_entity_name="Gotham",
                 relation_type="protects",
@@ -35,7 +39,7 @@ async def test_process_interaction_with_extracted_data():
             )
         ],
         memories=[
-            ExtractedMemoryV2(
+            CMEExtractedMemory(
                 memory_type=MemoryType.SEMANTIC,
                 content="Bruce defends Gotham",
                 importance_score=7,
@@ -47,30 +51,29 @@ async def test_process_interaction_with_extracted_data():
 
     with (
         patch.object(service.extractor, "extract", new_callable=AsyncMock) as mock_extract,
-        patch.object(service.storage, "save_cognitive_memory", new_callable=AsyncMock) as mock_save_mem,
+        patch.object(service.consolidator, "consolidate_memory", new_callable=AsyncMock) as mock_consolidate,
     ):
         mock_extract.return_value = mock_extraction
+        mock_consolidate.return_value = "mem_123"
 
-        # Run process_interaction
+        # Process message
         await service.process_interaction("Bruce defends Gotham", "conv_123")
 
-        # Verify entity resolution and saving occurred
         mock_extract.assert_called_once_with("Bruce defends Gotham")
         
-        # Check that entity Bruce was saved in database
-        resolved = await service.storage.get_entity_by_name_or_alias("Bruce")
+        # Verify entity resolution occurred
+        resolved = await service.repository.get_entity_by_name_or_alias("Bruce")
         assert resolved is not None
         assert resolved.name == "Bruce"
 
-        # Check attributes
-        attrs = await service.storage.get_entity_attributes(resolved.id)
-        assert len(attrs) == 1
-        assert attrs[0].key == "city"
-        assert attrs[0].value == "Gotham"
+        # Verify relationship edge was added to the graph
+        edges = await service.graph.get_edges_for_node(resolved.id)
+        assert len(edges) == 1
+        assert edges[0].relation_type == "protects"
 
-        # Check memory saving mock call
-        mock_save_mem.assert_called_once()
-        args, kwargs = mock_save_mem.call_args
+        # Verify memory consolidation call
+        mock_consolidate.assert_called_once()
+        args, kwargs = mock_consolidate.call_args
         assert kwargs["memory_type"] == MemoryType.SEMANTIC
         assert kwargs["content"] == "Bruce defends Gotham"
         assert kwargs["importance"] == 7

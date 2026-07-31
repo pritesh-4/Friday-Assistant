@@ -1,25 +1,23 @@
 import pytest
 from datetime import datetime, timedelta, timezone
-from app.memory.ranking import MemoryRanker
+from app.ranking.ranker import MemoryRanker
 from app.utils.helpers import get_utc_now
 
 
-def test_calculate_score():
+def test_scorer_calculate_score():
     ranker = MemoryRanker(w_sim=0.4, w_imp=0.2, w_rec=0.2, w_graph=0.2)
     now = get_utc_now()
 
-    # High similarity, high importance, high recency, high graph relevance
-    score_high = ranker.calculate_score(
-        similarity_distance=0.1,  # close
+    score_high = ranker.score_item(
+        similarity_distance=0.1,
         importance_score=9,
         created_at=now,
         last_referenced=now,
         graph_relevance=1.0,
     )
 
-    # Low similarity, low importance, old recency, no graph relevance
-    score_low = ranker.calculate_score(
-        similarity_distance=1.4,  # far
+    score_low = ranker.score_item(
+        similarity_distance=1.4,
         importance_score=2,
         created_at=now - timedelta(days=10),
         last_referenced=now - timedelta(days=10),
@@ -31,7 +29,7 @@ def test_calculate_score():
     assert 0.0 <= score_low <= 1.0
 
 
-def test_rank_memories():
+def test_ranker_rank_candidates():
     ranker = MemoryRanker(w_sim=0.4, w_imp=0.2, w_rec=0.2, w_graph=0.2)
     now = get_utc_now().replace(tzinfo=timezone.utc)
 
@@ -56,12 +54,9 @@ def test_rank_memories():
         },
     ]
 
-    # Active entity neighborhood: Friday is highly relevant
     graph_map = {"project_friday": 1.0}
 
-    ranked = ranker.rank_memories(candidates, graph_map)
+    ranked = ranker.rank(candidates, graph_map)
 
     assert len(ranked) == 2
-    # mem_2 should rank higher due to lower similarity distance (closer match),
-    # higher importance, newer timestamp, and graph relation matching "Friday"
     assert ranked[0]["id"] == "mem_2"

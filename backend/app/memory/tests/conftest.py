@@ -1,28 +1,32 @@
 import pytest
-import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock
 
 from app.core.config import settings
 from app.db.database import database
 from app.db.vector_store import vector_store
-from app.memory.storage import MemoryStorage
-from app.memory.identity import IdentitySystem
-from app.memory.entity_resolution import EntityResolutionSystem
-from app.memory.knowledge_graph import KnowledgeGraphSystem
-from app.memory.ranking import MemoryRanker
-from app.memory.retrieval import MemoryRetrievalOrchestrator
-from app.memory.memory_extractor import AMISMemeoryExtractor
+
+# CME V2 imports
+from app.storage.repository import MemoryRepository
+from app.identity.registry import IdentityRegistry
+from app.identity.resolver import IdentityResolver
+from app.knowledge_graph.graph import KnowledgeGraph
+from app.knowledge_graph.traversal import GraphTraversal
+from app.ranking.ranker import MemoryRanker
+from app.memory.scorer import ImportanceScorer
+from app.memory.conflict_resolver import ConflictResolver
+from app.memory.consolidator import MemoryConsolidator
+from app.memory.retrieval import MemoryRetrieval
 
 
 @pytest.fixture(autouse=True)
 async def setup_test_db(tmp_path: Path):
-    """Isolate database path and run all migrations."""
-    db_file = tmp_path / "friday-memory-test.db"
+    """Isolate database path and run migrations."""
+    db_file = tmp_path / "friday-cme-test.db"
     database.configure(f"sqlite:///{db_file.as_posix()}")
     await database.initialize()
     
-    # Mock vector_store methods to avoid disk/network ops in basic tests
+    # Mock vector_store methods
     vector_store.add_memory = AsyncMock(return_value=None)
     vector_store.update_memory = AsyncMock(return_value=None)
     vector_store.delete_memory = AsyncMock(return_value=None)
@@ -30,32 +34,30 @@ async def setup_test_db(tmp_path: Path):
 
     yield
 
-    # Cleanup database connection
-    try:
-        # SQLite connection is synchronous under the hood, but in-process pool
-        pass
-    except Exception:
-        pass
+
+@pytest.fixture
+def repository():
+    return MemoryRepository(database, vector_store)
 
 
 @pytest.fixture
-def storage():
-    return MemoryStorage()
+def registry(repository):
+    return IdentityRegistry(repository)
 
 
 @pytest.fixture
-def identity_system(storage):
-    return IdentitySystem(storage)
+def resolver(registry, repository):
+    return IdentityResolver(registry, repository)
 
 
 @pytest.fixture
-def entity_resolution(storage, identity_system):
-    return EntityResolutionSystem(storage, identity_system)
+def graph(repository):
+    return KnowledgeGraph(repository)
 
 
 @pytest.fixture
-def knowledge_graph(storage):
-    return KnowledgeGraphSystem(storage)
+def traversal(graph, repository):
+    return GraphTraversal(graph, repository)
 
 
 @pytest.fixture
@@ -64,5 +66,20 @@ def ranker():
 
 
 @pytest.fixture
-def retrieval(storage, knowledge_graph, ranker):
-    return MemoryRetrievalOrchestrator(storage, knowledge_graph, ranker)
+def scorer():
+    return ImportanceScorer()
+
+
+@pytest.fixture
+def conflict_resolver(repository):
+    return ConflictResolver(repository)
+
+
+@pytest.fixture
+def consolidator(repository, conflict_resolver):
+    return MemoryConsolidator(repository, conflict_resolver)
+
+
+@pytest.fixture
+def retrieval(repository, traversal, ranker):
+    return MemoryRetrieval(repository, traversal, ranker)

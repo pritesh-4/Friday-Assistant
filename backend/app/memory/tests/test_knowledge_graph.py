@@ -1,29 +1,28 @@
 import pytest
-from app.memory.schemas import Entity, EntityType
+from app.schemas.cme import CMEEntity, CMEEntityType
+from app.knowledge_graph.relationships import get_default_weight
 from app.utils.helpers import get_utc_now
 
 
+def test_default_weights_baseline():
+    assert get_default_weight("owns") == 1.0
+    assert get_default_weight("uses") == 0.8
+    assert get_default_weight("unknown_rel") == 0.5
+
+
 @pytest.mark.asyncio
-async def test_connected_neighborhood(knowledge_graph, storage):
+async def test_traversal_connected_neighborhood(graph, traversal, repository):
     now = get_utc_now()
-    # Create entities: User -> Friday -> FastAPI -> Render
-    await storage.save_entity(Entity(id="user_1", type=EntityType.PERSON, name="Boss", created_at=now, updated_at=now))
-    await storage.save_entity(Entity(id="friday_1", type=EntityType.PROJECT, name="FRIDAY", created_at=now, updated_at=now))
-    await storage.save_entity(Entity(id="fastapi_1", type=EntityType.FRAMEWORK, name="FastAPI", created_at=now, updated_at=now))
-    await storage.save_entity(Entity(id="render_1", type=EntityType.ORGANIZATION, name="Render", created_at=now, updated_at=now))
+    await repository.save_entity(CMEEntity(id="user_1", type=CMEEntityType.PERSON, name="Boss", created_at=now, updated_at=now))
+    await repository.save_entity(CMEEntity(id="friday_1", type=CMEEntityType.PROJECT, name="FRIDAY", created_at=now, updated_at=now))
+    await repository.save_entity(CMEEntity(id="fastapi_1", type=CMEEntityType.FRAMEWORK, name="FastAPI", created_at=now, updated_at=now))
+    await repository.save_entity(CMEEntity(id="render_1", type=CMEEntityType.ORGANIZATION, name="Render", created_at=now, updated_at=now))
 
-    # Add relationships
-    await knowledge_graph.add_relationship("user_1", "friday_1", "works_on", 1.0)
-    await knowledge_graph.add_relationship("friday_1", "fastapi_1", "uses", 1.0)
-    await knowledge_graph.add_relationship("fastapi_1", "render_1", "runs_on", 1.0)
+    await graph.add_edge("user_1", "friday_1", "works_on", 1.0)
+    await graph.add_edge("friday_1", "fastapi_1", "uses", 1.0)
+    await graph.add_edge("fastapi_1", "render_1", "runs_on", 1.0)
 
-    # 1. Get neighborhood of 'user_1' (max_hops = 2)
-    # Should include:
-    # user_1 (0-hop: weight 1.0)
-    # friday_1 (1-hop: weight 0.5)
-    # fastapi_1 (2-hop: weight 0.25)
-    # NOT render_1 (3-hop)
-    neighborhood = await knowledge_graph.get_connected_neighborhood(["user_1"], max_hops=2)
+    neighborhood = await traversal.get_connected_neighborhood(["user_1"], max_hops=2)
 
     assert "user_1" in neighborhood
     assert neighborhood["user_1"] == 1.0
