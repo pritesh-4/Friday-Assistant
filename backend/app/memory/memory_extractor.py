@@ -1,7 +1,6 @@
 """LLM Extraction Agent for Autonomous Memory & Identity System (AMIS)."""
 
 import json
-from typing import Any
 from app.core.logging import get_logger
 from app.memory.schemas import AMISExtraction
 from app.services.llm_service import LLMService
@@ -88,7 +87,10 @@ class AMISMemeoryExtractor:
 
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Extract memory from this message:\n\n{user_message}"},
+            {
+                "role": "user",
+                "content": f"Extract memory from this message:\n\n{user_message}",
+            },
         ]
 
         try:

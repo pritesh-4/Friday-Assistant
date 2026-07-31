@@ -1,7 +1,6 @@
 """Knowledge Graph Traversal: performs BFS searches and transitive reasoning inference."""
 
 from collections import deque
-from typing import Any
 from app.core.logging import get_logger
 from app.storage.repository import MemoryRepository
 from app.knowledge_graph.graph import KnowledgeGraph
@@ -56,7 +55,9 @@ class GraphTraversal:
 
         return relevance_map
 
-    async def infer_path_targets(self, start_node_id: str, relationship_path: list[str]) -> list[str]:
+    async def infer_path_targets(
+        self, start_node_id: str, relationship_path: list[str]
+    ) -> list[str]:
         """
         Infers relationships by traversing a specific path of relationship types.
         E.g., start_node='Alex', path=['works_on', 'uses']
@@ -71,13 +72,13 @@ class GraphTraversal:
         for rel_type in relationship_path:
             next_nodes = set()
             rel_type_lower = rel_type.lower().strip()
-            
+
             # Find all outgoing links matching this relation type
             for node in current_nodes:
                 for edge in all_edges:
                     if edge.source_id == node and edge.relation_type == rel_type_lower:
                         next_nodes.add(edge.target_id)
-            
+
             current_nodes = next_nodes
             if not current_nodes:
                 break

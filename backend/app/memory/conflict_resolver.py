@@ -33,7 +33,9 @@ class ConflictResolver:
                 if confidence > match_attr.confidence:
                     match_attr.confidence = confidence
                     await self.repository.save_entity_attribute(match_attr)
-                    logger.debug(f"Strengthened confidence for attribute '{key}' on {entity_id}")
+                    logger.debug(
+                        f"Strengthened confidence for attribute '{key}' on {entity_id}"
+                    )
                 return
 
             # Conflict!

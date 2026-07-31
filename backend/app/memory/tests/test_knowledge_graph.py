@@ -13,10 +13,42 @@ def test_default_weights_baseline():
 @pytest.mark.asyncio
 async def test_traversal_connected_neighborhood(graph, traversal, repository):
     now = get_utc_now()
-    await repository.save_entity(CMEEntity(id="user_1", type=CMEEntityType.PERSON, name="Boss", created_at=now, updated_at=now))
-    await repository.save_entity(CMEEntity(id="friday_1", type=CMEEntityType.PROJECT, name="FRIDAY", created_at=now, updated_at=now))
-    await repository.save_entity(CMEEntity(id="fastapi_1", type=CMEEntityType.FRAMEWORK, name="FastAPI", created_at=now, updated_at=now))
-    await repository.save_entity(CMEEntity(id="render_1", type=CMEEntityType.ORGANIZATION, name="Render", created_at=now, updated_at=now))
+    await repository.save_entity(
+        CMEEntity(
+            id="user_1",
+            type=CMEEntityType.PERSON,
+            name="Boss",
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    await repository.save_entity(
+        CMEEntity(
+            id="friday_1",
+            type=CMEEntityType.PROJECT,
+            name="FRIDAY",
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    await repository.save_entity(
+        CMEEntity(
+            id="fastapi_1",
+            type=CMEEntityType.FRAMEWORK,
+            name="FastAPI",
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    await repository.save_entity(
+        CMEEntity(
+            id="render_1",
+            type=CMEEntityType.ORGANIZATION,
+            name="Render",
+            created_at=now,
+            updated_at=now,
+        )
+    )
 
     await graph.add_edge("user_1", "friday_1", "works_on", 1.0)
     await graph.add_edge("friday_1", "fastapi_1", "uses", 1.0)

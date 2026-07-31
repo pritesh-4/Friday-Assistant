@@ -1,8 +1,7 @@
 """Identity management and unique identifier resolution system."""
 
-from datetime import datetime
 from app.core.logging import get_logger
-from app.memory.schemas import Entity, EntityType, EntityAlias
+from app.memory.schemas import Entity, EntityType
 from app.memory.storage import MemoryStorage
 from app.utils.helpers import generate_uuid, get_utc_now
 
@@ -66,7 +65,9 @@ class IdentitySystem:
             updated_at=now,
         )
         await self.storage.save_entity(entity)
-        logger.info(f"Created new identity: {entity_id} for '{name_clean}' ({entity_type.value})")
+        logger.info(
+            f"Created new identity: {entity_id} for '{name_clean}' ({entity_type.value})"
+        )
         return entity
 
     async def add_alias(self, entity_id: str, alias: str) -> None:

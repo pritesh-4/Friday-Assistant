@@ -1,7 +1,6 @@
 """LLM Extraction Agent for Cognitive Memory Engine CME V2."""
 
 import json
-from typing import Any
 from app.core.logging import get_logger
 from app.schemas.cme import CMEExtraction
 from app.services.llm_service import LLMService
@@ -93,7 +92,10 @@ class MemoryExtractor:
 
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Extract memory from user input:\n\n{user_message}"},
+            {
+                "role": "user",
+                "content": f"Extract memory from user input:\n\n{user_message}",
+            },
         ]
 
         try:

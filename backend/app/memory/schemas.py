@@ -2,10 +2,9 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
 from pydantic import Field
 from app.schemas.common import ApiModel
-from app.schemas.memory import MemoryType, MemoryMetadata, CognitiveMemoryPayload, ExtractedMemory
+from app.schemas.memory import MemoryType
 
 
 class EntityType(str, Enum):

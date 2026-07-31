@@ -135,7 +135,18 @@ class ChatService:
             )
 
         # Intercept explicit memory commands (forget, correct, update)
-        is_memory_command = any(word in request.message.lower() for word in ["forget", "update", "correct", "incorrect", "wrong", "delete", "remove"])
+        is_memory_command = any(
+            word in request.message.lower()
+            for word in [
+                "forget",
+                "update",
+                "correct",
+                "incorrect",
+                "wrong",
+                "delete",
+                "remove",
+            ]
+        )
         if is_memory_command:
             command_response = await self.memory_service.process_interaction(
                 request.message, conversation.id
@@ -228,7 +239,9 @@ class ChatService:
         # 6. Extract and Store new Memories in background (non-blocking)
         if not is_memory_command:
             try:
-                await self.memory_service.process_interaction(request.message, conversation.id)
+                await self.memory_service.process_interaction(
+                    request.message, conversation.id
+                )
             except Exception as e:
                 _log.error(f"Failed to process memory extraction: {e}")
 

@@ -130,15 +130,30 @@ class StreamingCoordinator:
                 return
 
             # Intercept explicit memory commands (forget, correct, update)
-            is_memory_command = any(word in request.message.lower() for word in ["forget", "update", "correct", "incorrect", "wrong", "delete", "remove"])
+            is_memory_command = any(
+                word in request.message.lower()
+                for word in [
+                    "forget",
+                    "update",
+                    "correct",
+                    "incorrect",
+                    "wrong",
+                    "delete",
+                    "remove",
+                ]
+            )
             if is_memory_command:
                 command_response = await self.memory_service.process_interaction(
                     request.message, conversation_id
                 )
                 if command_response:
                     yield f"data: {json.dumps({'type': 'chunk', 'content': command_response})}\n\n"
-                    await self._create_message(conversation_id, "assistant", command_response)
-                    memory_manager.append_message(conversation_id, "assistant", command_response)
+                    await self._create_message(
+                        conversation_id, "assistant", command_response
+                    )
+                    memory_manager.append_message(
+                        conversation_id, "assistant", command_response
+                    )
                     yield f"data: {json.dumps({'type': 'done', 'metrics': {'latency_ms': 0}})}\n\n"
                     return
 
@@ -282,7 +297,9 @@ class StreamingCoordinator:
 
             if not is_memory_command:
                 try:
-                    await self.memory_service.process_interaction(request.message, conversation_id)
+                    await self.memory_service.process_interaction(
+                        request.message, conversation_id
+                    )
                 except Exception as e:
                     _log.error(f"Failed to process memory extraction: {e}")
 

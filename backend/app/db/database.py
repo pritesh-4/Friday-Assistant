@@ -371,6 +371,19 @@ class Database:
                     "CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships(target_id)",
                 ],
             ),
+            (
+                7,
+                [
+                    "ALTER TABLE entities ADD COLUMN display_name TEXT",
+                    "ALTER TABLE entities ADD COLUMN description TEXT",
+                    "ALTER TABLE entities ADD COLUMN status TEXT DEFAULT 'active'",
+                    "ALTER TABLE entities ADD COLUMN version INTEGER DEFAULT 1",
+                    "ALTER TABLE entities ADD COLUMN source_history TEXT DEFAULT '[]'",
+                    "ALTER TABLE entities ADD COLUMN metadata TEXT DEFAULT '{}'",
+                    "ALTER TABLE relationships ADD COLUMN confidence REAL DEFAULT 1.0",
+                    "ALTER TABLE relationships ADD COLUMN evidence TEXT",
+                ],
+            ),
         ]
 
         with self._connect() as connection:

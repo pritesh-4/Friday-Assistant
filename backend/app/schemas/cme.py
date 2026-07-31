@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
 from pydantic import Field
 from app.schemas.common import ApiModel
 from app.schemas.memory import MemoryType
@@ -98,7 +97,7 @@ class CMEExtraction(ApiModel):
     """Extraction output from CME V2 answering the four core questions."""
 
     should_remember: bool
-    
+
     # The Four Questions Answers
     what_happened: str | None = None
     who_involved: list[str] = Field(default_factory=list)

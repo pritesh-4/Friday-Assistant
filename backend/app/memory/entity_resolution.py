@@ -1,17 +1,14 @@
 """Entity Resolution: Deduplication, merging, and conflict resolution."""
 
-from datetime import datetime
-from typing import Any
 from app.core.logging import get_logger
 from app.memory.schemas import (
-    Entity,
-    EntityType,
     EntityAttribute,
     ExtractedEntity,
     ExplicitCommand,
 )
 from app.db.database import database
 from app.memory.storage import MemoryStorage
+from app.schemas.memory import MemoryType
 from app.memory.identity import IdentitySystem
 from app.utils.helpers import generate_uuid, get_utc_now
 
@@ -49,7 +46,9 @@ class EntityResolutionSystem:
 
             # 3. Resolve and save attributes
             for key, val in ext_entity.attributes.items():
-                await self.resolve_attribute(canonical.id, key, val, ext_entity.confidence)
+                await self.resolve_attribute(
+                    canonical.id, key, val, ext_entity.confidence
+                )
 
         return resolved_mapping
 
@@ -174,11 +173,14 @@ class EntityResolutionSystem:
             if target == "memory":
                 # Find matching memories via search query
                 from app.db.vector_store import vector_store
+
                 # Search across semantic, episodic, procedural, project collections
                 deleted_any = False
                 for mem_type in ["semantic", "episodic", "procedural", "project"]:
                     collection = f"{mem_type}_memories"
-                    docs = await vector_store.search(collection, command.query, n_results=1)
+                    docs = await vector_store.search(
+                        collection, command.query, n_results=1
+                    )
                     if docs:
                         doc = docs[0]
                         # Verify it has close distance or matches closely
@@ -223,9 +225,12 @@ class EntityResolutionSystem:
             elif target == "memory":
                 # Find matching memory in vector store and modify content
                 from app.db.vector_store import vector_store
+
                 for mem_type in ["semantic", "episodic", "procedural", "project"]:
                     collection = f"{mem_type}_memories"
-                    docs = await vector_store.search(collection, command.query, n_results=1)
+                    docs = await vector_store.search(
+                        collection, command.query, n_results=1
+                    )
                     if docs and docs[0].get("distance", 1.0) < 0.4:
                         mem_id = docs[0]["id"]
                         content = command.update_value or ""

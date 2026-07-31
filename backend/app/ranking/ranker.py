@@ -46,7 +46,7 @@ class MemoryRanker:
         ref_time = last_referenced or created_at
         if ref_time.tzinfo is None:
             ref_time = ref_time.replace(tzinfo=timezone.utc)
-            
+
         time_diff = (now - ref_time).total_seconds()
         hours_elapsed = max(0.0, time_diff / 3600.0)
         recency = math.exp(-self.decay_constant_hours * hours_elapsed)

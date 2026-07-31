@@ -50,13 +50,17 @@ class MemoryManager:
         context.touch()
         self._sessions[session_id] = context
 
-    def update_conversation(self, session_id: str, conversation_id: str | None = None) -> None:
+    def update_conversation(
+        self, session_id: str, conversation_id: str | None = None
+    ) -> None:
         """Set active conversation UUID for the session."""
         ctx = self.get_context(session_id)
         if conversation_id is not None:
             ctx.conversation_id = conversation_id
 
-    def append_message(self, session_id: str, role: str, content: str | list[Any]) -> None:
+    def append_message(
+        self, session_id: str, role: str, content: str | list[Any]
+    ) -> None:
         """Append message to working session buffer."""
         ctx = self.get_context(session_id)
         ctx.messages.append({"role": role, "content": content})

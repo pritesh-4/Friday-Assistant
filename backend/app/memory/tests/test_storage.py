@@ -1,5 +1,10 @@
 import pytest
-from app.schemas.cme import CMEEntity, CMEEntityType, CMEEntityAttribute, CMERelationship
+from app.schemas.cme import (
+    CMEEntity,
+    CMEEntityType,
+    CMEEntityAttribute,
+    CMERelationship,
+)
 from app.schemas.memory import MemoryType
 from app.utils.helpers import generate_uuid, get_utc_now
 
@@ -8,18 +13,18 @@ from app.utils.helpers import generate_uuid, get_utc_now
 async def test_entity_repository(repository):
     entity_id = "person_bruce"
     now = get_utc_now()
-    
+
     entity = CMEEntity(
         id=entity_id,
         type=CMEEntityType.PERSON,
         name="Bruce Wayne",
         confidence=1.0,
         created_at=now,
-        updated_at=now
+        updated_at=now,
     )
-    
+
     await repository.save_entity(entity)
-    
+
     fetched = await repository.get_entity(entity_id)
     assert fetched is not None
     assert fetched.name == "Bruce Wayne"
@@ -40,12 +45,12 @@ async def test_repository_aliases(repository):
         name="Bruce Wayne",
         confidence=1.0,
         created_at=now,
-        updated_at=now
+        updated_at=now,
     )
     await repository.save_entity(entity)
 
     await repository.add_entity_alias(entity_id, "Batman")
-    
+
     fetched = await repository.get_entity_by_name_or_alias("Batman")
     assert fetched is not None
     assert fetched.id == entity_id
@@ -64,7 +69,7 @@ async def test_repository_attributes(repository):
         name="Tony Stark",
         confidence=1.0,
         created_at=now,
-        updated_at=now
+        updated_at=now,
     )
     await repository.save_entity(entity)
 
@@ -75,7 +80,7 @@ async def test_repository_attributes(repository):
         value="Iron Man Mark 85",
         confidence=1.0,
         created_at=now,
-        updated_at=now
+        updated_at=now,
     )
     await repository.save_entity_attribute(attr)
 
@@ -90,9 +95,25 @@ async def test_repository_relationships(repository):
     e1_id = "person_user"
     e2_id = "project_friday"
     now = get_utc_now()
-    
-    await repository.save_entity(CMEEntity(id=e1_id, type=CMEEntityType.PERSON, name="Boss", created_at=now, updated_at=now))
-    await repository.save_entity(CMEEntity(id=e2_id, type=CMEEntityType.PROJECT, name="FRIDAY", created_at=now, updated_at=now))
+
+    await repository.save_entity(
+        CMEEntity(
+            id=e1_id,
+            type=CMEEntityType.PERSON,
+            name="Boss",
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    await repository.save_entity(
+        CMEEntity(
+            id=e2_id,
+            type=CMEEntityType.PROJECT,
+            name="FRIDAY",
+            created_at=now,
+            updated_at=now,
+        )
+    )
 
     rel = CMERelationship(
         id=generate_uuid(),
@@ -101,7 +122,7 @@ async def test_repository_relationships(repository):
         relation_type="works_on",
         weight=1.0,
         created_at=now,
-        updated_at=now
+        updated_at=now,
     )
     await repository.save_relationship(rel)
 

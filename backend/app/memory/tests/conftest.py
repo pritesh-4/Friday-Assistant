@@ -1,15 +1,18 @@
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock
 
-from app.core.config import settings
 from app.db.database import database
 from app.db.vector_store import vector_store
 
 # CME V2 imports
 from app.storage.repository import MemoryRepository
-from app.identity.registry import IdentityRegistry
-from app.identity.resolver import IdentityResolver
+from app.identity import (
+    IdentityRegistry,
+    IdentityResolver,
+    AliasManager,
+    ProfileBuilder,
+)
 from app.knowledge_graph.graph import KnowledgeGraph
 from app.knowledge_graph.traversal import GraphTraversal
 from app.ranking.ranker import MemoryRanker
@@ -25,7 +28,7 @@ async def setup_test_db(tmp_path: Path):
     db_file = tmp_path / "friday-cme-test.db"
     database.configure(f"sqlite:///{db_file.as_posix()}")
     await database.initialize()
-    
+
     # Mock vector_store methods
     vector_store.add_memory = AsyncMock(return_value=None)
     vector_store.update_memory = AsyncMock(return_value=None)
@@ -46,8 +49,18 @@ def registry(repository):
 
 
 @pytest.fixture
-def resolver(registry, repository):
-    return IdentityResolver(registry, repository)
+def alias_manager(repository):
+    return AliasManager(repository)
+
+
+@pytest.fixture
+def profile_builder(repository):
+    return ProfileBuilder(repository)
+
+
+@pytest.fixture
+def resolver(registry, repository, alias_manager, profile_builder):
+    return IdentityResolver(registry, repository, alias_manager, profile_builder)
 
 
 @pytest.fixture

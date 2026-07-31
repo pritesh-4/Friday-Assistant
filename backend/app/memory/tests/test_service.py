@@ -50,8 +50,12 @@ async def test_process_interaction_cme_v2():
     )
 
     with (
-        patch.object(service.extractor, "extract", new_callable=AsyncMock) as mock_extract,
-        patch.object(service.consolidator, "consolidate_memory", new_callable=AsyncMock) as mock_consolidate,
+        patch.object(
+            service.extractor, "extract", new_callable=AsyncMock
+        ) as mock_extract,
+        patch.object(
+            service.consolidator, "consolidate_memory", new_callable=AsyncMock
+        ) as mock_consolidate,
     ):
         mock_extract.return_value = mock_extraction
         mock_consolidate.return_value = "mem_123"
@@ -60,7 +64,7 @@ async def test_process_interaction_cme_v2():
         await service.process_interaction("Bruce defends Gotham", "conv_123")
 
         mock_extract.assert_called_once_with("Bruce defends Gotham")
-        
+
         # Verify entity resolution occurred
         resolved = await service.repository.get_entity_by_name_or_alias("Bruce")
         assert resolved is not None

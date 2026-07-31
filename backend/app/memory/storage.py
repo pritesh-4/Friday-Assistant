@@ -8,7 +8,6 @@ from app.db.vector_store import vector_store
 from app.memory.schemas import (
     Entity,
     EntityType,
-    EntityAlias,
     EntityAttribute,
     Relationship,
 )
@@ -47,14 +46,18 @@ class MemoryStorage:
                     entity.type.value,
                     entity.name,
                     entity.confidence,
-                    entity.created_at.isoformat() if isinstance(entity.created_at, datetime) else str(entity.created_at),
+                    entity.created_at.isoformat()
+                    if isinstance(entity.created_at, datetime)
+                    else str(entity.created_at),
                     now,
                 ),
             )
 
     async def get_entity(self, entity_id: str) -> Entity | None:
         """Fetch an entity by its unique ID."""
-        row = await database.fetch_one("SELECT * FROM entities WHERE id = ?", (entity_id,))
+        row = await database.fetch_one(
+            "SELECT * FROM entities WHERE id = ?", (entity_id,)
+        )
         if not row:
             return None
         return Entity(
@@ -129,7 +132,8 @@ class MemoryStorage:
         alias_clean = alias.strip()
         # Verify alias not already registered
         existing = await database.fetch_one(
-            "SELECT id FROM entity_aliases WHERE lower(alias) = ?", (alias_clean.lower(),)
+            "SELECT id FROM entity_aliases WHERE lower(alias) = ?",
+            (alias_clean.lower(),),
         )
         if existing:
             return
@@ -212,7 +216,11 @@ class MemoryStorage:
             SELECT id, weight FROM relationships
             WHERE source_id = ? AND target_id = ? AND relation_type = ?
             """,
-            (relationship.source_id, relationship.target_id, relationship.relation_type),
+            (
+                relationship.source_id,
+                relationship.target_id,
+                relationship.relation_type,
+            ),
         )
         if existing:
             # Strengthen relationship by increasing weight slightly (up to cap 5.0)
@@ -404,23 +412,31 @@ class MemoryStorage:
             "SELECT * FROM memory_metadata WHERE memory_id = ?", (memory_id,)
         )
 
-    async def update_memory_confidence(self, memory_id: str, new_confidence: float) -> None:
+    async def update_memory_confidence(
+        self, memory_id: str, new_confidence: float
+    ) -> None:
         """Update confidence score for an existing memory record."""
         await database.execute(
             "UPDATE memory_metadata SET confidence_score = ? WHERE memory_id = ?",
             (new_confidence, memory_id),
         )
 
-    async def delete_cognitive_memory(self, memory_id: str, memory_type: MemoryType) -> bool:
+    async def delete_cognitive_memory(
+        self, memory_id: str, memory_type: MemoryType
+    ) -> bool:
         """Permanently delete memory records in SQLite and ChromaDB."""
         collection_name = f"{memory_type.value}_memories"
         table_name = f"{memory_type.value}_memories"
 
         # Delete SQL metadata
-        await database.execute("DELETE FROM memory_metadata WHERE memory_id = ?", (memory_id,))
+        await database.execute(
+            "DELETE FROM memory_metadata WHERE memory_id = ?", (memory_id,)
+        )
 
         # Delete SQL type record
-        deleted = await database.execute(f"DELETE FROM {table_name} WHERE id = ?", (memory_id,))
+        deleted = await database.execute(
+            f"DELETE FROM {table_name} WHERE id = ?", (memory_id,)
+        )
 
         # Delete ChromaDB
         if deleted:

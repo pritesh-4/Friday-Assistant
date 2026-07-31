@@ -19,6 +19,8 @@ Usage in a route:
         ...
 """
 
+from app.db.database import database
+from app.identity import IdentityService
 from app.memory import MemoryManager, memory_manager, CognitiveMemoryService
 from app.services.chat_service import ChatService
 from app.services.file_service import FileService
@@ -39,8 +41,10 @@ from app.agents.scheduler import ExecutionScheduler
 # These are module-level singletons — not class attributes — so they remain
 # injectable and replaceable in tests via dependency_overrides.
 
+_llm_service = LLMService()
+_identity_service = IdentityService(database, _llm_service)
 _chat_service = ChatService()
-_memory_service = CognitiveMemoryService()
+_memory_service = CognitiveMemoryService(identity_service=_identity_service)
 _workspace_service = WorkspaceService()
 _settings_service = SettingsService()
 _file_service = FileService()
@@ -51,13 +55,17 @@ _transcription_service: TranscriptionService | None = None
 _speech_service: SpeechService | None = None
 _voice_orchestrator: VoiceOrchestrator | None = None
 
-_llm_service = LLMService()
 _tool_manager = ToolManager()
 _agent_manager = AgentManager(_llm_service, _tool_manager)
 _scheduler = ExecutionScheduler(_agent_manager)
 
 
 # ── Provider functions ─────────────────────────────────────────────────────────
+
+
+def get_identity_service() -> IdentityService:
+    """Provide the shared IdentityService instance."""
+    return _identity_service
 
 
 def get_chat_service() -> ChatService:

@@ -1,7 +1,6 @@
 """Knowledge Graph: manages relationships between entities and performs graph distance checks."""
 
 from collections import deque
-from datetime import datetime
 from app.core.logging import get_logger
 from app.memory.schemas import Relationship
 from app.memory.storage import MemoryStorage

@@ -12,7 +12,9 @@ logger = get_logger("memory.consolidator")
 class MemoryConsolidator:
     """Consolidates new recollections with stored knowledge, deduplicating and strengthening weights."""
 
-    def __init__(self, repository: MemoryRepository, conflict_resolver: ConflictResolver) -> None:
+    def __init__(
+        self, repository: MemoryRepository, conflict_resolver: ConflictResolver
+    ) -> None:
         self.repository = repository
         self.conflict_resolver = conflict_resolver
 
@@ -36,20 +38,18 @@ class MemoryConsolidator:
         3. Else, save as a new long-term cognitive memory.
         """
         collection_name = f"{memory_type.value}_memories"
-        
+
         # Heuristic search check via Vector DB
         existing = await self.repository.vector_store.search(
-            collection_name=collection_name,
-            query=content,
-            n_results=1
+            collection_name=collection_name, query=content, n_results=1
         )
-        
+
         if existing and existing[0].get("distance", 1.0) < 0.15:
             matched_memory_id = existing[0]["id"]
             logger.info(
                 f"Consolidation match found! Merging candidate memory into existing match: {matched_memory_id}"
             )
-            
+
             # Retrieve metadata row
             meta = await self.repository.get_memory_metadata(matched_memory_id)
             if meta:
@@ -63,7 +63,7 @@ class MemoryConsolidator:
                     """,
                     (new_conf, get_utc_now().isoformat(), matched_memory_id),
                 )
-            
+
             # Overwrite SQL content timestamps for the specific memory type
             now = get_utc_now().isoformat()
             if memory_type == MemoryType.SEMANTIC:
@@ -86,7 +86,7 @@ class MemoryConsolidator:
                     "UPDATE project_memories SET content = ?, updated_at = ? WHERE id = ?",
                     (content, now, matched_memory_id),
                 )
-            
+
             return matched_memory_id
 
         # No duplicate found, persist as a new memory node

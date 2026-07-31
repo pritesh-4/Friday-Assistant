@@ -1,5 +1,4 @@
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 from app.ranking.ranker import MemoryRanker
 from app.utils.helpers import get_utc_now
 

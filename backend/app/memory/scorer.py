@@ -32,7 +32,7 @@ class ImportanceScorer:
         """
         now = get_utc_now()
         ref_time = last_referenced or created_at
-        
+
         # Match timezone awareness
         if ref_time.tzinfo is None:
             ref_time = ref_time.replace(tzinfo=timezone.utc)

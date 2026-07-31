@@ -8,7 +8,6 @@ from app.db.vector_store import VectorStore
 from app.schemas.cme import (
     CMEEntity,
     CMEEntityType,
-    CMEEntityAlias,
     CMEEntityAttribute,
     CMERelationship,
 )
@@ -51,14 +50,18 @@ class MemoryRepository:
                     entity.type.value,
                     entity.name,
                     entity.confidence,
-                    entity.created_at.isoformat() if isinstance(entity.created_at, datetime) else str(entity.created_at),
+                    entity.created_at.isoformat()
+                    if isinstance(entity.created_at, datetime)
+                    else str(entity.created_at),
                     now,
                 ),
             )
 
     async def get_entity(self, entity_id: str) -> CMEEntity | None:
         """Fetch an entity by ID."""
-        row = await self.db.fetch_one("SELECT * FROM entities WHERE id = ?", (entity_id,))
+        row = await self.db.fetch_one(
+            "SELECT * FROM entities WHERE id = ?", (entity_id,)
+        )
         if not row:
             return None
         return CMEEntity(
@@ -132,7 +135,8 @@ class MemoryRepository:
         """Assign an alias to an entity."""
         alias_clean = alias.strip()
         existing = await self.db.fetch_one(
-            "SELECT id FROM entity_aliases WHERE lower(alias) = ?", (alias_clean.lower(),)
+            "SELECT id FROM entity_aliases WHERE lower(alias) = ?",
+            (alias_clean.lower(),),
         )
         if existing:
             return
@@ -215,7 +219,11 @@ class MemoryRepository:
             SELECT id, weight FROM relationships
             WHERE source_id = ? AND target_id = ? AND relation_type = ?
             """,
-            (relationship.source_id, relationship.target_id, relationship.relation_type),
+            (
+                relationship.source_id,
+                relationship.target_id,
+                relationship.relation_type,
+            ),
         )
         if existing:
             new_weight = min(existing["weight"] + 0.1, 5.0)
@@ -405,13 +413,19 @@ class MemoryRepository:
         )
         return dict(row) if row else None
 
-    async def delete_cognitive_memory(self, memory_id: str, memory_type: MemoryType) -> bool:
+    async def delete_cognitive_memory(
+        self, memory_id: str, memory_type: MemoryType
+    ) -> bool:
         """Delete memory from SQLite and ChromaDB."""
         collection_name = f"{memory_type.value}_memories"
         table_name = f"{memory_type.value}_memories"
 
-        await self.db.execute("DELETE FROM memory_metadata WHERE memory_id = ?", (memory_id,))
-        deleted = await self.db.execute(f"DELETE FROM {table_name} WHERE id = ?", (memory_id,))
+        await self.db.execute(
+            "DELETE FROM memory_metadata WHERE memory_id = ?", (memory_id,)
+        )
+        deleted = await self.db.execute(
+            f"DELETE FROM {table_name} WHERE id = ?", (memory_id,)
+        )
 
         if deleted:
             try:

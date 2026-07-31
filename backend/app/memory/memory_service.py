@@ -1,23 +1,20 @@
 """Cognitive Memory Engine (CME) V2 Coordinator Service."""
 
-from typing import Any
 from app.core.logging import get_logger
 from app.db.database import database
 from app.db.vector_store import vector_store
-from app.schemas.cme import CMEExtraction, CMEEntityType
+from app.schemas.cme import CMEEntityType
 from app.schemas.memory import (
     CognitiveMemoryPayload,
     ExtractedMemory,
     MemoryMetadata,
     MemoryType,
 )
-from app.utils.helpers import generate_uuid, get_utc_now
 from app.services.llm_service import LLMService
 
-# Import CME V2 modules
+# Import Identity Engine V1 & CME V2 modules
 from app.storage.repository import MemoryRepository
-from app.identity.registry import IdentityRegistry
-from app.identity.resolver import IdentityResolver
+from app.identity import IdentityService, IdentityType
 from app.knowledge_graph.graph import KnowledgeGraph
 from app.knowledge_graph.traversal import GraphTraversal
 from app.ranking.ranker import MemoryRanker
@@ -31,14 +28,34 @@ from app.memory.retrieval import MemoryRetrieval
 logger = get_logger("memory.cme_service")
 
 
+def map_cme_type_to_identity_type(cme_type: CMEEntityType) -> IdentityType:
+    """Helper to map CME entity types to Identity Engine enum types."""
+    mapping = {
+        CMEEntityType.PERSON: IdentityType.PERSON,
+        CMEEntityType.PROJECT: IdentityType.PROJECT,
+        CMEEntityType.ORGANIZATION: IdentityType.ORGANIZATION,
+        CMEEntityType.AI_MODEL: IdentityType.AI_MODEL,
+        CMEEntityType.APPLICATION: IdentityType.APPLICATION,
+        CMEEntityType.PRODUCT: IdentityType.APPLICATION,
+        CMEEntityType.REPOSITORY: IdentityType.REPOSITORY,
+        CMEEntityType.CONCEPT: IdentityType.DOCUMENT,
+        CMEEntityType.LOCATION: IdentityType.PLACE,
+        CMEEntityType.TOOL: IdentityType.DEVICE,
+        CMEEntityType.FRAMEWORK: IdentityType.FRAMEWORK,
+        CMEEntityType.OTHER: IdentityType.DOCUMENT,
+    }
+    return mapping.get(cme_type, IdentityType.DOCUMENT)
+
+
 class CognitiveMemoryService:
     """The central coordinator for CME V2 operations, managing context, graphs, and consolidation."""
 
-    def __init__(self) -> None:
+    def __init__(self, identity_service: IdentityService | None = None) -> None:
         # Dependency Injection (Repository Pattern, no global state)
         self.repository = MemoryRepository(database, vector_store)
-        self.registry = IdentityRegistry(self.repository)
-        self.resolver = IdentityResolver(self.registry, self.repository)
+        self.identity_service = identity_service or IdentityService(
+            database, LLMService()
+        )
         self.graph = KnowledgeGraph(self.repository)
         self.traversal = GraphTraversal(self.graph, self.repository)
         self.ranker = MemoryRanker()
@@ -85,42 +102,58 @@ class CognitiveMemoryService:
         for cmd in extracted.commands:
             logger.info(f"CME Command received: {cmd.action} on {cmd.target_type}")
             # Map resolving target checks
-            resp = await self.conflict_resolver.repository.get_entity_by_name_or_alias(cmd.query)
+            resp = await self.identity_service.find_entity(
+                cmd.query
+            ) or await self.identity_service.find_by_alias(cmd.query)
             if cmd.action == "forget":
                 if cmd.target_type in ("entity", "person", "project") and resp:
-                    await self.repository.delete_entity(resp.id)
-                    command_responses.append(f"I have forgotten all records regarding '{resp.name}'.")
+                    await self.identity_service.delete_entity(resp.id)
+                    command_responses.append(
+                        f"I have forgotten all records regarding '{resp.canonical_name}'."
+                    )
                 elif cmd.target_type == "memory":
                     # Search and delete memory matching query
-                    docs = await self.repository.vector_store.search("semantic_memories", cmd.query, n_results=1)
+                    docs = await self.repository.vector_store.search(
+                        "semantic_memories", cmd.query, n_results=1
+                    )
                     if docs and docs[0].get("distance", 1.0) < 0.4:
-                        await self.repository.delete_cognitive_memory(docs[0]["id"], MemoryType.SEMANTIC)
-                        command_responses.append(f"I have forgotten the details matching '{cmd.query}'.")
-            elif cmd.action in ("correct", "update") and cmd.target_type == "attribute" and resp:
+                        await self.repository.delete_cognitive_memory(
+                            docs[0]["id"], MemoryType.SEMANTIC
+                        )
+                        command_responses.append(
+                            f"I have forgotten the details matching '{cmd.query}'."
+                        )
+            elif (
+                cmd.action in ("correct", "update")
+                and cmd.target_type == "attribute"
+                and resp
+            ):
                 parts = cmd.query.split(":")
                 key = parts[1].strip() if len(parts) > 1 else "info"
-                await self.conflict_resolver.resolve_attribute_conflict(
+                await self.identity_service.enrich_attribute(
                     resp.id, key, cmd.update_value or "", 1.0
                 )
-                command_responses.append(f"I have corrected {resp.name}'s {key} to '{cmd.update_value}'.")
+                command_responses.append(
+                    f"I have corrected {resp.canonical_name}'s {key} to '{cmd.update_value}'."
+                )
 
         # 2. Resolve entities & attributes (with conflict resolution)
         resolved_entity_ids = {}
         for ent in extracted.entities:
             # Resolve to canonical ID
-            cme_type = CMEEntityType(ent.type.value)
-            canonical = await self.resolver.resolve_canonical(
+            cme_type = map_cme_type_to_identity_type(CMEEntityType(ent.type.value))
+            canonical = await self.identity_service.resolve_entity(
                 ent.name, cme_type, ent.confidence
             )
             resolved_entity_ids[ent.name] = canonical.id
 
             # Aliases
             for alias in ent.aliases:
-                await self.registry.register_alias(canonical.id, alias)
+                await self.identity_service.add_alias(canonical.id, alias)
 
             # Attributes (Conflict resolver)
             for key, val in ent.attributes.items():
-                await self.conflict_resolver.resolve_attribute_conflict(
+                await self.identity_service.enrich_attribute(
                     canonical.id, key, val, ent.confidence
                 )
 
@@ -130,26 +163,32 @@ class CognitiveMemoryService:
             tgt_id = resolved_entity_ids.get(rel.target_entity_name)
 
             if not src_id:
-                ent = await self.repository.get_entity_by_name_or_alias(rel.source_entity_name)
+                ent = await self.identity_service.find_entity(
+                    rel.source_entity_name
+                ) or await self.identity_service.find_by_alias(rel.source_entity_name)
                 if ent:
                     src_id = ent.id
                 else:
-                    canonical = await self.resolver.resolve_canonical(
-                        rel.source_entity_name, CMEEntityType.OTHER, 0.5
+                    canonical = await self.identity_service.resolve_entity(
+                        rel.source_entity_name, IdentityType.DOCUMENT, 0.5
                     )
                     src_id = canonical.id
             if not tgt_id:
-                ent = await self.repository.get_entity_by_name_or_alias(rel.target_entity_name)
+                ent = await self.identity_service.find_entity(
+                    rel.target_entity_name
+                ) or await self.identity_service.find_by_alias(rel.target_entity_name)
                 if ent:
                     tgt_id = ent.id
                 else:
-                    canonical = await self.resolver.resolve_canonical(
-                        rel.target_entity_name, CMEEntityType.OTHER, 0.5
+                    canonical = await self.identity_service.resolve_entity(
+                        rel.target_entity_name, IdentityType.DOCUMENT, 0.5
                     )
                     tgt_id = canonical.id
 
             if src_id and tgt_id:
-                await self.graph.add_edge(src_id, tgt_id, rel.relation_type, rel.weight)
+                await self.identity_service.add_relationship(
+                    src_id, tgt_id, rel.relation_type, rel.weight
+                )
 
         # 4. Consolidate and store cognitive memories (Deduplication Check)
         for mem in extracted.memories:

@@ -1,5 +1,5 @@
 import pytest
-from app.schemas.cme import CMEEntity, CMEEntityType, CMEEntityAttribute, CMEExtractedEntity, CMEExplicitCommand
+from app.schemas.cme import CMEEntity, CMEEntityType, CMEEntityAttribute
 from app.utils.helpers import get_utc_now, generate_uuid
 
 
@@ -8,7 +8,13 @@ async def test_resolve_attribute_conflicts(conflict_resolver, repository):
     entity_id = "person_test_conflicts"
     now = get_utc_now()
     await repository.save_entity(
-        CMEEntity(id=entity_id, type=CMEEntityType.PERSON, name="Steve Rogers", created_at=now, updated_at=now)
+        CMEEntity(
+            id=entity_id,
+            type=CMEEntityType.PERSON,
+            name="Steve Rogers",
+            created_at=now,
+            updated_at=now,
+        )
     )
 
     # Initial attribute
@@ -33,10 +39,26 @@ async def test_resolver_merge_entities(resolver, repository):
     e2 = await resolver.resolve_canonical("Iron Man", CMEEntityType.PERSON)
 
     await repository.save_entity_attribute(
-        CMEEntityAttribute(id=generate_uuid(), entity_id=e1.id, key="intellect", value="genius", confidence=1.0, created_at=now, updated_at=now)
+        CMEEntityAttribute(
+            id=generate_uuid(),
+            entity_id=e1.id,
+            key="intellect",
+            value="genius",
+            confidence=1.0,
+            created_at=now,
+            updated_at=now,
+        )
     )
     await repository.save_entity_attribute(
-        CMEEntityAttribute(id=generate_uuid(), entity_id=e2.id, key="suit", value="Mark 85", confidence=1.0, created_at=now, updated_at=now)
+        CMEEntityAttribute(
+            id=generate_uuid(),
+            entity_id=e2.id,
+            key="suit",
+            value="Mark 85",
+            confidence=1.0,
+            created_at=now,
+            updated_at=now,
+        )
     )
 
     # 2. Merge them
