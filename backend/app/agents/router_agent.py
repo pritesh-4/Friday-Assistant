@@ -7,22 +7,36 @@ from app.core.logging import get_logger
 from app.services.llm_service import LLMService
 from app.services.providers.base import LLMProviderError, LLMResult
 
-from app.agents.planner_agent import PlannerAgent, ExecutionStrategy
+from app.agents.planner_agent import PlannerAgent
 from app.agents.agent_manager import AgentManager
 from app.tools.manager import ToolManager
 from app.tools.executor import PermissionRequiredError
+from app.planning.executive import ExecutivePlanner
+from app.db.database import database
+from app.db.vector_store import vector_store
+from app.storage.repository import MemoryRepository
+from app.knowledge_graph.graph import KnowledgeGraph
+from app.knowledge_graph.context_engine import ContextEngine
 
 logger = get_logger(__name__)
 
 
 class RouterAgent:
-    """Uses PlannerAgent to determine intent and routes to specialized agents."""
+    """Uses ExecutivePlanner to determine intent and routes to specialized agents."""
 
     def __init__(self) -> None:
         self.llm_service = LLMService()
         self.tool_manager = ToolManager()
         self.planner = PlannerAgent(self.llm_service)
         self.agent_manager = AgentManager(self.llm_service, self.tool_manager)
+
+        # Initialize dependencies for Executive Planner
+        self.repository = MemoryRepository(database, vector_store)
+        self.graph = KnowledgeGraph(self.repository)
+        self.context_engine = ContextEngine(self.graph, self.repository)
+        self.executive_planner = ExecutivePlanner(
+            database, self.llm_service, self.context_engine
+        )
 
     async def route_and_execute(
         self,
@@ -31,8 +45,6 @@ class RouterAgent:
     ) -> LLMResult:
         """
         Plans and executes the request.
-        Note: The return format is an LLMResult to maintain backwards compatibility,
-        even if the work was done by an agent.
         """
         active_providers = self.llm_service.available_providers
         if not active_providers:
@@ -44,37 +56,52 @@ class RouterAgent:
                 finish_reason="offline",
             )
 
-        # 1. Plan Execution
-        available_agents = self.agent_manager.get_available_agents()
-        plan = await self.planner.plan_execution(messages, available_agents)
+        # 1. Plan Execution with Executive Planner
+        query = messages[-1]["content"] if messages else ""
+        mission_plan = await self.executive_planner.plan(query)
         logger.info(
-            f"Execution plan: Strategy={plan.strategy.value}, Agent={plan.agent_name}"
+            f"Executive Planning strategy: goal='{mission_plan.primary_goal}', "
+            f"risk_level={mission_plan.risks.level.value}, tools={[t.tool_name for t in mission_plan.tools]}"
         )
 
-        # 2. Execute Strategy
-        if plan.strategy == ExecutionStrategy.SINGLE_AGENT and plan.agent_name:
-            try:
-                agent = self.agent_manager.spawn_agent(plan.agent_name)
-                # To simulate non-streaming, we exhaust the generator
-                final_content = ""
-                # We need the task string, typically the last user message
-                task = messages[-1]["content"] if messages else ""
+        # Safety / confirmation override check
+        if mission_plan.risks.requires_confirmation:
+            is_approved = approved_permissions and any(
+                p in approved_permissions for p in ("safe", "read_only", "destructive")
+            )
+            if not is_approved:
+                raise PermissionRequiredError(
+                    tool_name="Executive Planner",
+                    scope=mission_plan.risks.level.value,
+                    kwargs={"primary_goal": mission_plan.primary_goal},
+                )
 
-                async for chunk in agent.execute(task, messages, approved_permissions):
+        # Determine strategy and specialized agent to route to
+        agent_name = None
+        for rec in mission_plan.tools:
+            if rec.tool_name.lower() in ("web search", "web_search", "search"):
+                agent_name = "WebResearchAgent"
+                break
+
+        # 2. Execute Strategy
+        if agent_name:
+            try:
+                agent = self.agent_manager.spawn_agent(agent_name)
+                final_content = ""
+                async for chunk in agent.execute(query, messages, approved_permissions):
                     final_content += chunk + "\n"
 
                 return LLMResult(
                     content=final_content.strip(),
                     provider="AgentFramework",
-                    model=plan.agent_name,
+                    model=agent_name,
                     latency_ms=0,
                     finish_reason="stop",
                 )
             except PermissionRequiredError as e:
-                raise e  # Handled by outer service
+                raise e
             except Exception as e:
                 logger.error(f"Agent execution failed: {e}")
-                # Fallback to conversational
                 pass
 
         # Fallback / Conversational Strategy
@@ -94,18 +121,35 @@ class RouterAgent:
             yield "I saved your message to this conversation. Configure an API key in backend/.env to enable AI."
             return
 
-        available_agents = self.agent_manager.get_available_agents()
-        plan = await self.planner.plan_execution(messages, available_agents)
+        query = messages[-1]["content"] if messages else ""
+        mission_plan = await self.executive_planner.plan(query)
         logger.info(
-            f"Execution plan: Strategy={plan.strategy.value}, Agent={plan.agent_name}"
+            f"Executive Planning strategy (stream): goal='{mission_plan.primary_goal}', "
+            f"risk_level={mission_plan.risks.level.value}"
         )
 
-        if plan.strategy == ExecutionStrategy.SINGLE_AGENT and plan.agent_name:
-            try:
-                agent = self.agent_manager.spawn_agent(plan.agent_name)
-                task = messages[-1]["content"] if messages else ""
+        # Safety / confirmation override check
+        if mission_plan.risks.requires_confirmation:
+            is_approved = approved_permissions and any(
+                p in approved_permissions for p in ("safe", "read_only", "destructive")
+            )
+            if not is_approved:
+                raise PermissionRequiredError(
+                    tool_name="Executive Planner",
+                    scope=mission_plan.risks.level.value,
+                    kwargs={"primary_goal": mission_plan.primary_goal},
+                )
 
-                async for chunk in agent.execute(task, messages, approved_permissions):
+        agent_name = None
+        for rec in mission_plan.tools:
+            if rec.tool_name.lower() in ("web search", "web_search", "search"):
+                agent_name = "WebResearchAgent"
+                break
+
+        if agent_name:
+            try:
+                agent = self.agent_manager.spawn_agent(agent_name)
+                async for chunk in agent.execute(query, messages, approved_permissions):
                     yield chunk + "\n"
                 return
             except PermissionRequiredError as e:

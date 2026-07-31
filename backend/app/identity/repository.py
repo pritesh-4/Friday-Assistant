@@ -311,8 +311,16 @@ class IdentityRepository:
                 relationship.relation_type,
             ),
         )
-        weight = relationship.weight if hasattr(relationship, "weight") and relationship.weight is not None else 1.0
-        direction = relationship.direction if hasattr(relationship, "direction") and relationship.direction is not None else "directed"
+        weight = (
+            relationship.weight
+            if hasattr(relationship, "weight") and relationship.weight is not None
+            else 1.0
+        )
+        direction = (
+            relationship.direction
+            if hasattr(relationship, "direction") and relationship.direction is not None
+            else "directed"
+        )
 
         if existing:
             new_weight = min(existing["weight"] + 0.1, 5.0)

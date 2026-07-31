@@ -1,6 +1,6 @@
 """Context Engine: constructs compact, high-signal context packages for LLM prompt enrichment."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from app.core.logging import get_logger
 from app.identity.schemas import IdentityEntity, IdentityType
 from app.knowledge_graph.graph import KnowledgeGraph
@@ -21,16 +21,14 @@ class ContextEngine:
         Returns a structured dictionary of relevant context elements.
         """
         logger.info(f"Building context package for query: {query}")
-        
+
         # 1. Identify seed nodes mentioned in query
         matched_entities = await self.graph.search(
-            query=query,
-            search_type="hybrid",
-            limit=5
+            query=query, search_type="hybrid", limit=5
         )
-        
+
         seed_ids = [e.id for e in matched_entities]
-        
+
         # 2. Walk the graph (1-2 hops) to find neighbors and edges
         neighborhood = {}
         if seed_ids:
@@ -38,17 +36,17 @@ class ContextEngine:
                 neighborhood = await self.graph.expand(seed_ids[0], hops=2)
             except Exception as e:
                 logger.warning(f"Neighborhood expansion failed: {e}")
-            
+
         nodes: List[IdentityEntity] = neighborhood.get("nodes", matched_entities)
         edges = neighborhood.get("edges", [])
-        
+
         # 3. Separate categories
         projects = []
         goals = []
         memories = []
         preferences = []
         facts = []
-        
+
         # Identify USER nodes to extract preferences
         user_ids = []
         try:
@@ -58,7 +56,7 @@ class ContextEngine:
                     user_ids.append(ent.id)
         except Exception as e:
             logger.debug(f"Failed to fetch entities for user resolution: {e}")
-                
+
         # Fetch preferences linked to user (likes, prefers, interested_in)
         for uid in user_ids:
             try:
@@ -75,17 +73,24 @@ class ContextEngine:
                         preferences.append(pref_str)
             except Exception as e:
                 logger.debug(f"Failed to resolve user edges: {e}")
-                    
+
         for node in nodes:
-            if node.type == IdentityType.PROJECT or node.type == IdentityType.REPOSITORY:
+            if (
+                node.type == IdentityType.PROJECT
+                or node.type == IdentityType.REPOSITORY
+            ):
                 projects.append(node)
             elif node.type == IdentityType.GOAL or node.type == IdentityType.TASK:
                 goals.append(node)
             elif node.type == IdentityType.MEMORY:
                 memories.append(node)
-            elif node.type in (IdentityType.PERSON, IdentityType.COMPANY, IdentityType.ORGANIZATION):
+            elif node.type in (
+                IdentityType.PERSON,
+                IdentityType.COMPANY,
+                IdentityType.ORGANIZATION,
+            ):
                 facts.append(node)
-                
+
         # 4. Format relationships to human-readable strings
         relations_formatted = []
         for edge in edges:
@@ -98,7 +103,7 @@ class ContextEngine:
                 relations_formatted.append(rel_str)
             except Exception:
                 pass
-            
+
         # 5. Extract vector-based memories relevant to the query/entities
         semantic_contexts = []
         if seed_ids:
@@ -107,16 +112,18 @@ class ContextEngine:
                     mem_results = await self.repository.vector_store.search(
                         collection_name="semantic_memories",
                         query=entity.canonical_name,
-                        n_results=limit
+                        n_results=limit,
                     )
                     for r in mem_results:
                         semantic_contexts.append(r["document"])
                 except Exception as e:
-                    logger.debug(f"Failed to fetch memories for entity {entity.canonical_name}: {e}")
-                    
+                    logger.debug(
+                        f"Failed to fetch memories for entity {entity.canonical_name}: {e}"
+                    )
+
         # Dedup semantic contexts
         semantic_contexts = list(set(semantic_contexts))
-        
+
         return {
             "query": query,
             "relevant_nodes": nodes,
@@ -125,45 +132,51 @@ class ContextEngine:
             "relevant_projects": projects[:limit],
             "relevant_goals": goals[:limit],
             "relevant_preferences": preferences[:limit],
-            "relevant_facts": facts[:limit]
+            "relevant_facts": facts[:limit],
         }
 
     def format_as_markdown(self, context_package: Dict[str, Any]) -> str:
         """Format the context package into a minimized, high-signal markdown block for LLM prompts."""
         lines = ["### CONTEXT ENGINE MODEL INFORMATION"]
-        
+
         if context_package["relevant_preferences"]:
             lines.append("#### Preferences:")
             for p in context_package["relevant_preferences"]:
                 lines.append(f"- {p}")
-                
+
         if context_package["relevant_projects"]:
             lines.append("#### Active Projects:")
             for p in context_package["relevant_projects"]:
-                lines.append(f"- {p.canonical_name}: {p.description or 'No description'}")
-                
+                lines.append(
+                    f"- {p.canonical_name}: {p.description or 'No description'}"
+                )
+
         if context_package["relevant_goals"]:
             lines.append("#### Active Goals/Tasks:")
             for g in context_package["relevant_goals"]:
                 status_str = f" [{g.status}]" if hasattr(g, "status") else ""
-                lines.append(f"- {g.canonical_name}{status_str}: {g.description or 'No description'}")
-                
+                lines.append(
+                    f"- {g.canonical_name}{status_str}: {g.description or 'No description'}"
+                )
+
         if context_package["relevant_relationships"]:
             lines.append("#### Structural Relationships:")
             for r in context_package["relevant_relationships"]:
                 lines.append(f"- {r}")
-                
+
         if context_package["relevant_facts"]:
             lines.append("#### Entity Facts:")
             for f in context_package["relevant_facts"]:
-                lines.append(f"- '{f.canonical_name}' ({f.type.value}): {f.description or 'No description'}")
-                
+                lines.append(
+                    f"- '{f.canonical_name}' ({f.type.value}): {f.description or 'No description'}"
+                )
+
         if context_package["relevant_memories"]:
             lines.append("#### Associated Memories:")
             for m in context_package["relevant_memories"]:
                 lines.append(f"- {m}")
-                
+
         if len(lines) == 1:
             return ""
-            
+
         return "\n".join(lines)
