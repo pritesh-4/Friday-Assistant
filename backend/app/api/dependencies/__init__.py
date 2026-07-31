@@ -19,10 +19,9 @@ Usage in a route:
         ...
 """
 
-from app.memory.memory_manager import MemoryManager, memory_manager
+from app.memory import MemoryManager, memory_manager, CognitiveMemoryService
 from app.services.chat_service import ChatService
 from app.services.file_service import FileService
-from app.services.memory_service import CognitiveMemoryService
 from app.services.settings_service import SettingsService
 from app.services.streaming_coordinator import StreamingCoordinator
 from app.services.voice.speech_service import SpeechService

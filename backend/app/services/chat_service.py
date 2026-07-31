@@ -134,6 +134,29 @@ class ChatService:
                 memories_used=0,
             )
 
+        # Intercept explicit memory commands (forget, correct, update)
+        is_memory_command = any(word in request.message.lower() for word in ["forget", "update", "correct", "incorrect", "wrong", "delete", "remove"])
+        if is_memory_command:
+            command_response = await self.memory_service.process_interaction(
+                request.message, conversation.id
+            )
+            if command_response:
+                assistant_message = await self._create_message(
+                    conversation.id, "assistant", command_response
+                )
+                memory_manager.append_message(session_id, "assistant", command_response)
+                conversation = await self._get_conversation(conversation.id)
+                return ChatResponse(
+                    conversation=conversation,
+                    user_message=user_message,
+                    assistant_message=assistant_message,
+                    provider="MemorySystem",
+                    model="AMIS V1",
+                    latency_ms=int((time.time() - start_time) * 1000),
+                    finish_reason="memory_command",
+                    memories_used=0,
+                )
+
         ctx = memory_manager.get_context(session_id)
 
         # 1. Manage Session Memory
@@ -202,10 +225,12 @@ class ChatService:
         )
         memory_manager.append_message(session_id, "assistant", llm_result.content)
 
-        # 6. Extract and Store new Memories
-        extracted = await self.memory_extractor.extract_memory(request.message)
-        if extracted:
-            await self.memory_service.save_extracted_memory(extracted)
+        # 6. Extract and Store new Memories in background (non-blocking)
+        if not is_memory_command:
+            try:
+                await self.memory_service.process_interaction(request.message, conversation.id)
+            except Exception as e:
+                _log.error(f"Failed to process memory extraction: {e}")
 
         conversation = await self._get_conversation(conversation.id)
         elapsed = time.time() - start_time

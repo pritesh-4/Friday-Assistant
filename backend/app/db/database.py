@@ -315,6 +315,62 @@ class Database:
                     "CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status)",
                 ],
             ),
+            (
+                6,
+                [
+                    """
+                    CREATE TABLE IF NOT EXISTS entities (
+                        id TEXT PRIMARY KEY,
+                        type TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        confidence REAL NOT NULL DEFAULT 1.0,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS entity_aliases (
+                        id TEXT PRIMARY KEY,
+                        entity_id TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+                        alias TEXT NOT NULL UNIQUE,
+                        created_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS entity_attributes (
+                        id TEXT PRIMARY KEY,
+                        entity_id TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+                        key TEXT NOT NULL,
+                        value TEXT NOT NULL,
+                        confidence REAL NOT NULL DEFAULT 1.0,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS relationships (
+                        id TEXT PRIMARY KEY,
+                        source_id TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+                        target_id TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+                        relation_type TEXT NOT NULL,
+                        weight REAL NOT NULL DEFAULT 1.0,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        UNIQUE(source_id, target_id, relation_type)
+                    )
+                    """,
+                    "ALTER TABLE memory_metadata ADD COLUMN confidence_score REAL DEFAULT 1.0",
+                    "ALTER TABLE memory_metadata ADD COLUMN last_referenced TEXT",
+                    "ALTER TABLE memory_metadata ADD COLUMN decay_policy TEXT DEFAULT 'none'",
+                    "ALTER TABLE memory_metadata ADD COLUMN decay_rate REAL DEFAULT 0.0",
+                    "ALTER TABLE memory_metadata ADD COLUMN source_conversation_id TEXT",
+                    "ALTER TABLE memory_metadata ADD COLUMN verification_status TEXT DEFAULT 'unverified'",
+                    "CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name)",
+                    "CREATE INDEX IF NOT EXISTS idx_entity_aliases_alias ON entity_aliases(alias)",
+                    "CREATE INDEX IF NOT EXISTS idx_relationships_source ON relationships(source_id)",
+                    "CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships(target_id)",
+                ],
+            ),
         ]
 
         with self._connect() as connection:
