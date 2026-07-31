@@ -8,9 +8,11 @@ from app.schemas.memory import MemoryType
 
 
 class CMEEntityType(str, Enum):
+    USER = "user"
     PERSON = "person"
     PROJECT = "project"
     ORGANIZATION = "organization"
+    COMPANY = "company"
     AI_MODEL = "ai_model"
     APPLICATION = "application"
     PRODUCT = "product"
@@ -19,6 +21,20 @@ class CMEEntityType(str, Enum):
     LOCATION = "location"
     TOOL = "tool"
     FRAMEWORK = "framework"
+    TECHNOLOGY = "technology"
+    PROGRAMMING_LANGUAGE = "programming_language"
+    BOOK = "book"
+    MOVIE = "movie"
+    TASK = "task"
+    GOAL = "goal"
+    DOCUMENT = "document"
+    API = "api"
+    WEBSITE = "website"
+    DEVICE = "device"
+    EVENT = "event"
+    MEMORY = "memory"
+    SKILL = "skill"
+    HABIT = "habit"
     OTHER = "other"
 
 
@@ -54,6 +70,9 @@ class CMERelationship(ApiModel):
     target_id: str
     relation_type: str
     weight: float = 1.0
+    confidence: float = 1.0
+    evidence: str | None = None
+    direction: str = "directed"
     created_at: datetime
     updated_at: datetime
 

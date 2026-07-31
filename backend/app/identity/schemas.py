@@ -31,6 +31,12 @@ class IdentityType(str, Enum):
     GOAL = "goal"
     FILE = "file"
     DOCUMENT = "document"
+    PROGRAMMING_LANGUAGE = "programming_language"
+    WEBSITE = "website"
+    LOCATION = "location"
+    MEMORY = "memory"
+    SKILL = "skill"
+    HABIT = "habit"
 
 
 class IdentityEntity(ApiModel):
@@ -70,9 +76,11 @@ class IdentityRelationship(ApiModel):
     source_id: str
     target_id: str
     relation_type: str
+    weight: float = 1.0
     confidence: float = 1.0
     timestamp: datetime
     evidence: str | None = None
+    direction: str = "directed"
 
 
 class ExtractedIdentity(ApiModel):

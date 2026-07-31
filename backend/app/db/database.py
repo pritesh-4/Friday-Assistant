@@ -422,6 +422,12 @@ class Database:
                     "CREATE INDEX IF NOT EXISTS idx_entity_history_lookup ON entity_history(entity_id, version)",
                 ],
             ),
+            (
+                9,
+                [
+                    "ALTER TABLE relationships ADD COLUMN direction TEXT DEFAULT 'directed'",
+                ],
+            ),
         ]
 
         with self._connect() as connection:

@@ -37,6 +37,12 @@ class IdentityRegistry:
         IdentityType.GOAL: "goal",
         IdentityType.FILE: "file",
         IdentityType.DOCUMENT: "doc",
+        IdentityType.PROGRAMMING_LANGUAGE: "lang",
+        IdentityType.WEBSITE: "site",
+        IdentityType.LOCATION: "loc",
+        IdentityType.MEMORY: "mem",
+        IdentityType.SKILL: "skill",
+        IdentityType.HABIT: "habit",
     }
 
     def __init__(self, repository: IdentityRepository) -> None:

@@ -311,18 +311,22 @@ class IdentityRepository:
                 relationship.relation_type,
             ),
         )
+        weight = relationship.weight if hasattr(relationship, "weight") and relationship.weight is not None else 1.0
+        direction = relationship.direction if hasattr(relationship, "direction") and relationship.direction is not None else "directed"
+
         if existing:
             new_weight = min(existing["weight"] + 0.1, 5.0)
             await self.db.execute(
                 """
                 UPDATE relationships
-                SET confidence = ?, evidence = ?, weight = ?, updated_at = ?
+                SET confidence = ?, evidence = ?, weight = ?, direction = ?, updated_at = ?
                 WHERE id = ?
                 """,
                 (
                     relationship.confidence,
                     relationship.evidence,
                     new_weight,
+                    direction,
                     now,
                     existing["id"],
                 ),
@@ -332,18 +336,19 @@ class IdentityRepository:
             await self.db.execute(
                 """
                 INSERT INTO relationships (
-                    id, source_id, target_id, relation_type, weight, confidence, evidence, created_at, updated_at
+                    id, source_id, target_id, relation_type, weight, confidence, evidence, direction, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     rel_id,
                     relationship.source_id,
                     relationship.target_id,
                     relationship.relation_type,
-                    1.0,  # weight
+                    weight,
                     relationship.confidence,
                     relationship.evidence,
+                    direction,
                     now,
                     now,
                 ),
@@ -539,11 +544,21 @@ class IdentityRepository:
         if confidence is None:
             confidence = 1.0
 
+        weight = row.get("weight")
+        if weight is None:
+            weight = 1.0
+
+        direction = row.get("direction")
+        if direction is None:
+            direction = "directed"
+
         return IdentityRelationship(
             source_id=row["source_id"],
             target_id=row["target_id"],
             relation_type=row["relation_type"],
+            weight=weight,
             confidence=confidence,
             timestamp=ts,
             evidence=row.get("evidence"),
+            direction=direction,
         )

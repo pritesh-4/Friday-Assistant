@@ -47,6 +47,7 @@ class VectorStore:
                 "episodic_memories",
                 "procedural_memories",
                 "project_memories",
+                "entities",
             ]:
                 self._collections[name] = self._client.get_or_create_collection(
                     name=name, embedding_function=self._embedding_fn
