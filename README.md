@@ -6,8 +6,7 @@
 
 F.R.I.D.A.Y. is an ambitious explore-and-build project aiming to create a personal AI operating layer—a companion that understands context, remembers interactions, and assists with workflows.
 
-This repository contains both the **React Frontend** and a **FastAPI Python Backend** representing a prototype system.
-
+This repository contains both the **React Frontend** (directly at the root level) and a **FastAPI Python Backend** (in the `backend/` directory) representing a prototype system.
 
 ---
 
@@ -40,83 +39,81 @@ Inspired by Tony Stark's relationship with J.A.R.V.I.S. and F.R.I.D.A.Y. in sci-
 - **Framework**: FastAPI (Python 3.x)
 - **Server**: Uvicorn
 - **Settings & Validation**: Pydantic v2
-- **Environment management**: python-dotenv
+- **Vector Search**: ChromaDB (semantic memory layer)
+- **Environment Management**: python-dotenv
 
 ---
 
 ## 📂 Project Directory Structure
 
 ```text
-Friday/
-├── backend/                     # Python FastAPI Backend
-│   ├── app/
-│   │   ├── agents/              # AI Agent definitions (memory, router, task)
-│   │   ├── api/                 # API Routes and dependencies
-│   │   │   ├── dependencies/    # Dependency injection modules
-│   │   │   └── routes/          # API Router modules (chat, files, memory, settings, voice, health)
-│   │   ├── core/                # Core configuration, constants, logging, and security
-│   │   ├── db/                  # Database setup and connection
-│   │   ├── memory/              # Memory management
-│   │   ├── schemas/             # Pydantic models (chat, common, memory)
-│   │   ├── services/            # Business logic and services (file, llm, memory, settings, voice)
-│   │   ├── utils/               # Helper functions and responses
-│   │   └── main.py              # App initialization & CORS configuration
-│   ├── tests/                   # Backend tests
-│   ├── requirements.txt         # Backend Python dependencies
-│   └── .env.example             # Example environment variables
-│
+Friday/                          # Project Root (React Frontend)
 ├── src/                         # React Frontend Source
 │   ├── assets/                  # Images, fonts, and styling assets
-│   ├── components/              # Reusable UI components
-│   │   ├── Orb.jsx              # Pulse orb representing FRIDAY's state (idle, listening, processing, speaking)
-│   │   ├── ShaderBackground.jsx # WebGL particle/grid ambient background canvas
-│   │   ├── ChatWindow.jsx       # Chat layout and dialogue stream
-│   │   ├── ChatMessage.jsx      # Individual bubble formatting for user/assistant messages
-│   │   ├── ChatInput.jsx        # Keyboard and microphone action bar
-│   │   ├── Sidebar.jsx          # Dashboard navigation (Chats, Notes, Tasks, Settings)
-│   │   ├── Navbar.jsx & Footer.jsx # Brand navigation and site layouts
-│   │   └── CustomCursor.jsx     # High-fidelity glowing pointer overlay
-│   │
-│   ├── pages/                   # Main Page Views
-│   │   ├── Home.jsx             # Hero landing page featuring the active Orb and tech stack
-│   │   ├── Chat.jsx             # Conversational workspace dashboard
-│   │   ├── Vision.jsx           # Future plans and project goals tracker
-│   │   └── About.jsx            # Deep-dive into project inspiration and boundaries
-│   │
-│   ├── services/                # API communication layers
-│   │   ├── chatService.js       # Conversational message history
-│   │   ├── memoryService.js     # User background memory integration
-│   │   ├── notesService.js      # Notes synchronization
-│   │   ├── settingsService.js   # Theme/voice option management
-│   │   └── voiceService.js      # Speech-to-Text and TTS interfaces
-│   │
-│   ├── context/                 # State providers (ThemeContext, etc.)
+│   ├── components/              # Reusable UI components (Orb, ShaderBackground, ChatWindow, etc.)
+│   ├── pages/                   # Main Page Views (Home, Chat, Vision, About)
+│   ├── services/                # API communication layers (chatService, memoryService, etc.)
 │   ├── App.jsx                  # React Router routes setup
 │   ├── main.jsx                 # Application entrypoint
 │   └── index.css                # Global styles, fonts, and Tailwind directives
-│
-├── index.html                   # Entry HTML page
+├── public/                      # Static assets for frontend
+├── backend/                     # Python FastAPI Backend
+│   ├── app/
+│   │   ├── agents/              # AI agent definitions (router, base, memory, planner, web research)
+│   │   ├── api/                 # API Routes and dependencies (chat, voice, planning, background, etc.)
+│   │   ├── core/                # Core configuration, constants, logging, and security
+│   │   ├── db/                  # SQLite persistence & initialization
+│   │   ├── identity/            # Identity Engine (canonical entity registry and validation)
+│   │   ├── intent/              # Intent Engine (query classification, risk analyzer)
+│   │   ├── knowledge_graph/     # Knowledge Graph Engine (node/edge traversals, pathfinding)
+│   │   ├── memory/              # Cognitive Memory Engine V2 (CME consolidator, conflict resolution)
+│   │   ├── planning/            # Executive Planner (Goal decomposition DAG scheduler)
+│   │   ├── ranking/             # Context scoring and ranking
+│   │   ├── schemas/             # Pydantic models (chat, common, planning, background)
+│   │   ├── services/            # Core services (LLM providers, voice, jobs, notifications)
+│   │   ├── tools/               # External execution tools (web search, python execution)
+│   │   └── main.py              # App initialization, CORS, WebSocket stream mount
+│   ├── tests/                   # Backend Pytest suite
+│   ├── requirements.txt         # Backend Python dependencies
+│   ├── requirements-voice.txt   # Optional voice models dependencies (Whisper, ONNX)
+│   └── .env.example             # Example environment variables
+├── docs/                        # Complete project documentation system
 ├── package.json                 # Node package configuration
-├── vite.config.js               # Vite compilation plugin mappings
+├── vite.config.js               # Vite compilation mappings
 └── README.md                    # This documentation file
 ```
 
 ---
 
-## ✨ Implemented Features
+## ✨ Advanced Implemented Features
 
-1.  **Dynamic Interactive Core (`Orb.jsx`)**: Renders the central glowing core of F.R.I.D.A.Y. utilizing Framer Motion. The Orb morphs dynamically between states:
-    - `idle`: Smooth breathing animation.
-    - `listening`: Reactive scale ripples pulsing outwards.
-    - `processing`: High-speed orbital rotation.
-    - `speaking`: Fluid expanding waves indicating voice output.
-2.  **Cyberspace Background (`ShaderBackground.jsx`)**: Utilizes custom WebGL fragment shaders on an HTML5 canvas to render a glowing grid background that reacts to window resizing and user interactions.
-3.  **Unified Conversational Voice System**: Full-screen Voice Overlay UI backed by a robust `VoiceStateMachine`. Includes robust cross-browser MIME validation for microphone uploads.
-    - **Speech-to-Text (STT)**: Powered by `faster-whisper` (`distil-large-v3`).
-    - **Text-to-Speech (TTS)**: Powered by `kokoro-onnx`.
-4.  **Multi-LLM Routing**: Supports dynamic provider switching between Groq, Gemini, OpenRouter, and Nvidia via a unified LangChain/litellm backend.
-5.  **Modular AI Dashboard & Persistence**: Fully equipped with Chat threads, Settings, Notes, and Tasks. All data is actively persisted to a local **SQLite** database.
-6.  **Production-Ready Deployment**: Configured for Render via `render.yaml`. Heavy AI models are downloaded during the build phase and lazily loaded into memory in a thread-safe manner to ensure lightning-fast startup times without timeouts.
+1. **Dynamic Interactive Core (`Orb.jsx`)**: Renders the central glowing core of F.R.I.D.A.Y. utilizing Framer Motion. The Orb morphs dynamically between states:
+   - `idle`: Smooth breathing animation.
+   - `listening`: Reactive scale ripples pulsing outwards.
+   - `processing`: High-speed orbital rotation.
+   - `speaking`: Fluid expanding waves indicating voice output.
+2. **Cyberspace Background (`ShaderBackground.jsx`)**: Utilizes custom WebGL fragment shaders on an HTML5 canvas to render a glowing grid background that reacts to window resizing and user interactions.
+3. **Full-Duplex Conversational Voice Stream**: A WebSocket-driven voice interaction loop supporting:
+   - **Speculative Rolling Speech-to-Text**: Pre-transcribes streaming raw audio chunks (16kHz PCM float32) using `faster-whisper` (`distil-large-v3`) every 800ms.
+   - **Barge-in / Interruption Detection**: Allows the user to interrupt the assistant's speech/generation mid-sentence; immediately halts LLM text/TTS generation.
+   - **Speculative Memory Prefetching**: Predicts query intent and prefetches relevant long-term context prior to final turn execution.
+   - **Text-to-Speech (TTS)**: Powered locally by `kokoro-onnx` for high-quality voice synthesis.
+4. **Executive Planner & Goal DAGs**: 
+   - **Intent Engine**: Parses user input, analyzes risks, and determines routing strategy.
+   - **Goal Analyzer**: Decomposes complex directives into Milestones and tasks structured as a Directed Acyclic Graph (DAG) with dependencies.
+   - **Execution Scheduler**: Automatically schedules, evaluates, and updates task execution states, processing independent tasks in parallel.
+5. **Cognitive Memory Engine (CME) V2**:
+   - Implements a multi-layered memory architecture (short-term conversation history, semantic working memory, and long-term vector store index in ChromaDB).
+   - **Consolidator & Conflict Resolver**: Monitors and merges duplicate memories in the background, resolving contradictions based on confidence scores and chronological priority.
+6. **Identity Engine & Registry**:
+   - Manages entity resolution (disambiguating nodes like People, Projects, AI Models, Locations, and Frameworks).
+   - Resolves entity aliases, registers new identities, and creates comprehensive user and entity profiles with validation, confidence scoring, and full audit logs.
+7. **Knowledge Graph Context Engine**:
+   - Captures rich semantic links between entities using nodes and directed relationships.
+   - Implements BFS traversal, neighborhood expansion, shortest-path calculation, transitive reasoning chains, and hybrid search.
+   - Generates natural language explanations of connections between concepts.
+8. **Background Job Worker**:
+   - Offloads long-running processes (e.g. model downloads, web research) into an asynchronous background queue, reporting status and dispatching readable notifications to the client UI.
 
 ---
 
@@ -124,12 +121,9 @@ Friday/
 
 ### 🖥️ Frontend Setup
 
-To run the React dashboard:
+To run the React dashboard locally:
 
 ```bash
-# Navigate to the project root
-cd Projects/Friday
-
 # Install dependencies
 npm install
 
@@ -150,7 +144,7 @@ To run the FastAPI server locally:
 
 ```bash
 # Navigate to the backend directory
-cd Projects/Friday/backend
+cd backend
 
 # Create a virtual environment
 python -m venv venv

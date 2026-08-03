@@ -12,27 +12,28 @@ F.R.I.D.A.Y. is a prototype voice-first personal AI operating companion.
     * Styling and animations: Tailwind CSS v4, Framer Motion.
     * Graphics: HTML5 Canvas and WebGL custom fragment shaders.
 * **Backend**: FastAPI (Python 3.x) + Uvicorn + Pydantic v2 validation.
+    * Database: SQLite database for relational storage + ChromaDB vector store for semantic memory context.
 
 ---
 
 ## Codebase Architecture Map
 
-* **`/src`** (React frontend)
+* **`/src`** (React frontend in project root)
     * `pages/`: Views for `Home` (landing page with the active F.R.I.D.A.Y. orb), `Chat` (interactive workspace), `Vision` (roadmap details), and `About` (inspiration and boundaries).
-    * `components/`:
-        * [`Orb.jsx`](src/components/Orb.jsx): Interactive central component that morphs between the `idle`, `listening`, `processing`, and `speaking` states.
-        * [`ShaderBackground.jsx`](src/components/ShaderBackground.jsx): Canvas-based shader background that renders a digital matrix grid.
-        * `ChatWindow.jsx`, `ChatMessage.jsx`, `ChatInput.jsx`, `Sidebar.jsx`: Chat dashboard layout components.
-    * `services/`: Core logic helpers such as `chatService.js`, `notesService.js`, `tasksService.js`, `voiceService.js`, and `settingsService.js`.
-    * `data/`: Mock data storage that matches the expected API schemas.
-* **`/backend`** (FastAPI)
-    * `app/main.py`: Application startup, CORS configuration, and router mounting.
-    * `app/api/routes/`: API endpoint modules for chat, files, health, memory, settings, and voice.
-    * `app/agents/`: AI agents for memory, routing, and task execution.
-    * `app/services/`: Core logic for LLM interaction, memory, files, and voice processing.
-    * `app/core/`: Configuration, logging, and security setup.
-    * `app/db/`: Database configuration and initialization.
-    * `app/schemas/`: Pydantic models grouped into chat, common, and memory schemas.
+    * `components/`: Reusable components: [`Orb.jsx`](src/components/Orb.jsx) (morphing states), [`ShaderBackground.jsx`](src/components/ShaderBackground.jsx), `ChatWindow.jsx`, `ChatMessage.jsx`, `ChatInput.jsx`, `Sidebar.jsx`.
+    * `services/`: Core logic communication helpers (`chatService.js`, `notesService.js`, `tasksService.js`, `voiceService.js`, and `settingsService.js`).
+* **`/backend`** (FastAPI in backend subfolder)
+    * `app/main.py`: Application startup, CORS configuration, background worker initialization, scheduler triggers, and WebSocket route mounting.
+    * `app/api/routes/`: API endpoint modules for chat, files, health, memory, settings, voice (and WebSocket duplex stream), planning, and background jobs.
+    * `app/agents/`: AI agents including `RouterAgent`, `PlannerAgent`, `MemoryAgent`, and specialized tool-calling agents (`WebResearchAgent`).
+    * `app/identity/`: Entity Registry & Resolution Engine (disambiguation, validation, confidence scores, alias repository, user profiles).
+    * `app/intent/`: Intent Engine (classifier, prompt injection, risk analyzer, goal extractor).
+    * `app/knowledge_graph/`: Knowledge Graph Engine (directed relationship links, shortest path, BFS traversals, transit reasoning, explainable paths).
+    * `app/memory/`: Cognitive Memory Engine V2 (multi-tier memory manager, autonomous consolidator, conflict resolver).
+    * `app/planning/`: Executive Planner (mission plan generation, structured goals, milestones and task DAGs).
+    * `app/ranking/`: Scorer and ranking algorithms for memory retrieval.
+    * `app/tools/`: Tool registration (`executor.py`, `registry.py`, `web_research.py`).
+    * `app/services/`: Core services (LLM providers gateway, voice, jobs, notifications).
 
 ---
 
@@ -43,14 +44,16 @@ F.R.I.D.A.Y. is a prototype voice-first personal AI operating companion.
 
 ### 1. Frontend State
 * **State**: Complete React SPA with responsive routing, animated components (Framer Motion), custom WebGL shaders, and a unified `VoiceOverlay` for full-screen voice interaction.
-* **Services**: Frontend services (`src/services/*.js`) now make real HTTP requests to the backend (`API_BASE_URL`) via `fetch`.
-* **Voice**: Fully integrated with a deterministic `VoiceStateMachine` managing microphone recording, transcription, LLM processing, and TTS playback in a unified, race-condition-free pipeline.
+* **Services**: Frontend services make real HTTP requests to the backend (`API_BASE_URL`) via `fetch`.
+* **Voice**: Fully integrated with a deterministic `VoiceStateMachine` managing microphone recording, transcription, LLM processing, and TTS playback.
 
 ### 2. Backend State
-* **Persistence**: SQLite database is fully implemented and connected for storing conversations, messages, memories, notes, and tasks.
-* **LLM / AI**: Dynamic provider routing supports Groq, Gemini, OpenRouter, and Nvidia. Includes fallback chains and system prompt injection.
-* **Voice Services**: Integrated with Faster-Whisper (STT) and Kokoro-ONNX (TTS). Models are lazily loaded into memory in a thread-safe manner to support production deployments (e.g., Render) without startup timeouts. Models are downloaded during the build phase via `scripts/download_models.py`.
-* **Deployment**: Configured for Render via `render.yaml` with production-grade MIME validation and environment variables.
+* **Persistence**: SQLite database is fully connected for storing conversations, messages, milestones, tasks, notes, and background job details.
+* **Memory & Graph**: Fully functioning Cognitive Memory Engine (CME V2) and Knowledge Graph (KG) with automated background consolidation, conflict resolution, entity resolution, and hybrid ChromaDB search.
+* **LLM / AI**: Dynamic provider routing supports Groq, Gemini, OpenRouter, and Nvidia. Falling back safely and injecting context dynamically.
+* **Voice Services**: Integrated with Faster-Whisper (STT) and Kokoro-ONNX (TTS).
+* **Duplex Streaming**: Full-duplex WebSocket route `/stream` supports raw audio uploads, speculative rolling transcription every 800ms, speculative memory prefetching, text generation streaming, and immediate barge-in interruption.
+* **Background Worker**: Queue-based background workers run tasks and scheduler evaluations, sending job status updates and notifications.
 
 ---
 
@@ -58,17 +61,16 @@ F.R.I.D.A.Y. is a prototype voice-first personal AI operating companion.
 
 When continuing development on F.R.I.D.A.Y., focus on the following milestones:
 
-1. **Real-time Streaming**:
-    * Upgrade the HTTP `/voice/transcribe` and LLM endpoints to use WebSockets for real-time streaming of speech-to-text and text-to-speech to reduce latency.
-2. **Authentication & Multi-User**:
-    * Implement JWT-based authentication so multiple users can have their own isolated workspaces, conversations, and memories.
-3. **Advanced RAG / Vector Memory**:
-    * Upgrade the current relational memory system to a true Vector Store (e.g., Qdrant or Pinecone) for semantic similarity search across past conversations.
-4. **Voice Activity Detection (VAD)**:
-    * Replace the current hardcoded silence timeout with Web Audio API energy detection (or a lightweight WebAssembly VAD) for more natural conversation interruption and end-of-speech detection.
+1. **Computer Control & Local Daemon**:
+    * Develop a lightweight local daemon allowing FRIDAY to read files, run terminal commands, and control window setups on the host machine.
+2. **Desktop App Packaging**:
+    * Wrap the frontend using Electron or Tauri to allow desktop integrations like global keyboard shortcuts.
+3. **Advanced Security Sandboxing**:
+    * Implement safe execution restrictions and permission confirmations for local shell tool executions.
+4. **Authentication & Multi-User Support**:
+    * Migrate schemas and implement JWT authentication if deploying in a shared environment.
 
 ## Extra Notes
 
 * Keep this document short and factual so it stays useful as a handoff note.
-* Update the architecture map whenever a new major feature, route, service, or backend module is added.
-* Deployment configuration is managed centrally in `render.yaml`.
+* Update the architecture map whenever a new major package, route, or service is added.

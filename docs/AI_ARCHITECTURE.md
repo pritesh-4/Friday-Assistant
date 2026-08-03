@@ -1,49 +1,68 @@
 # AI_ARCHITECTURE
 
 > **Purpose**: Explain the AI agent orchestration, reasoning flow, and memory systems.
-> **Scope**: AI logic, model routing, and tool calling.
-> **Last Updated**: 2026-07-13
+> **Scope**: AI logic, model routing, memory tiers, and tool calling.
+> **Last Updated**: 2026-08-03
 > **Related Documents**: [ARCHITECTURE.md](./ARCHITECTURE.md), [BACKEND_ARCHITECTURE.md](./BACKEND_ARCHITECTURE.md)
 
 ## Quick Summary
-FRIDAY uses a Router Agent design pattern. The core logic relies on an orchestrator that evaluates user input, fetches relevant context from Memory, decides whether to use Tools, and selects the most appropriate LLM for the task.
-
-## The Router Agent
-The Router is the brain. It does not execute a single prompt; rather, it manages a workflow:
-1. **Intent Classification**: Is this a casual chat, a complex request, or a command to execute a tool?
-2. **Model Routing**: 
-   - Simple tasks -> Fast, smaller model (e.g., Claude Haiku / GPT-4o-mini).
-   - Complex reasoning -> Advanced model (e.g., Claude 3.5 Sonnet / GPT-4o).
-3. **Execution**: Sends the prompt, handles tool calls, and formulates the final response.
+FRIDAY uses a multi-agent framework routed by a central **Router Agent** and **Executive Planner**. The system integrates a multi-layered Cognitive Memory Engine (CME V2) and semantic Knowledge Graph to make highly context-aware decisions, execute tools asynchronously, and stream voice duplex updates.
 
 ## Reasoning Flow
 
 ```mermaid
 flowchart TD
-    Input[User Input] --> Intent[Intent Classifier]
-    Intent --> Memory[Retrieve Memory/Context]
-    Memory --> Orchestrator[Router/Orchestrator]
+    Query[User Query / Audio] --> Intent[Intent Engine Classify]
+    Query --> SpecSTT[Speculative Rolling STT]
+    SpecSTT --> SpecFetch[Prefetch memory based on query prefix]
     
-    Orchestrator -->|Tool Required| ToolExecutor[Tool Executor]
-    ToolExecutor -->|Result| Orchestrator
+    Intent --> ContextEng[Context Engine build context]
+    ContextEng --> KG[Knowledge Graph BFS Traversal]
+    ContextEng --> CME[Retrieve CME Tiers & ChromaDB]
     
-    Orchestrator -->|Final Prompt| LLM[LLM Provider]
-    LLM --> Output[Response Generation]
-    Output --> SaveMemory[(Save to Memory)]
+    ContextEng --> ExecPlan[Executive Planner]
+    ExecPlan --> Mission[MissionPlan JSON generated]
+    
+    Mission --> Route{Needs Agent / Tool?}
+    Route -->|Web Search| AgentRun[WebResearchAgent execution]
+    Route -->|Casually chat| LLMCall[LLM Providers fallback chain]
+    
+    AgentRun --> StreamOut[Stream response to user / socket]
+    LLMCall --> StreamOut
+    
+    StreamOut --> Extract[CME extract new entities / links]
+    Extract --> Save[(Save to SQLite / Vector store)]
+    Save --> Consolidate[Background consolidation / Conflict resolution]
 ```
 
-## Memory System
-FRIDAY implements multiple tiers of memory:
-1. **Short-Term Context**: The immediate conversation window (last N messages).
-2. **Working Memory**: Facts extracted during the current session (e.g., "User is driving right now").
-3. **Long-Term Memory**: Persistent facts stored in a Vector DB or summarized profiles (e.g., "User prefers concise answers", "User lives in New York").
+## Core Reasoning Frameworks
 
-## Tool Calling
-The agent is provided with schemas for various tools (e.g., Calendar, Weather, File System). The LLM natively outputs tool calls, which the backend intercepts, executes securely, and returns the result to the LLM for final response synthesis.
+### 1. Intent Engine & Executive Planner
+- **Intent Classifier**: Parses the query and maps it to target categories (e.g., Casual Chat, Planning, Goal Creation, Automation).
+- **Executive Planner**: 
+  - Gathers context, reads tool registries, and runs risk analyses.
+  - Returns a structured `MissionPlan` JSON containing primary/secondary objectives, subtasks with priorities, necessary tools, risk scores, expected results, and fallback strategies.
+  - Automatically decomposes multi-step plans into Goals, Milestones, and Tasks stored in the DB as a Directed Acyclic Graph (DAG).
+- **Execution Scheduler**: Tracks task statuses and dependencies, executing parallel ready tasks using background workers.
 
-## Voice Integration
-- **STT (Speech-to-Text)**: Converts audio stream to text as fast as possible (e.g., Whisper, Deepgram).
-- **TTS (Text-to-Speech)**: Converts agent text back to audio (e.g., ElevenLabs, OpenAI TTS). Must support streaming output to reduce time-to-first-byte (TTFB).
+### 2. Cognitive Memory Engine (CME) V2
+FRIDAY maintains context across multiple memory tiers:
+1. **Short-Term Context**: Immediate session-specific message windows.
+2. **Working Memory**: In-memory semantic facts extracted during the ongoing conversation turn.
+3. **Long-Term Context**: Semantic facts stored in SQLite database tables and indexed in ChromaDB vector store for similarity search.
+- **Consolidation**: A background process merges duplicates and extracts summarized entity details.
+- **Conflict Resolver**: Automatically resolves attribute conflicts using source confidence scores and updated timestamps.
 
-## Future Multi-Agent System
-The architecture is designed to evolve into a Swarm/Multi-Agent system where the Router delegates tasks to specialized sub-agents (e.g., a Coding Agent, a Research Agent, a Scheduling Agent) rather than handling everything in a single monolithic prompt.
+### 3. Knowledge Graph Engine
+- Tracks semantic entity nodes (e.g. Person, Application, Project, Location) and relationship link edges (e.g. works_on, created_by).
+- **Traversal Engine**: Resolves BFS decay maps (giving decaying context weights based on hop distance), computes shortest paths, expands node neighborhoods, and infers transit paths.
+- **Explainability**: Generates natural language sentences explaining *how* two nodes are connected in the graph.
+
+### 4. Identity Engine & Registry
+- Disambiguates entities and resolves aliases to canonical registry IDs.
+- Tracks audit trail changes, confidence scores, and builds structured profiles.
+
+### 5. Duplex WebSocket Voice Integration
+- Accepts floating-point 16kHz PCM audio bytes from the client.
+- **Speculative STT**: Transcribes audio buffer arrays every 800ms to send partial transcripts back to the client.
+- **Barge-in / Interruption Detection**: Monitors incoming websocket command frames. If an `interrupt` command is received, it sets an interrupted flag and instantly cancels the active LLM text generation and speech synthesis tasks, providing a responsive experience.

@@ -2,7 +2,7 @@
 
 > **Purpose**: Document all backend API endpoints and WebSockets.
 > **Scope**: FastAPI routes.
-> **Last Updated**: 2026-07-13
+> **Last Updated**: 2026-08-03
 > **Related Documents**: [BACKEND_ARCHITECTURE.md](./BACKEND_ARCHITECTURE.md)
 
 ## Quick Summary
@@ -10,73 +10,112 @@ Reference for all REST and WebSocket endpoints available on the FRIDAY backend.
 
 ---
 
-## System
+## 1. System & Diagnostics
+
+### `GET /`
+- **Purpose**: Verify the backend is online and fetch basic version specs.
 
 ### `GET /health`
-**Purpose**: Basic health check to ensure the backend is running.
-**Response**: 
-```json
-{ "status": "ok", "version": "0.1.0" }
-```
-**Future Changes**: Add database and LLM provider connectivity checks.
+- **Purpose**: Basic health probe.
+- **Response**: `{ "status": "healthy", "version": "0.1.0", "uptime_seconds": 12.3 }`
+
+### `GET /health/ready`
+- **Purpose**: Readiness check for database and core subsystems.
 
 ---
 
-## Conversation
+## 2. Conversations
 
 ### `POST /chat`
-**Purpose**: Send a text message to the agent and receive a text response.
-**Request**:
-```json
-{ "message": "What is my schedule today?", "session_id": "12345" }
-```
-**Response**:
-```json
-{ "reply": "You have a meeting at 3 PM.", "tools_used": ["calendar"] }
-```
-
-### `WebSocket /ws/audio`
-**Purpose**: Bidirectional streaming of audio data.
-**Flow**:
-1. Client connects and streams binary audio (PCM/Opus).
-2. Server processes audio via STT (Speech-to-Text).
-3. Server routes text to Agent.
-4. Server generates TTS (Text-to-Speech) audio and streams it back to client.
-5. Server sends control messages (e.g., `state: thinking`, `state: speaking`) via JSON over the same socket.
-**Future Changes**: Implement WebRTC for lower latency.
+- **Purpose**: Send a message to the agent and retrieve a response.
+- **Request**:
+  ```json
+  {
+    "message": "Write a note about the new plan",
+    "conversation_id": "conv_98765"
+  }
+  ```
+- **Response**: Streams SSE messages or returns:
+  ```json
+  {
+    "reply": "I've saved the note.",
+    "conversation_id": "conv_98765"
+  }
+  ```
 
 ---
 
-## Memory
+## 3. Real-Time WebSocket Duplex Voice
 
-### `GET /memory/{session_id}`
-**Purpose**: Retrieve the context or summary of a specific session.
-**Response**: Array of message objects or a generated summary string.
-
-### `DELETE /memory/{session_id}`
-**Purpose**: Clear the memory for a specific session.
-**Response**: `200 OK`
-
----
-
-## Settings
-
-### `GET /settings/providers`
-**Purpose**: List available LLM providers (OpenAI, Anthropic, Local).
-**Response**:
-```json
-{
-  "providers": ["openai", "anthropic", "ollama"],
-  "active": "openai"
-}
-```
+### `WebSocket /voice/stream` (Alias: `/api/voice/stream`)
+- **Purpose**: Real-time full-duplex conversational voice mode.
+- **Authentication**: Optional token-based verification via query parameters: `ws://localhost:8000/voice/stream?token=<secret_key>`.
+- **Inbound Data Formats**:
+  - **Raw Audio Chunks**: Float32 raw audio binary packages (16kHz sample rate).
+  - **Control Commands (JSON)**:
+    - `{ "type": "start", "conversation_id": "..." }`
+    - `{ "type": "stop" }`
+    - `{ "type": "interrupt" }` (Barge-in command to cancel current speaker task)
+- **Outbound Event Streams (JSON)**:
+  - `{ "type": "session_started" }`
+  - `{ "type": "status", "state": "transcribing" | "processing_intent" }`
+  - `{ "type": "transcript", "text": "...", "final": false | true }` (Speculative STT streams)
+  - `{ "type": "interrupted" }` (Acknowledge barge-in)
+  - `{ "type": "done" }` (Finished speaker turn)
 
 ---
 
-## Workspace
+## 4. Voice Utility endpoints
 
-### `GET /notes` and `POST /notes`
-**Purpose**: Retrieve and create workspace notes for persistent context.
+### `GET /voice`
+- **Purpose**: Returns capabilities and status of Whisper (STT) and Kokoro (TTS).
 
-### `GET /tasks`, `POST /tasks`, `PATCH /tasks/{id}`
-**Purpose**: Manage actionable items and to-do lists within the workspace.
+### `GET /voice/health`
+- **Purpose**: Detailed engine dependencies and readiness statistics.
+
+### `POST /voice/upload`
+- **Purpose**: Upload a voice audio file, validating MIME types and sizes.
+
+### `POST /voice/orchestrate`
+- **Purpose**: Synchronously run STT, LLM generation, and TTS for an uploaded audio file.
+
+### `POST /voice/orchestrate/stream`
+- **Purpose**: Streams SSE token responses for an uploaded audio file.
+
+### `POST /voice/transcribe`
+- **Purpose**: Converts uploaded audio file to text transcription.
+
+### `POST /voice/speak`
+- **Purpose**: Synthesizes text to a WAV audio binary.
+
+---
+
+## 5. Planning & Goals
+
+### `GET /planning/goals`
+- **Purpose**: Retrieves all structured goals.
+
+### `GET /planning/goals/{goal_id}`
+- **Purpose**: Returns the target goal along with its Milestones and Task DAG dependencies.
+
+### `POST /planning/goals`
+- **Purpose**: Manually creates a new goal structure and evaluates immediate tasks.
+
+### `PATCH /planning/tasks/{task_id}/status`
+- **Purpose**: Update a task status (e.g. "pending", "in_progress", "completed") and recalculate DAG scheduling.
+
+---
+
+## 6. Background Jobs & Notifications
+
+### `GET /background/jobs`
+- **Purpose**: List queued and processing asynchronous jobs.
+
+### `POST /background/jobs`
+- **Purpose**: Enqueue a new long-running job.
+
+### `GET /background/notifications`
+- **Purpose**: List system notifications.
+
+### `PATCH /background/notifications/{notif_id}/read`
+- **Purpose**: Acknowledge and clear a notification.
