@@ -12,7 +12,7 @@
  *   5. Barge-in correctly interrupts during assistant speech
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ─── VoiceStreamService VAD Configuration Tests ─────────────────────────────
 
