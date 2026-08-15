@@ -2,6 +2,14 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
+from app.core.config import settings
+
+
+@pytest.fixture(autouse=True)
+def mock_voice_env(monkeypatch):
+    """Ensure voice features and OPENROUTER_API_KEY are configured for unit tests."""
+    monkeypatch.setattr(settings, "openrouter_api_key", "sk-or-v1-fake-test-key")
+    monkeypatch.setattr(settings, "voice_enabled", True)
 
 
 @pytest.fixture
@@ -56,7 +64,6 @@ def test_get_voice_status(client):
 
 
 def test_transcribe_voice_success(client, mock_transcribe):
-    # Simulate a file upload
     file_content = b"fake audio content"
     files = {"file": ("test.webm", file_content, "audio/webm")}
 
@@ -71,7 +78,6 @@ def test_transcribe_voice_success(client, mock_transcribe):
 
 
 def test_transcribe_voice_upload_failure(client):
-    # We can trigger upload failure by sending an unsupported MIME type
     file_content = b"fake audio content"
     files = {"file": ("test.webm", file_content, "application/json")}
 
@@ -123,7 +129,6 @@ def test_orchestrate_voice_stream_success(client, mock_orchestrator_stream):
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
 
-    # Check the stream output
     content = response.content.decode("utf-8")
     assert 'data: {"type": "transcript", "text": "Hello world"}' in content
     assert 'data: {"type": "chunk", "content": "Hello to you too!"}' in content

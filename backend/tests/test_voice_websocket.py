@@ -1,4 +1,13 @@
 from unittest.mock import patch, AsyncMock
+import pytest
+from app.core.config import settings
+
+
+@pytest.fixture(autouse=True)
+def mock_voice_env(monkeypatch):
+    """Ensure voice features and OPENROUTER_API_KEY are configured for unit tests."""
+    monkeypatch.setattr(settings, "openrouter_api_key", "sk-or-v1-fake-test-key")
+    monkeypatch.setattr(settings, "voice_enabled", True)
 
 
 def test_websocket_voice_stream_success(client):

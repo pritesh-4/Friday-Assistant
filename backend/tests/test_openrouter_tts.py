@@ -11,9 +11,10 @@ from app.services.providers.tts_manager import TTSProviderManager
 
 
 @pytest.fixture(autouse=True)
-def mock_openrouter_api_key(monkeypatch):
-    """Ensure OPENROUTER_API_KEY is configured for unit tests."""
+def mock_voice_env(monkeypatch):
+    """Ensure voice features and OPENROUTER_API_KEY are configured for unit tests."""
     monkeypatch.setattr(settings, "openrouter_api_key", "sk-or-v1-fake-test-key")
+    monkeypatch.setattr(settings, "voice_enabled", True)
 
 
 @pytest.fixture
@@ -121,3 +122,19 @@ def test_voice_speak_stream_endpoint_success(client):
             or response.headers["content-type"] == "audio/mpeg"
         )
         assert response.content == b"chunk1chunk2"
+
+
+def test_voice_speak_endpoint_disabled_returns_503(client, monkeypatch):
+    """Verify production 503 behavior when voice_enabled is False."""
+    monkeypatch.setattr(settings, "voice_enabled", False)
+    response = client.post("/voice/speak", json={"text": "Hello FRIDAY"})
+    assert response.status_code == 503
+    assert "Voice features are disabled" in str(response.json())
+
+
+def test_voice_speak_stream_endpoint_disabled_returns_503(client, monkeypatch):
+    """Verify production 503 behavior when voice_enabled is False for stream endpoint."""
+    monkeypatch.setattr(settings, "voice_enabled", False)
+    response = client.post("/voice/speak/stream", json={"text": "Streaming test"})
+    assert response.status_code == 503
+    assert "Voice features are disabled" in str(response.json())
