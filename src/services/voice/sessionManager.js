@@ -2,9 +2,21 @@ import { VoiceStateMachine } from "./voiceStateMachine";
 import { VoiceStreamService } from "./streamService";
 import { speechQueue } from "./speechQueue";
 
+/** Voice debug trace logger — gated behind localStorage flag. */
+function _vtrace(...args) {
+  try {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('FRIDAY_VOICE_DEBUG') === 'true') {
+      const now = new Date();
+      const ts = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
+      console.log(`[VOICE-TRACE] ${ts}`, ...args);
+    }
+  } catch { /* ignore */ }
+}
+
 export class VoiceSessionManager {
   constructor({ onStateChange, onStreamEvent, onError, onVolumeChange } = {}) {
     this._stateMachine = new VoiceStateMachine((newState, prevState) => {
+      _vtrace(`${prevState} → ${newState}`);
       // Sync assistant active status to the recorder for local VAD barge-in checks
       if (this._recorder) {
         const assistantActive = ["TRANSCRIBING", "THINKING", "STREAMING_RESPONSE", "RESPONDING"].includes(newState);
@@ -209,7 +221,7 @@ export class VoiceSessionManager {
             this._handleError(err.message || "Streaming error occurred.");
           },
           onVolumeChange: (vol) => {
-            if (vol > 0.05 && this._stateMachine.state === "LISTENING") {
+            if (vol > 0.02 && this._stateMachine.state === "LISTENING") {
               this._stateMachine.transition("RECORDING");
             }
             this._onVolumeChange(vol);

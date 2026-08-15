@@ -4,6 +4,11 @@
  * 
  * Uses Web Audio API (AnalyserNode) to detect speech volume and automatically emit
  * onVoiceStart and onVoiceStop events.
+ *
+ * NOTE: This class is NOT used in the active WebSocket voice streaming path.
+ * The WebSocket path uses VoiceStreamService (streamService.js), which has its own
+ * built-in VAD running inside the AudioWorklet/ScriptProcessor callback.
+ * This class is retained as a legacy fallback for the HTTP upload flow.
  */
 export class VoiceRecorderService {
   /**

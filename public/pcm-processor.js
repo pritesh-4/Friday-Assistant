@@ -21,12 +21,13 @@ class PCMProcessor extends AudioWorkletProcessor {
     super();
 
     // Number of float32 samples per emitted chunk.
-    // 4096 samples ≈ 256ms at 16 kHz — same as the old ScriptProcessor buffer size.
+    // 2048 samples ≈ 43ms at 48 kHz — tuned for responsive VAD silence detection.
+    // (Previously 4096 ≈ 85ms — reduced to improve turn-end responsiveness.)
     this._chunkSize =
       (options &&
         options.processorOptions &&
         options.processorOptions.chunkSize) ||
-      4096;
+      2048;
 
     this._sampleBuffer = [];
     this._active = true;

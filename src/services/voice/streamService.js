@@ -1,6 +1,21 @@
 import { API_BASE_URL } from "../api";
 
 /**
+ * Voice debug trace logger.
+ * Enable by setting `localStorage.setItem('FRIDAY_VOICE_DEBUG', 'true')` in browser console.
+ * Disable by removing the key or setting to any other value.
+ */
+function _vtrace(...args) {
+  try {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('FRIDAY_VOICE_DEBUG') === 'true') {
+      const now = new Date();
+      const ts = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
+      console.log(`[VOICE-TRACE] ${ts}`, ...args);
+    }
+  } catch { /* ignore in non-browser environments */ }
+}
+
+/**
  * VoiceStreamService — Real-time persistent PCM audio capture and WebSocket streaming.
  *
  * Keeps a single persistent WebSocket connection and microphone stream active
@@ -45,7 +60,7 @@ export class VoiceStreamService {
 
     // VAD configuration
     this.VOICE_THRESHOLD    = 0.02;
-    this.SILENCE_TIMEOUT_MS = 1500;
+    this.SILENCE_TIMEOUT_MS = 800;
     this.isVoiceActive      = false;
     this.silenceStart       = null;
 
@@ -191,14 +206,19 @@ export class VoiceStreamService {
         if (this.isStreaming) {
           // User is speaking: monitor for silence to trigger stop
           if (rms > this.VOICE_THRESHOLD) {
+            if (!this.isVoiceActive) {
+              _vtrace(`VAD: Voice START detected (RMS: ${rms.toFixed(4)})`);
+            }
             this.isVoiceActive = true;
             this.silenceStart  = null;
           } else if (this.isVoiceActive) {
             if (this.silenceStart === null) {
               this.silenceStart = performance.now();
+              _vtrace(`VAD: Silence started (RMS: ${rms.toFixed(4)})`);
             } else {
               const silenceDuration = performance.now() - this.silenceStart;
               if (silenceDuration > this.SILENCE_TIMEOUT_MS) {
+                _vtrace(`VAD: Silence threshold crossed (${Math.round(silenceDuration)}ms >= ${this.SILENCE_TIMEOUT_MS}ms)`);
                 console.log("[VOICE-WS] VAD triggered silence stop");
                 this.isVoiceActive = false;
                 this.silenceStart  = null;
@@ -274,6 +294,7 @@ export class VoiceStreamService {
   triggerStop() {
     if (!this.isStreaming) return;
 
+    _vtrace('Stop signal → backend (triggerStop called)');
     console.log("[VOICE-WS] Sending stop signal to backend");
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: "stop" }));
