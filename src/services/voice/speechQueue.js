@@ -23,13 +23,17 @@ class VoiceManager {
     const voices = window.speechSynthesis.getVoices();
     if (!voices || voices.length === 0) return;
 
-    // Preferred list in order of priority:
+    // Preferred list of natural female voices in order of priority:
     const preferredNames = [
       "Microsoft Aria Online (Natural)",
       "Microsoft Jenny Online (Natural)",
       "Microsoft Ava Online (Natural)",
       "Google UK English Female",
-      "Google US English"
+      "Google US English Female",
+      "Microsoft Zira - English (United States)",
+      "Samantha",
+      "Victoria",
+      "Karen"
     ];
 
     // 1. Check exact matches
@@ -57,8 +61,11 @@ class VoiceManager {
       this.selectedVoice = voices.find(v =>
         v.lang.startsWith("en-") &&
         (v.name.toLowerCase().includes("female") || 
+         v.name.toLowerCase().includes("woman") ||
          v.name.toLowerCase().includes("zira") || 
          v.name.toLowerCase().includes("samantha") ||
+         v.name.toLowerCase().includes("victoria") ||
+         v.name.toLowerCase().includes("karen") ||
          v.name.toLowerCase().includes("lisa"))
       );
     }

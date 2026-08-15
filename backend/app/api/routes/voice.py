@@ -4,12 +4,11 @@ Endpoints:
   GET  /voice          — Capability status probe.
   GET  /voice/health   — Detailed STT/TTS diagnostic health check.
   POST /voice/upload   — Upload raw audio blob to temporary storage.
-  POST /voice/transcribe — Transcribe audio using Faster-Whisper STT.
-  POST /voice/speak    — Synthesize text to WAV audio using Kokoro TTS.
+  POST /voice/transcribe — Transcribe audio using OpenRouter Whisper / Faster-Whisper STT.
+  POST /voice/speak    — Synthesize text to MP3 audio using OpenRouter Fish Audio TTS.
 
 All endpoints check VOICE_ENABLED at runtime and return 503 with a clear
-message if voice features are disabled. This prevents confusing 500 errors
-when faster-whisper / kokoro-onnx are not installed.
+message if voice features are disabled.
 """
 
 import asyncio
@@ -343,7 +342,7 @@ async def speak_voice(
     speech_service: SpeechService = Depends(get_speech_service),
 ) -> Response:
     """
-    Convert text to an audio stream (MP3 or WAV) using OpenRouter Fish Audio TTS (or fallback Kokoro TTS).
+    Convert text to an audio stream (MP3 or WAV) using OpenRouter Fish Audio TTS.
     Returns binary audio (audio/mpeg or audio/wav). Maximum input is 3,000 characters.
     """
     _require_voice()
@@ -533,8 +532,8 @@ async def websocket_voice_stream(
                             )
                             session_state.active_generation_task.cancel()
 
-        except WebSocketDisconnect:
-            raise
+        except (WebSocketDisconnect, RuntimeError):
+            _log.info("[VOICE-WS] Client disconnected from reader loop.")
         except Exception as e:
             _log.error(f"[VOICE-WS] Error in reader loop: {e}", exc_info=True)
             raise

@@ -21,9 +21,5 @@ services:
         value: sqlite:///tmp/friday/friday.db
       - key: VOICE_ENABLED
         value: false
-      - key: KOKORO_MODEL_PATH
-        value: /opt/render/project/src/backend/data/models/kokoro/kokoro-v0_19.onnx
-      - key: KOKORO_VOICES_PATH
-        value: /opt/render/project/src/backend/data/models/kokoro/voices.json
       - key: MODELS_DIR
         value: /opt/render/project/src/backend/data/models

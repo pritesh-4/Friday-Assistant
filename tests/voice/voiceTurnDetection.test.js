@@ -24,14 +24,16 @@ describe('VoiceStreamService VAD Configuration', () => {
     VoiceStreamService = mod.VoiceStreamService;
   });
 
-  it('should have SILENCE_TIMEOUT_MS set to 800ms', () => {
+  it('should have SILENCE_TIMEOUT_MS set to 750ms', () => {
     const service = new VoiceStreamService();
-    expect(service.SILENCE_TIMEOUT_MS).toBe(800);
+    expect(service.SILENCE_TIMEOUT_MS).toBe(750);
   });
 
-  it('should have VOICE_THRESHOLD set to 0.02', () => {
+  it('should have MIN_SPEECH_THRESHOLD set to 0.025 and initial noiseFloor 0.010', () => {
     const service = new VoiceStreamService();
-    expect(service.VOICE_THRESHOLD).toBe(0.02);
+    expect(service.MIN_SPEECH_THRESHOLD).toBe(0.025);
+    expect(service.noiseFloor).toBe(0.010);
+    expect(service.MAX_UTTERANCE_MS).toBe(15000);
   });
 
   it('should start with isVoiceActive = false', () => {
@@ -327,5 +329,44 @@ describe('PCM Processor Configuration', () => {
     const expectedVADInterval = expectedChunkSize / 48000; // ~0.0427s = ~43ms
     expect(expectedVADInterval).toBeLessThan(0.05); // Less than 50ms
     expect(expectedChunkSize).toBe(2048);
+  });
+});
+
+// ─── VoiceManager Female Voice Preference Tests ─────────────────────────────
+
+describe('VoiceManager Female Voice Selection', () => {
+  let voiceManager;
+
+  beforeEach(async () => {
+    const mod = await import('../../src/services/voice/speechQueue.js');
+    voiceManager = mod.voiceManager;
+  });
+
+  it('should select natural female voices deterministically and reject male voices', () => {
+    const mockVoices = [
+      { name: 'Google US English', lang: 'en-US' }, // male
+      { name: 'Microsoft David Desktop - English (United States)', lang: 'en-US' }, // male
+      { name: 'Microsoft Zira - English (United States)', lang: 'en-US' }, // female
+      { name: 'Google UK English Female', lang: 'en-GB' }, // female
+    ];
+
+    // Mock globalThis.window
+    globalThis.window = {
+      speechSynthesis: {
+        getVoices: () => mockVoices,
+        onvoiceschanged: null,
+        speak: vi.fn(),
+        cancel: vi.fn(),
+      },
+    };
+
+    voiceManager.selectedVoice = null;
+    voiceManager.isLoaded = false;
+    voiceManager.loadVoices();
+
+    expect(voiceManager.selectedVoice).not.toBeNull();
+    // Preferred order has Google UK English Female before Microsoft Zira
+    expect(voiceManager.selectedVoice.name).toBe('Google UK English Female');
+    expect(voiceManager.selectedVoice.name).not.toBe('Google US English');
   });
 });

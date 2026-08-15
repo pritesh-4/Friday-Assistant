@@ -58,14 +58,21 @@ export class VoiceStreamService {
     this.onVADStop      = onVADStop      || (() => {});
     this.onBargeIn      = onBargeIn      || (() => {});
 
-    // VAD configuration
-    this.VOICE_THRESHOLD    = 0.02;
-    this.SILENCE_TIMEOUT_MS = 800;
-    this.isVoiceActive      = false;
-    this.silenceStart       = null;
+    // VAD & Adaptive Noise Floor Configuration
+    this.MIN_SPEECH_THRESHOLD = 0.025;
+    this.MAX_SPEECH_THRESHOLD = 0.150;
+    this.SPEECH_RATIO         = 2.2;
+    this.NOISE_MARGIN         = 0.015;
+    this.SILENCE_TIMEOUT_MS   = 750;
+    this.MAX_UTTERANCE_MS     = 15000; // 15s safety cap to prevent hung recording
+
+    this.noiseFloor           = 0.010;
+    this.isVoiceActive        = false;
+    this.silenceStart         = null;
+    this.recordingStartTime   = null;
 
     // Tracker for barge-in eligibility (is the assistant currently active?)
-    this.assistantIsActive  = false;
+    this.assistantIsActive    = false;
   }
 
   setAssistantActive(active) {
@@ -85,6 +92,7 @@ export class VoiceStreamService {
       this.isStreaming = true;
       this.isVoiceActive = false;
       this.silenceStart = null;
+      this.recordingStartTime = performance.now();
       return;
     }
 
@@ -181,14 +189,15 @@ export class VoiceStreamService {
       };
 
       // ── 5. Start capturing ──────────────────────────────────────────────
-      this.isRecording   = true;
-      this.isStreaming   = true;
-      this.isVoiceActive = false;
-      this.silenceStart  = null;
+      this.isRecording        = true;
+      this.isStreaming        = true;
+      this.isVoiceActive      = false;
+      this.silenceStart       = null;
+      this.recordingStartTime = performance.now();
 
       /**
        * Unified audio chunk handler — runs for both AudioWorklet and
-       * ScriptProcessorNode paths.
+       * ScriptProcessorNode paths with adaptive noise floor calibration.
        * @param {Float32Array} float32Samples
        */
       const handleAudioChunk = (float32Samples) => {
@@ -200,31 +209,57 @@ export class VoiceStreamService {
           sumSquares += float32Samples[i] * float32Samples[i];
         }
         const rms = Math.sqrt(sumSquares / float32Samples.length);
-        this.onVolumeChange(Math.min(1, rms * 10));
+
+        // Dynamic Speech Threshold Calculation based on adaptive noise floor
+        const currentSpeechThreshold = Math.min(
+          this.MAX_SPEECH_THRESHOLD,
+          Math.max(this.MIN_SPEECH_THRESHOLD, this.noiseFloor * this.SPEECH_RATIO + this.NOISE_MARGIN)
+        );
+
+        // Normalize volume output for UI, subtracting ambient noise floor
+        const normalizedVol = Math.min(1, Math.max(0, (rms - this.noiseFloor) * 12));
+        this.onVolumeChange(normalizedVol);
 
         // Speculative VAD checks
         if (this.isStreaming) {
+          // Check safety max utterance timeout to prevent indefinite recording
+          const utteranceDuration = performance.now() - (this.recordingStartTime || performance.now());
+          if (utteranceDuration > this.MAX_UTTERANCE_MS) {
+            _vtrace(`VAD: Max utterance duration reached (${Math.round(utteranceDuration)}ms). Triggering stop.`);
+            console.log("[VOICE-WS] Max utterance duration reached, finalizing turn.");
+            this.isVoiceActive = false;
+            this.silenceStart  = null;
+            this.triggerStop();
+            return;
+          }
+
           // User is speaking: monitor for silence to trigger stop
-          if (rms > this.VOICE_THRESHOLD) {
+          if (rms > currentSpeechThreshold) {
             if (!this.isVoiceActive) {
-              _vtrace(`VAD: Voice START detected (RMS: ${rms.toFixed(4)})`);
+              _vtrace(`VAD: Voice START detected (RMS: ${rms.toFixed(4)} > Threshold: ${currentSpeechThreshold.toFixed(4)}, NoiseFloor: ${this.noiseFloor.toFixed(4)})`);
             }
             this.isVoiceActive = true;
             this.silenceStart  = null;
-          } else if (this.isVoiceActive) {
-            if (this.silenceStart === null) {
-              this.silenceStart = performance.now();
-              _vtrace(`VAD: Silence started (RMS: ${rms.toFixed(4)})`);
-            } else {
-              const silenceDuration = performance.now() - this.silenceStart;
-              if (silenceDuration > this.SILENCE_TIMEOUT_MS) {
-                _vtrace(`VAD: Silence threshold crossed (${Math.round(silenceDuration)}ms >= ${this.SILENCE_TIMEOUT_MS}ms)`);
-                console.log("[VOICE-WS] VAD triggered silence stop");
-                this.isVoiceActive = false;
-                this.silenceStart  = null;
-                this.triggerStop();
-                return;
+          } else {
+            // Below speech threshold
+            if (this.isVoiceActive) {
+              if (this.silenceStart === null) {
+                this.silenceStart = performance.now();
+                _vtrace(`VAD: Silence started (RMS: ${rms.toFixed(4)} <= Threshold: ${currentSpeechThreshold.toFixed(4)})`);
+              } else {
+                const silenceDuration = performance.now() - this.silenceStart;
+                if (silenceDuration > this.SILENCE_TIMEOUT_MS) {
+                  _vtrace(`VAD: Silence threshold crossed (${Math.round(silenceDuration)}ms >= ${this.SILENCE_TIMEOUT_MS}ms)`);
+                  console.log("[VOICE-WS] VAD triggered silence stop");
+                  this.isVoiceActive = false;
+                  this.silenceStart  = null;
+                  this.triggerStop();
+                  return;
+                }
               }
+            } else {
+              // Not currently speaking: adaptively update ambient noise floor via EMA
+              this.noiseFloor = this.noiseFloor * 0.95 + rms * 0.05;
             }
           }
 
@@ -241,9 +276,11 @@ export class VoiceStreamService {
           }
         } else if (this.assistantIsActive) {
           // Assistant is responding/speaking: check for user barge-in
-          if (rms > this.VOICE_THRESHOLD) {
+          if (rms > currentSpeechThreshold) {
             console.log("[VOICE-WS] VAD detected user barge-in speaking.");
             this.onBargeIn();
+          } else {
+            this.noiseFloor = this.noiseFloor * 0.95 + rms * 0.05;
           }
         }
       };

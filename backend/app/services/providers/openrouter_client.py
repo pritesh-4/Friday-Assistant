@@ -147,7 +147,7 @@ class OpenRouterAudioClient:
     async def synthesize_speech(
         self,
         text: str,
-        voice: str = "alloy",
+        voice: str = "nova",
         response_format: str = "mp3",
         model: str = "fish-audio/s2.1-pro-free:free",
     ) -> bytes:
@@ -231,7 +231,7 @@ class OpenRouterAudioClient:
     async def stream_speech(
         self,
         text: str,
-        voice: str = "alloy",
+        voice: str = "nova",
         response_format: str = "mp3",
         model: str = "fish-audio/s2.1-pro-free:free",
     ) -> AsyncGenerator[bytes, None]:

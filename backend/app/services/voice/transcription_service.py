@@ -135,11 +135,12 @@ class TranscriptionService:
         )
 
         return {
-            "transcript": result["transcript"],
-            "detected_language": result["detected_language"],
-            "confidence": result["confidence"],
-            "duration": result["duration"],
+            "transcript": result.get("transcript", ""),
+            "detected_language": result.get("detected_language", "en"),
+            "confidence": result.get("confidence", 0.99),
+            "duration": result.get("duration", 0.0),
             "processing_time": processing_time,
-            "segments": result["segments"],
-            "metadata": result["metadata"],
+            "segments": result.get("segments", []),
+            "metadata": result.get("metadata", {}),
+            "provider": result.get("provider", "unknown"),
         }

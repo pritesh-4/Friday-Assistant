@@ -10,19 +10,13 @@ def mock_voice_env(monkeypatch):
     monkeypatch.setattr(settings, "voice_enabled", True)
 
 
-def test_websocket_voice_stream_success(client):
+def test_websocket_voice_stream_success(client, monkeypatch):
     """
     Test the full-duplex WebSocket voice stream endpoint.
     Verifies that the reader, writer, and STT loops execute correctly.
     """
-    mock_transcribe_result = {
-        "transcript": "hello Friday",
-        "detected_language": "en",
-        "confidence": 0.99,
-        "duration": 1.5,
-        "segments": [],
-        "metadata": {},
-    }
+    monkeypatch.setattr(settings, "openrouter_api_key", "sk-or-v1-fake-test-key")
+    monkeypatch.setattr(settings, "voice_enabled", True)
 
     async def mock_stream_chat(*args, **kwargs):
         yield 'data: {"type": "status", "status": "processing_intent"}\n\n'
@@ -34,9 +28,9 @@ def test_websocket_voice_stream_success(client):
 
     with (
         patch(
-            "app.ai.whisper.engine.WhisperEngine.transcribe_array",
+            "app.services.providers.openrouter_client.OpenRouterAudioClient.transcribe_audio",
             new_callable=AsyncMock,
-            return_value=mock_transcribe_result,
+            return_value={"text": "hello Friday", "language": "en"},
         ),
         patch(
             "app.services.streaming_coordinator.StreamingCoordinator.stream_chat",
@@ -94,18 +88,12 @@ def test_websocket_voice_stream_success(client):
             assert resp["type"] == "done"
 
 
-def test_websocket_voice_stream_interrupt(client):
+def test_websocket_voice_stream_interrupt(client, monkeypatch):
     """
     Test the barge-in/interruption cancellation trigger on the WebSocket.
     """
-    mock_transcribe_result = {
-        "transcript": "hello Friday",
-        "detected_language": "en",
-        "confidence": 0.99,
-        "duration": 1.5,
-        "segments": [],
-        "metadata": {},
-    }
+    monkeypatch.setattr(settings, "openrouter_api_key", "sk-or-v1-fake-test-key")
+    monkeypatch.setattr(settings, "voice_enabled", True)
 
     # Simulate an LLM stream that hangs/generates slow to verify interruption cancels it
     async def mock_stream_chat_slow(*args, **kwargs):
@@ -122,9 +110,9 @@ def test_websocket_voice_stream_interrupt(client):
 
     with (
         patch(
-            "app.ai.whisper.engine.WhisperEngine.transcribe_array",
+            "app.services.providers.openrouter_client.OpenRouterAudioClient.transcribe_audio",
             new_callable=AsyncMock,
-            return_value=mock_transcribe_result,
+            return_value={"text": "hello Friday", "language": "en"},
         ),
         patch(
             "app.services.streaming_coordinator.StreamingCoordinator.stream_chat",

@@ -46,7 +46,7 @@ async def test_openrouter_tts_synthesize_success():
         call_kwargs = mock_post.call_args.kwargs
         assert call_kwargs["json"]["model"] == settings.friday_tts_model
         assert call_kwargs["json"]["input"] == "Hello Friday"
-        assert call_kwargs["json"]["voice"] == "alloy"
+        assert call_kwargs["json"]["voice"] == settings.friday_tts_voice
         assert call_kwargs["json"]["response_format"] == "mp3"
 
 

@@ -73,8 +73,39 @@ class STTProviderManager:
 
     async def transcribe_array(self, float32_samples) -> dict:
         """
-        Transcribe a 16kHz float32 numpy array directly via Faster-Whisper.
+        Transcribe a 16kHz float32 numpy array through the unified STT provider chain
+        (Primary: OpenRouter Whisper Turbo, Fallback: Faster-Whisper local engine).
         """
-        return await self.faster_whisper_provider.engine.transcribe_array(
-            float32_samples
+        import io
+        import wave
+        import numpy as np
+
+        if float32_samples is None or len(float32_samples) == 0:
+            return {
+                "transcript": "",
+                "detected_language": "en",
+                "confidence": 0.0,
+                "duration": 0.0,
+                "segments": [],
+                "metadata": {},
+                "provider": "none",
+            }
+
+        # Convert float32 array [-1.0, 1.0] to 16-bit PCM WAV bytes in memory (<1ms)
+        clamped = np.clip(float32_samples, -1.0, 1.0)
+        int16_samples = (clamped * 32767.0).astype(np.int16)
+
+        wav_io = io.BytesIO()
+        with wave.open(wav_io, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(16000)
+            wf.writeframes(int16_samples.tobytes())
+
+        audio_bytes = wav_io.getvalue()
+
+        return await self.transcribe(
+            audio_bytes=audio_bytes,
+            filename="stream.wav",
+            mime_type="audio/wav",
         )

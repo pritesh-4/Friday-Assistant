@@ -137,24 +137,27 @@ def test_orchestrate_voice_stream_success(client, mock_orchestrator_stream):
     mock_orchestrator_stream.assert_called_once()
 
 
-@patch("app.ai.whisper.engine.WhisperEngine.transcribe_array")
 @pytest.mark.asyncio
-async def test_transcribe_array_success(mock_transcribe_arr):
-    mock_transcribe_arr.return_value = {
-        "transcript": "Hello from memory",
-        "detected_language": "en",
-        "confidence": 0.99,
-        "duration": 2.0,
-        "segments": [],
-        "metadata": {},
-    }
+async def test_transcribe_array_success():
+    from unittest.mock import AsyncMock, patch
     from app.services.voice.transcription_service import TranscriptionService
     import numpy as np
 
     service = TranscriptionService()
     fake_samples = np.zeros(16000, dtype=np.float32)
-    res = await service.transcribe_array(fake_samples)
 
-    assert res["transcript"] == "Hello from memory"
-    assert res["detected_language"] == "en"
-    mock_transcribe_arr.assert_called_once_with(fake_samples)
+    with patch(
+        "app.services.providers.openrouter_client.OpenRouterAudioClient.transcribe_audio",
+        new_callable=AsyncMock,
+    ) as mock_transcribe:
+        mock_transcribe.return_value = {
+            "text": "Hello from memory",
+            "language": "en",
+        }
+
+        res = await service.transcribe_array(fake_samples)
+
+        assert res["transcript"] == "Hello from memory"
+        assert res["detected_language"] == "en"
+        assert res["provider"] == "openrouter_whisper"
+        mock_transcribe.assert_called_once()

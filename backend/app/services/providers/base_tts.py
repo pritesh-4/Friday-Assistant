@@ -12,14 +12,13 @@ class BaseTTSProvider(ABC):
     """
     Abstract Base Class for all Text-to-Speech (TTS) providers.
 
-    Provides a unified interface for TTS synthesis, whether hosted locally
-    (e.g., Kokoro-ONNX) or remotely (e.g., OpenRouter Fish Audio).
+    Provides a unified interface for TTS synthesis (e.g., OpenRouter Fish Audio).
     """
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Identifier of the TTS provider (e.g., 'openrouter', 'kokoro')."""
+        """Identifier of the TTS provider (e.g., 'openrouter')."""
 
     @property
     @abstractmethod

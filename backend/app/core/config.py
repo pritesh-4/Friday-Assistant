@@ -77,8 +77,8 @@ class Settings(BaseSettings):
 
     # FRIDAY TTS Provider Configuration
     friday_tts_provider: str = "openrouter"
-    friday_tts_model: str = "fish-audio/s2.1-pro-free"
-    friday_tts_voice: str = "alloy"
+    friday_tts_model: str = "fish-audio/s2.1-pro-free:free"
+    friday_tts_voice: str = "nova"
     friday_tts_format: str = "mp3"
 
     # ── Security ──────────────────────────────────────────────────────────────
