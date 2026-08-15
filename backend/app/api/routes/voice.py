@@ -72,7 +72,9 @@ def _require_voice() -> None:
 
 
 @router.get("", summary="Voice capability status")
-async def get_voice_status() -> dict[str, Any]:
+async def get_voice_status(
+    speech_service: SpeechService = Depends(get_speech_service),
+) -> dict[str, Any]:
     """
     Return the current availability of server-side voice features.
     This endpoint always responds — it does not raise 503 even when voice is disabled,
@@ -87,16 +89,16 @@ async def get_voice_status() -> dict[str, Any]:
             "browser_fallback": True,
         }
 
-    from app.ai.tts.loader import is_tts_available
-
     whisper_engine = WhisperEngine()
+    tts_info = speech_service.manager.get_active_provider_info()
 
     return {
         "available": True,
         "stt": "faster-whisper" if whisper_engine.is_loaded else "unavailable",
-        "tts": "kokoro-onnx" if is_tts_available() else "unavailable",
+        "tts": tts_info["active_provider"] if tts_info["available"] else "unavailable",
+        "tts_info": tts_info,
         "detail": "Server-side STT and TTS status reported above.",
-        "browser_fallback": not (whisper_engine.is_loaded and is_tts_available()),
+        "browser_fallback": not (whisper_engine.is_loaded and tts_info["available"]),
     }
 
 
@@ -341,8 +343,8 @@ async def speak_voice(
     speech_service: SpeechService = Depends(get_speech_service),
 ) -> Response:
     """
-    Convert text to a WAV audio stream using the Kokoro TTS engine.
-    Returns binary audio/wav. Maximum input is 3,000 characters.
+    Convert text to an audio stream (MP3 or WAV) using OpenRouter Fish Audio TTS (or fallback Kokoro TTS).
+    Returns binary audio (audio/mpeg or audio/wav). Maximum input is 3,000 characters.
     """
     _require_voice()
 
@@ -352,10 +354,16 @@ async def speak_voice(
     _log.info("[VOICE] START POST /voice/speak")
 
     try:
-        audio_bytes = await speech_service.synthesize(request.text)
+        (
+            audio_bytes,
+            media_type,
+            provider_name,
+        ) = await speech_service.synthesize_with_metadata(request.text)
         elapsed = time.time() - start_time
-        _log.info(f"[VOICE] SUCCESS POST /voice/speak in {elapsed:.2f}s")
-        return Response(content=audio_bytes, media_type="audio/wav")
+        _log.info(
+            f"[VOICE] SUCCESS POST /voice/speak via [{provider_name}] in {elapsed:.2f}s -> {len(audio_bytes)} bytes ({media_type})"
+        )
+        return Response(content=audio_bytes, media_type=media_type)
     except ValueError as exc:
         _log.error(f"[VOICE] FAILURE POST /voice/speak - ValueError: {exc}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
@@ -369,6 +377,32 @@ async def speak_voice(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"TTS synthesis failed: {exc!s}",
+        )
+
+
+@router.post("/speak/stream", summary="Stream synthesized speech chunks")
+async def speak_voice_stream(
+    request: SpeakRequest,
+    speech_service: SpeechService = Depends(get_speech_service),
+) -> StreamingResponse:
+    """
+    Convert text to an audio stream using OpenRouter Fish Audio TTS,
+    yielding audio chunks as they arrive from the provider.
+    """
+    _require_voice()
+
+    try:
+        audio_gen, media_type, provider_name = await speech_service.stream_synthesize(
+            request.text
+        )
+        _log.info(f"[VOICE] START POST /voice/speak/stream via [{provider_name}]")
+        return StreamingResponse(audio_gen, media_type=media_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"TTS stream synthesis failed: {exc!s}",
         )
 
 
@@ -585,38 +619,56 @@ async def websocket_voice_stream(
                 session_state.active_generation_task = None
 
     async def process_turn_generation():
+        import uuid
+
+        turn_id = f"turn_{uuid.uuid4().hex[:12]}"
+        turn_start_time = time.time()
+
         async with session_state.lock:
             if not session_state.audio_chunks:
                 await websocket.send_json(
                     {"type": "transcript", "text": "", "final": True}
                 )
-                await websocket.send_json({"type": "done"})
+                await websocket.send_json({"type": "done", "turn_id": turn_id})
                 return
             full_audio = np.concatenate(session_state.audio_chunks)
             session_state.audio_chunks = []
 
-        await websocket.send_json({"type": "status", "state": "transcribing"})
+        await websocket.send_json(
+            {"type": "status", "state": "transcribing", "turn_id": turn_id}
+        )
 
         # Stage 8: Transcription starts
         _log.info(
-            f"[TRACE] [Stage 8] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Final transcription starts"
+            f"[TRACE] [Stage 8] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Final transcription starts (turn_id: {turn_id})"
         )
+        stt_start_time = time.time()
         stt_result = await transcription_service.transcribe_array(full_audio)
+        stt_latency_ms = round((time.time() - stt_start_time) * 1000)
         transcript = stt_result["transcript"]
+        stt_provider = stt_result.get("provider", "faster_whisper")
+
         _log.info(
-            f"[TRACE] [Stage 8] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Final transcription complete: '{transcript}'"
+            f"[TRACE] [Stage 8] [{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}] Final transcription complete ({stt_latency_ms}ms via {stt_provider}): '{transcript}'"
         )
 
         await websocket.send_json(
-            {"type": "transcript", "text": transcript, "final": True}
+            {
+                "type": "transcript",
+                "text": transcript,
+                "final": True,
+                "turn_id": turn_id,
+            }
         )
 
         if not transcript.strip():
-            await websocket.send_json({"type": "done"})
+            await websocket.send_json({"type": "done", "turn_id": turn_id})
             return
 
         # Trigger LLM and stream response
-        await websocket.send_json({"type": "status", "state": "processing_intent"})
+        await websocket.send_json(
+            {"type": "status", "state": "processing_intent", "turn_id": turn_id}
+        )
 
         chat_request = ChatRequest(
             message=transcript, conversation_id=session_state.active_conversation_id
@@ -631,12 +683,23 @@ async def websocket_voice_stream(
         ):
             # Check for early exit/barge-in interruption
             if session_state.interrupted:
+                _log.info(f"[VOICE-WS] Turn {turn_id} interrupted by barge-in event.")
                 raise asyncio.CancelledError()
 
             if event.startswith("data: "):
                 payload_str = event[6:].strip()
                 if payload_str:
                     payload = json.loads(payload_str)
+                    payload["turn_id"] = turn_id
+                    if payload.get("type") == "done":
+                        total_turn_ms = round((time.time() - turn_start_time) * 1000)
+                        if "metrics" in payload:
+                            payload["metrics"]["stt_latency_ms"] = stt_latency_ms
+                            payload["metrics"]["total_turn_ms"] = total_turn_ms
+                            payload["metrics"]["stt_provider"] = stt_provider
+                            payload["metrics"]["tts_provider"] = (
+                                settings.friday_tts_provider
+                            )
                     await websocket.send_json(payload)
 
     # Gather reader, rolling STT, and writer tasks

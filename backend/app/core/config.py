@@ -71,14 +71,15 @@ class Settings(BaseSettings):
     llm_request_timeout_seconds: float = 45.0
 
     # ── Voice Features ────────────────────────────────────────────────────────
-    # Set VOICE_ENABLED=true only when faster-whisper and kokoro-onnx are
-    # installed (via requirements-voice.txt) and native libraries are available.
-    # Defaults to False — safe for Render free tier where native libs may
-    # not be present.
+    # Set VOICE_ENABLED=true to enable STT and TTS features.
     voice_enabled: bool = False
     whisper_model: str = "tiny"
-    kokoro_model_path: Path = Path("./data/models/kokoro/kokoro-v0_19.onnx")
-    kokoro_voices_path: Path = Path("./data/models/kokoro/voices.json")
+
+    # FRIDAY TTS Provider Configuration
+    friday_tts_provider: str = "openrouter"
+    friday_tts_model: str = "fish-audio/s2.1-pro-free"
+    friday_tts_voice: str = "alloy"
+    friday_tts_format: str = "mp3"
 
     # ── Security ──────────────────────────────────────────────────────────────
     # Reserved for future authentication. Generate a random value (e.g. via
@@ -108,8 +109,6 @@ class Settings(BaseSettings):
     @field_validator(
         "uploads_directory",
         "voice_uploads_directory",
-        "kokoro_model_path",
-        "kokoro_voices_path",
         mode="before",
     )
     @classmethod

@@ -74,8 +74,6 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
             new_callable=AsyncMock,
             return_value=mock_transcribe_result,
         ),
-        patch("app.ai.tts.loader.initialize_tts_model", return_value=True),
-        patch("app.ai.tts.loader.is_tts_available", return_value=True),
         patch(
             "app.services.voice.speech_service.SpeechService.synthesize",
             new_callable=AsyncMock,

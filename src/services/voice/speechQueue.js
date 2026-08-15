@@ -103,14 +103,8 @@ export const voiceManager = new VoiceManager();
 /**
  * speechQueue — Sequential TTS audio playback queue.
  *
- * LIMITATION WARNING:
- * Browser-native SpeechSynthesis uses the system OS and browser voice libraries.
- * These vary widely by client platform (Chrome uses Google/Microsoft cloud voices, Safari uses
- * Apple Siri voices, Firefox uses local eSpeak or basic OS voices).
- * As a result, browser synthesis CANNOT guarantee a uniform premium experience across all browsers.
- * For production deployments, it is highly recommended to use the dedicated neural TTS engine
- * (Kokoro-ONNX / Piper) hosted on the backend server, and use this browser fallback only
- * when the server is offline or unreachable.
+ * Primary TTS engine: OpenRouter Fish Audio S2.1 Pro Free hosted on backend.
+ * Browser-native SpeechSynthesis is used as a fallback if the backend service is offline.
  */
 export const speechQueue = {
   queue: [],
