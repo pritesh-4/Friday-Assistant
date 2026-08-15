@@ -1,9 +1,17 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
+from app.core.config import settings
 from app.services.providers.base_stt import STTProviderError
 from app.services.providers.openrouter_stt import OpenRouterWhisperTurbo
 from app.services.providers.stt_manager import STTProviderManager
+
+
+@pytest.fixture(autouse=True)
+def mock_openrouter_api_key(monkeypatch):
+    """Ensure OPENROUTER_API_KEY is configured for unit tests."""
+    monkeypatch.setattr(settings, "openrouter_api_key", "sk-or-v1-fake-test-key")
 
 
 def test_openrouter_stt_properties():

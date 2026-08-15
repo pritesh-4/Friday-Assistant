@@ -80,10 +80,6 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
             return_value=b"fake_audio",
         ),
         patch(
-            "app.services.voice.transcription_service.subprocess.run",
-            return_value=mock_subprocess_result,
-        ),
-        patch(
             "app.services.voice_service.subprocess.run",
             return_value=mock_subprocess_result,
         ),

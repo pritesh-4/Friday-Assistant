@@ -3,10 +3,17 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
 from app.main import app
 from app.services.providers.base_tts import TTSProviderError
 from app.services.providers.openrouter_tts import OpenRouterTTSProvider
 from app.services.providers.tts_manager import TTSProviderManager
+
+
+@pytest.fixture(autouse=True)
+def mock_openrouter_api_key(monkeypatch):
+    """Ensure OPENROUTER_API_KEY is configured for unit tests."""
+    monkeypatch.setattr(settings, "openrouter_api_key", "sk-or-v1-fake-test-key")
 
 
 @pytest.fixture
@@ -17,7 +24,7 @@ def client():
 def test_openrouter_tts_provider_properties():
     provider = OpenRouterTTSProvider()
     assert provider.name == "openrouter"
-    assert provider.is_configured is True  # OPENROUTER_API_KEY is present in env
+    assert provider.is_configured is True
 
 
 @pytest.mark.asyncio
@@ -36,7 +43,7 @@ async def test_openrouter_tts_synthesize_success():
         assert audio_bytes == fake_audio
         mock_post.assert_called_once()
         call_kwargs = mock_post.call_args.kwargs
-        assert call_kwargs["json"]["model"] == "fish-audio/s2.1-pro-free"
+        assert call_kwargs["json"]["model"] == settings.friday_tts_model
         assert call_kwargs["json"]["input"] == "Hello Friday"
         assert call_kwargs["json"]["voice"] == "alloy"
         assert call_kwargs["json"]["response_format"] == "mp3"
