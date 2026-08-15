@@ -160,8 +160,7 @@ class RouterAgent:
 
         # Conversational Strategy
         try:
-            stream = await self._call_providers_stream(messages)
-            async for chunk in stream:
+            async for chunk in self._call_providers_stream(messages):
                 yield chunk
         except Exception as e:
             yield f"Error: {e}"
@@ -237,7 +236,9 @@ class RouterAgent:
 
         raise LLMProviderError(f"All providers failed. Details: {' | '.join(errors)}")
 
-    async def _call_providers_stream(self, messages: list[dict[str, Any]]) -> Any:
+    async def _call_providers_stream(
+        self, messages: list[dict[str, Any]]
+    ) -> AsyncGenerator[str, None]:
         chain = []
         for p in settings.fallback_chain:
             if p not in chain:
@@ -250,28 +251,49 @@ class RouterAgent:
             for provider_name in chain:
                 provider = self.llm_service.get_provider(provider_name)
                 if provider and provider.supports_vision:
+                    has_yielded = False
                     try:
-                        return provider.stream_response(messages)
+                        async for chunk in provider.stream_response(messages):
+                            has_yielded = True
+                            yield chunk
+                        if has_yielded:
+                            return
                     except Exception as exc:
                         errors.append(f"{provider_name} (vision): {exc}")
+                        if has_yielded:
+                            raise
             messages = self._sanitize_for_text_only(messages)
 
         for provider_name in chain:
             provider = self.llm_service.get_provider(provider_name)
             if not provider:
                 continue
+            has_yielded = False
             try:
-                return provider.stream_response(messages)
+                async for chunk in provider.stream_response(messages):
+                    has_yielded = True
+                    yield chunk
+                if has_yielded:
+                    return
             except Exception as exc:
                 errors.append(f"{provider_name}: {exc}")
+                if has_yielded:
+                    raise
 
         for provider_name, provider in self.llm_service.available_providers.items():
             if provider_name in chain:
                 continue
+            has_yielded = False
             try:
-                return provider.stream_response(messages)
+                async for chunk in provider.stream_response(messages):
+                    has_yielded = True
+                    yield chunk
+                if has_yielded:
+                    return
             except Exception as exc:
                 errors.append(f"{provider_name}: {exc}")
+                if has_yielded:
+                    raise
 
         raise LLMProviderError(
             f"All stream providers failed. Details: {' | '.join(errors)}"

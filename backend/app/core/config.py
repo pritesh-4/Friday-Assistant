@@ -53,16 +53,16 @@ class Settings(BaseSettings):
     # ── LLM Providers ─────────────────────────────────────────────────────────
     # Primary Free-Tier Providers
     groq_api_key: str | None = None
-    groq_model: str = "gpt-oss-120b"
+    groq_model: str = "llama-3.3-70b-versatile"
 
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-2.0-flash"
 
     openrouter_api_key: str | None = None
-    openrouter_model: str = "Cohere North Mini Code"
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
 
     nvidia_api_key: str | None = None
-    nvidia_model: str = "Nemotron 3 Ultra 550B"
+    nvidia_model: str = "meta/llama-3.3-70b-instruct"
 
     # Provider routing rules (comma-separated list of provider names)
     fallback_chain: list[str] = ["groq", "gemini", "openrouter", "nvidia"]
